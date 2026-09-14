@@ -37,7 +37,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_DRIVE_FILE_ID: "19BzabmXlM2QlXS4TvEihshdxz82GH-aW"
+          GOOGLE_DRIVE_FILE_ID: "1TJaDJ5U7M3RZYgfAR6LI3kFTABBH0UYb"
         shell: bash
         run: |
           set -e
