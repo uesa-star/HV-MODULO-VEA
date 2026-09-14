@@ -1,0 +1,126 @@
+name: VEA - aplicar datos vigentes al INDEX
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/patch-vea-fresh-data.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aplicar parche controlado al INDEX
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          # 1) Nueva firma de build, sin alterar estructura visual.
+          text = text.replace(
+              '<!-- VEA_BUILD: F6_10_CARGA_INICIAL_MOVIL_ANIO_ACTIVO -->',
+              '<!-- VEA_BUILD: F6_20_MASTER_DINAMICO_CACHE_V2 -->',
+              1
+          )
+
+          # 2) Fuente maestra: dejar de fijar 10.Sep.2026 / S.E.35 en código.
+          old_source = """        // Fuente maestra validada el 10.Sep.2026. Se conserva todo el repositorio
+        // hasta la S.E.35; el boletín puede aplicar un corte menor mediante filtros.
+        const VEA_FUENTE_MAESTRA_20260910 = Object.freeze({
+            archivo: 'vigilancia VEA(20260910-202811).xlsx',
+            sha256: '9479023f7e3182ee4726cea5f02d8c115f17feda999e0e5496620684f8969c7c',
+            fecha: '10.Sep.2026',
+            ultimaSemana: 35,
+            hojas: Object.freeze(['EDAS','IRAS','FEBRILES','INDIVIDUAL','SOAT'])
+        });"""
+          new_source = """        // F6.20 — Fuente maestra dinámica. El corte epidemiológico ya no se fija
+        // en el código: se obtiene del repositorio realmente descargado desde Supabase.
+        const VEA_FUENTE_MAESTRA_20260910 = Object.freeze({
+            archivo: 'vigilancia VEA.xlsx',
+            sha256: null,
+            fecha: null,
+            ultimaSemana: null,
+            hojas: Object.freeze(['EDAS','IRAS','FEBRILES','INDIVIDUAL','SOAT'])
+        });"""
+          if old_source not in text:
+              raise SystemExit('ERROR: no se encontró el bloque exacto de fuente maestra; no se modificó el INDEX.')
+          text = text.replace(old_source, new_source, 1)
+
+          # 3) Auditoría: el corte esperado pasa a ser el corte real descargado.
+          old_audit = """                esperado: VEA_FUENTE_MAESTRA_20260910.ultimaSemana,
+                coincideCorte: ultimaSemana === VEA_FUENTE_MAESTRA_20260910.ultimaSemana,"""
+          new_audit = """                esperado: ultimaSemana,
+                coincideCorte: ultimaSemana !== null,"""
+          if old_audit not in text:
+              raise SystemExit('ERROR: no se encontró la auditoría de corte; no se modificó el INDEX.')
+          text = text.replace(old_audit, new_audit, 1)
+
+          # 4) Romper únicamente la caché procesada antigua. La nueva caché se reconstruye
+          # automáticamente con los datos limpios que ahora existen en Supabase.
+          text = text.replace("const VEA_CACHE_DB = 'VEA_CACHE_DB_V1';", "const VEA_CACHE_DB = 'VEA_CACHE_DB_V2_20260914';", 1)
+          text = text.replace("const VEA_CACHE_KEY = 'dataset_procesado';", "const VEA_CACHE_KEY = 'dataset_procesado_master_dinamico_v2';", 1)
+
+          # 5) Indicador superior: eliminar fecha fija del Master y mostrar S.E. real.
+          old_banner = """                ? `Última sincronización: ${fecha} · Fuente maestra 10.Sep.2026 · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`"""
+          new_banner = """                ? `Última sincronización: ${fecha} · Fuente maestra vigente · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'} · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`"""
+          if old_banner not in text:
+              raise SystemExit('ERROR: no se encontró el texto fijo del indicador; no se modificó el INDEX.')
+          text = text.replace(old_banner, new_banner, 1)
+
+          # 6) Cache-buster de las llamadas same-origin al API. cache:no-store se conserva.
+          marker = """            if (year !== null && year !== undefined && String(year).trim() !== '') {
+                url += `&year=${encodeURIComponent(String(year).trim())}`;
+            }
+            const controlador = new AbortController();"""
+          replacement = """            if (year !== null && year !== undefined && String(year).trim() !== '') {
+                url += `&year=${encodeURIComponent(String(year).trim())}`;
+            }
+            url += '&build=F620_20260914';
+            const controlador = new AbortController();"""
+          if marker not in text:
+              raise SystemExit('ERROR: no se encontró la construcción URL del API; no se modificó el INDEX.')
+          text = text.replace(marker, replacement, 1)
+
+          if text == original:
+              raise SystemExit('ERROR: el parche no produjo cambios.')
+
+          path.write_text(text, encoding='utf-8')
+          print('INDEX parcheado: caché V2 + fuente dinámica + corte dinámico + API no-cache.')
+          PY
+
+      - name: Validar ausencia de corte fijo anterior
+        shell: bash
+        run: |
+          if grep -q "Fuente maestra 10.Sep.2026" index.html; then
+            echo "ERROR: quedó el texto fijo anterior"
+            exit 1
+          fi
+          if grep -q "VEA_CACHE_DB_V1" index.html; then
+            echo "ERROR: quedó la caché V1"
+            exit 1
+          fi
+          grep -q "F6_20_MASTER_DINAMICO_CACHE_V2" index.html
+          grep -q "VEA_CACHE_DB_V2_20260914" index.html
+          echo "Validación del INDEX OK"
+
+      - name: Publicar nueva versión del INDEX
+        shell: bash
+        run: |
+          git config user.name "uesa-star"
+          git config user.email "uesa@hospitaldeventanilla.gob.pe"
+          git add index.html
+          git commit -m "VEA: datos vigentes, cache V2 y corte epidemiologico dinamico"
+          git push origin HEAD:main
