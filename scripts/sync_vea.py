@@ -131,17 +131,63 @@ def supabase_request(base: str, key: str, method: str, table: str, **kwargs: Any
     return requests.request(method, f"{base}/rest/v1/{table}", headers=headers, timeout=120, **kwargs)
 
 
+def count_table(base: str, key: str, table: str) -> int:
+    response = supabase_request(
+        base,
+        key,
+        "GET",
+        table,
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Prefer": "count=exact",
+            "Range": "0-0",
+        },
+        params={"select": "_row_id"},
+    )
+    if response.status_code >= 300:
+        raise RuntimeError(
+            f"{table}: no se pudo contar la tabla ({response.status_code}): {response.text[:500]}"
+        )
+    content_range = response.headers.get("content-range", "")
+    match = re.search(r"/(\d+)$", content_range)
+    if not match:
+        raise RuntimeError(f"{table}: Content-Range inválido al contar: {content_range!r}")
+    return int(match.group(1))
+
+
 def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> None:
-    existing = supabase_request(base, key, "GET", table, params={"select": "_row_id", "limit": "1000000"})
-    if existing.status_code >= 300:
-        raise RuntimeError(f"{table}: no se pudieron leer filas ({existing.status_code}): {existing.text[:500]}")
-    ids = [item.get("_row_id") for item in existing.json() if item.get("_row_id") is not None]
-    for start in range(0, len(ids), BATCH):
-        part = ids[start:start + BATCH]
-        query = ",".join(str(item) for item in part)
-        response = supabase_request(base, key, "DELETE", table, params={"_row_id": f"in.({query})"})
-        if response.status_code >= 300:
-            raise RuntimeError(f"{table}: no se pudieron eliminar filas ({response.status_code}): {response.text[:500]}")
+    before = count_table(base, key, table)
+    print(f"{table}: {before} filas antes del reemplazo")
+
+    # Borrado total real con filtro PostgREST. La versión anterior intentaba
+    # obtener todos los _row_id en una sola lectura, pero el límite de filas
+    # de PostgREST dejaba registros antiguos sin borrar y generaba duplicados.
+    response = supabase_request(
+        base,
+        key,
+        "DELETE",
+        table,
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        params={"_row_id": "not.is.null"},
+    )
+    if response.status_code >= 300:
+        raise RuntimeError(
+            f"{table}: no se pudo vaciar completamente la tabla "
+            f"({response.status_code}): {response.text[:1000]}"
+        )
+
+    after_delete = count_table(base, key, table)
+    if after_delete != 0:
+        raise RuntimeError(
+            f"{table}: el borrado total falló; quedaron {after_delete} filas antes de insertar"
+        )
+
     for start in range(0, len(rows), BATCH):
         payload = rows[start:start + BATCH]
         response = supabase_request(
@@ -158,8 +204,17 @@ def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -
             data=json.dumps(payload, ensure_ascii=False),
         )
         if response.status_code >= 300:
-            raise RuntimeError(f"{table}: error insertando lote ({response.status_code}): {response.text[:1000]}")
-    print(f"{table}: {len(rows)} filas sincronizadas")
+            raise RuntimeError(
+                f"{table}: error insertando lote ({response.status_code}): {response.text[:1000]}"
+            )
+
+    final_count = count_table(base, key, table)
+    if final_count != len(rows):
+        raise RuntimeError(
+            f"{table}: verificación final incorrecta; Master={len(rows)} Supabase={final_count}"
+        )
+
+    print(f"{table}: reemplazo OK, {final_count} filas exactas")
 
 
 def main() -> int:
