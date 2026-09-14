@@ -2,6 +2,11 @@
 """Descarga el Excel VEA privado de Drive y reemplaza sus tablas en Supabase.
 
 Las credenciales se leen exclusivamente desde variables de entorno de GitHub Actions.
+
+Regla operativa:
+- Obligatorias: EDAS, IRAS, FEBRILES, INDIVIDUAL, SOAT.
+- Opcionales: VIH, TBC. Si no existen en el Master, no bloquean la carga ni se altera
+  el contenido existente de esas tablas en Supabase.
 """
 from __future__ import annotations
 
@@ -21,15 +26,19 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from openpyxl import load_workbook
 
-SHEETS = {
+REQUIRED_SHEETS = {
     "EDAS": "edas",
     "IRAS": "iras",
     "FEBRILES": "febriles",
     "INDIVIDUAL": "individual",
     "SOAT": "soat",
+}
+
+OPTIONAL_SHEETS = {
     "VIH": "vih",
     "TBC": "tbc",
 }
+
 BATCH = 500
 
 
@@ -55,8 +64,6 @@ def json_value(value: Any) -> Any:
         return None
     if isinstance(value, (str, int, float, bool)):
         return value
-    # Valores especiales de Excel (errores, decimales u objetos de celda)
-    # se convierten a texto para mantener el lote JSON válido.
     return str(value)
 
 
@@ -125,8 +132,6 @@ def supabase_request(base: str, key: str, method: str, table: str, **kwargs: Any
 
 
 def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> None:
-    # Todas las tablas VEA gestionadas por el módulo tienen _row_id; se borra
-    # solamente lo que ya existe y luego se carga el nuevo corte completo.
     existing = supabase_request(base, key, "GET", table, params={"select": "_row_id", "limit": "1000000"})
     if existing.status_code >= 300:
         raise RuntimeError(f"{table}: no se pudieron leer filas ({existing.status_code}): {existing.text[:500]}")
@@ -162,19 +167,49 @@ def main() -> int:
     base = required("SUPABASE_URL").rstrip("/")
     key = required("SUPABASE_SERVICE_ROLE_KEY")
     raw = drive_download(file_id, required("GOOGLE_SERVICE_ACCOUNT_JSON"))
+
     with tempfile.NamedTemporaryFile(suffix=".xlsx") as temp:
         temp.write(raw)
         temp.flush()
         workbook = load_workbook(temp.name, read_only=True, data_only=True)
+        sheetnames = set(workbook.sheetnames)
         parsed: dict[str, list[dict[str, Any]]] = {}
-        for sheet, table in SHEETS.items():
-            if sheet not in workbook.sheetnames:
-                raise RuntimeError(f"No se encontró la hoja obligatoria {sheet}")
+
+        missing_required = [sheet for sheet in REQUIRED_SHEETS if sheet not in sheetnames]
+        if missing_required:
+            raise RuntimeError(
+                "Faltan hojas obligatorias del Master VEA: " + ", ".join(missing_required)
+            )
+
+        for sheet, table in REQUIRED_SHEETS.items():
             parsed[table] = read_sheet(workbook[sheet])
+
+        optional_present = []
+        optional_missing = []
+        for sheet, table in OPTIONAL_SHEETS.items():
+            if sheet in sheetnames:
+                parsed[table] = read_sheet(workbook[sheet])
+                optional_present.append(sheet)
+            else:
+                optional_missing.append(sheet)
+
         workbook.close()
-    print("Excel descargado y validado:", ", ".join(f"{k}={len(v)}" for k, v in parsed.items()))
+
+    print(
+        "Excel descargado y validado:",
+        ", ".join(f"{k}={len(v)}" for k, v in parsed.items()),
+    )
+    if optional_present:
+        print("Hojas opcionales presentes:", ", ".join(optional_present))
+    if optional_missing:
+        print(
+            "Hojas opcionales ausentes (no bloquean y no se modifican en Supabase):",
+            ", ".join(optional_missing),
+        )
+
     for table, rows in parsed.items():
         replace_table(base, key, table, rows)
+
     print("Sincronización VEA completada correctamente.")
     return 0
 
