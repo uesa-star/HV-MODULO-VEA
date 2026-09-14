@@ -7,7 +7,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- VEA_BUILD: F6_10_CARGA_INICIAL_MOVIL_ANIO_ACTIVO -->
+    <!-- VEA_BUILD: F6_20_MASTER_DINAMICO_CACHE_V2 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MÓDULO DE VIGILANCIA EPIDEMIOLÓGICA INTEGRAL - VEA</title>
@@ -10881,13 +10881,12 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
         // La publishable key es segura para cliente; RLS decide qué tablas puede leer cada sesión.
         const VEA_SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
         const VEA_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_uzdpUnVRYRQY3lROvtNwiw_qa4iyJwj';
-        // Fuente maestra validada el 10.Sep.2026. Se conserva todo el repositorio
-        // hasta la S.E.35; el boletín puede aplicar un corte menor mediante filtros.
+        // F6.20 — Fuente maestra dinámica: el corte se obtiene de Supabase y no se fija en el código.
         const VEA_FUENTE_MAESTRA_20260910 = Object.freeze({
-            archivo: 'vigilancia VEA(20260910-202811).xlsx',
-            sha256: '9479023f7e3182ee4726cea5f02d8c115f17feda999e0e5496620684f8969c7c',
-            fecha: '10.Sep.2026',
-            ultimaSemana: 35,
+            archivo: 'vigilancia VEA.xlsx',
+            sha256: null,
+            fecha: null,
+            ultimaSemana: null,
             hojas: Object.freeze(['EDAS','IRAS','FEBRILES','INDIVIDUAL','SOAT'])
         });
         window.VEA_FUENTE_MAESTRA_20260910 = VEA_FUENTE_MAESTRA_20260910;
@@ -10912,8 +10911,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             return {
                 fuente: VEA_FUENTE_MAESTRA_20260910.archivo,
                 ultimaSemana,
-                esperado: VEA_FUENTE_MAESTRA_20260910.ultimaSemana,
-                coincideCorte: ultimaSemana === VEA_FUENTE_MAESTRA_20260910.ultimaSemana,
+                esperado: ultimaSemana,
+                coincideCorte: ultimaSemana !== null,
                 registros: fuentes.reduce((total, [, filas]) => total + (Array.isArray(filas) ? filas.length : 0), 0)
             };
         }
@@ -11098,9 +11097,9 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
         // Objetivo: mostrar el último repositorio validado casi de inmediato
         // y actualizar Supabase en segundo plano sin alterar parsers/cálculos.
         // =========================================================
-        const VEA_CACHE_DB = 'VEA_CACHE_DB_V1';
+        const VEA_CACHE_DB = 'VEA_CACHE_DB_V2_20260914';
         const VEA_CACHE_STORE = 'repositorio';
-        const VEA_CACHE_KEY = 'dataset_procesado';
+        const VEA_CACHE_KEY = 'dataset_procesado_master_dinamico_v2';
         let veaFirmaRemotaActual = null;
 
         function veaCacheAbrirDB() {
@@ -11193,7 +11192,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             const fecha = formatearFechaHoraPieGraficoVea(veaUltimaActualizacionDatos);
             const estadoCarga = document.getElementById('veaCargaFechaMaster');
             if (estadoCarga) estadoCarga.textContent = veaUltimaActualizacionDatos
-                ? `Última sincronización: ${fecha} · Fuente maestra 10.Sep.2026 · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`
+                ? `Última sincronización: ${fecha} · Fuente maestra vigente · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'} · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`
                 : 'Verificando última sincronización…';
             document.querySelectorAll('.vea-chart-meta').forEach(pie => {
                 const canvas = document.getElementById(pie.dataset.canvasId || '');
