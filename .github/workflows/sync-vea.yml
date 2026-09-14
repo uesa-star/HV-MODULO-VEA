@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "*/10 * * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/sync-vea.yml"
+      - "scripts/sync_vea.py"
+      - "requirements-sync.txt"
 
 concurrency:
   group: vea-sync
@@ -12,7 +19,7 @@ concurrency:
 jobs:
   sync-vea:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
@@ -31,4 +38,48 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_DRIVE_FILE_ID: "19BzabmXlM2QlXS4TvEihshdxz82GH-aW"
-        run: python scripts/sync_vea.py
+        shell: bash
+        run: |
+          set -e
+          for intento in 1 2 3; do
+            echo "Intento de sincronización ${intento}/3"
+            if python scripts/sync_vea.py; then
+              echo "Sincronización completada correctamente."
+              break
+            fi
+            if [ "$intento" -eq 3 ]; then
+              echo "ERROR: la sincronización falló después de 3 intentos."
+              exit 1
+            fi
+            sleep 20
+          done
+
+      - name: Verificar tablas sincronizadas
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          base = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          headers = {
+              "apikey": key,
+              "Authorization": f"Bearer {key}",
+              "Prefer": "count=exact",
+          }
+          tablas = ["edas", "iras", "febriles", "individual", "soat", "vih", "tbc"]
+          for tabla in tablas:
+              r = requests.get(
+                  f"{base}/rest/v1/{tabla}",
+                  headers=headers,
+                  params={"select": "_row_id", "limit": "1"},
+                  timeout=60,
+              )
+              r.raise_for_status()
+              total = r.headers.get("content-range", "?")
+              print(f"{tabla}: {total}")
+          print("VERIFICACIÓN OK: todas las tablas responden después de la sincronización.")
+          PY
