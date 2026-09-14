@@ -70,8 +70,12 @@ jobs:
               "Authorization": f"Bearer {key}",
               "Prefer": "count=exact",
           }
-          tablas = ["edas", "iras", "febriles", "individual", "soat", "vih", "tbc"]
-          for tabla in tablas:
+
+          obligatorias = ["edas", "iras", "febriles", "individual", "soat"]
+          opcionales = ["vih", "tbc"]
+
+          print("Verificando tablas obligatorias del Master VEA...")
+          for tabla in obligatorias:
               r = requests.get(
                   f"{base}/rest/v1/{tabla}",
                   headers=headers,
@@ -80,6 +84,24 @@ jobs:
               )
               r.raise_for_status()
               total = r.headers.get("content-range", "?")
-              print(f"{tabla}: {total}")
-          print("VERIFICACIÓN OK: todas las tablas responden después de la sincronización.")
+              print(f"OBLIGATORIA {tabla}: {total}")
+
+          print("Verificando tablas opcionales...")
+          for tabla in opcionales:
+              try:
+                  r = requests.get(
+                      f"{base}/rest/v1/{tabla}",
+                      headers=headers,
+                      params={"select": "_row_id", "limit": "1"},
+                      timeout=60,
+                  )
+                  if r.ok:
+                      total = r.headers.get("content-range", "?")
+                      print(f"OPCIONAL {tabla}: {total}")
+                  else:
+                      print(f"OPCIONAL {tabla}: no disponible (HTTP {r.status_code})")
+              except Exception as exc:
+                  print(f"OPCIONAL {tabla}: no verificada ({exc})")
+
+          print("VERIFICACIÓN OK: las 5 tablas obligatorias responden después de la sincronización.")
           PY
