@@ -40,6 +40,7 @@ OPTIONAL_SHEETS = {
 }
 
 BATCH = 500
+DELETE_RANGE = 5000
 
 
 def required(name: str) -> str:
@@ -156,37 +157,76 @@ def count_table(base: str, key: str, table: str) -> int:
     return int(match.group(1))
 
 
-def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> None:
-    before = count_table(base, key, table)
-    print(f"{table}: {before} filas antes del reemplazo")
-
-    # Borrado total real con filtro PostgREST. La versión anterior intentaba
-    # obtener todos los _row_id en una sola lectura, pero el límite de filas
-    # de PostgREST dejaba registros antiguos sin borrar y generaba duplicados.
+def row_id_bound(base: str, key: str, table: str, descending: bool) -> int | None:
     response = supabase_request(
         base,
         key,
-        "DELETE",
+        "GET",
         table,
-        headers={
-            "apikey": key,
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal",
+        params={
+            "select": "_row_id",
+            "order": f"_row_id.{'desc' if descending else 'asc'}",
+            "limit": "1",
         },
-        params={"_row_id": "not.is.null"},
     )
     if response.status_code >= 300:
         raise RuntimeError(
-            f"{table}: no se pudo vaciar completamente la tabla "
-            f"({response.status_code}): {response.text[:1000]}"
+            f"{table}: no se pudo obtener límite de _row_id ({response.status_code}): {response.text[:500]}"
         )
+    data = response.json()
+    if not data:
+        return None
+    value = data[0].get("_row_id")
+    return int(value) if value is not None else None
 
-    after_delete = count_table(base, key, table)
-    if after_delete != 0:
-        raise RuntimeError(
-            f"{table}: el borrado total falló; quedaron {after_delete} filas antes de insertar"
+
+def clear_table_by_ranges(base: str, key: str, table: str) -> None:
+    min_id = row_id_bound(base, key, table, False)
+    max_id = row_id_bound(base, key, table, True)
+    if min_id is None or max_id is None:
+        print(f"{table}: tabla ya vacía")
+        return
+
+    print(f"{table}: limpiando _row_id {min_id}..{max_id} en bloques de {DELETE_RANGE}")
+    start = min_id
+    blocks = 0
+    while start <= max_id:
+        end = start + DELETE_RANGE
+        response = supabase_request(
+            base,
+            key,
+            "DELETE",
+            table,
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            params=[
+                ("_row_id", f"gte.{start}"),
+                ("_row_id", f"lt.{end}"),
+            ],
         )
+        if response.status_code >= 300:
+            raise RuntimeError(
+                f"{table}: error borrando rango {start}-{end - 1} "
+                f"({response.status_code}): {response.text[:1000]}"
+            )
+        blocks += 1
+        if blocks % 20 == 0:
+            print(f"{table}: {blocks} bloques eliminados...")
+        start = end
+
+    remaining = row_id_bound(base, key, table, False)
+    if remaining is not None:
+        raise RuntimeError(f"{table}: quedaron filas después de la limpieza por rangos")
+    print(f"{table}: limpieza completa en {blocks} bloques")
+
+
+def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> None:
+    # Evita COUNT(*) sobre tablas infladas: en SOAT superaba el statement timeout.
+    clear_table_by_ranges(base, key, table)
 
     for start in range(0, len(rows), BATCH):
         payload = rows[start:start + BATCH]
