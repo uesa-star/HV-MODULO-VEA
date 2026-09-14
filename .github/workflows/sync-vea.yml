@@ -75,7 +75,6 @@ jobs:
               "Authorization": f"Bearer {key}",
               "Prefer": "count=exact",
           }
-
           obligatorias = ["edas", "iras", "febriles", "individual", "soat"]
           opcionales = ["vih", "tbc"]
 
@@ -88,8 +87,7 @@ jobs:
                   timeout=60,
               )
               r.raise_for_status()
-              total = r.headers.get("content-range", "?")
-              print(f"OBLIGATORIA {tabla}: {total}")
+              print(f"OBLIGATORIA {tabla}: {r.headers.get('content-range', '?')}")
 
           print("Verificando tablas opcionales...")
           for tabla in opcionales:
@@ -101,13 +99,11 @@ jobs:
                       timeout=60,
                   )
                   if r.ok:
-                      total = r.headers.get("content-range", "?")
-                      print(f"OPCIONAL {tabla}: {total}")
+                      print(f"OPCIONAL {tabla}: {r.headers.get('content-range', '?')}")
                   else:
                       print(f"OPCIONAL {tabla}: no disponible (HTTP {r.status_code})")
               except Exception as exc:
                   print(f"OPCIONAL {tabla}: no verificada ({exc})")
-
           print("VERIFICACIÓN OK: las 5 tablas obligatorias responden después de la sincronización.")
           PY
 
@@ -160,20 +156,6 @@ jobs:
               1,
           )
 
-          url_marker = """            if (year !== null && year !== undefined && String(year).trim() !== '') {
-                url += `&year=${encodeURIComponent(String(year).trim())}`;
-            }
-            const controlador = new AbortController();"""
-          url_new = """            if (year !== null && year !== undefined && String(year).trim() !== '') {
-                url += `&year=${encodeURIComponent(String(year).trim())}`;
-            }
-            url += '&build=F620_20260914';
-            const controlador = new AbortController();"""
-          if "&build=F620_20260914" not in text:
-              if url_marker not in text:
-                  raise SystemExit("ERROR: no se encontró el punto de cache-buster del API")
-              text = text.replace(url_marker, url_new, 1)
-
           if "Fuente maestra 10.Sep.2026" in text:
               raise SystemExit("ERROR: aún existe el texto fijo Fuente maestra 10.Sep.2026")
           if "VEA_CACHE_DB_V1" in text:
@@ -183,7 +165,7 @@ jobs:
 
           if text != original:
               path.write_text(text, encoding="utf-8")
-              print("INDEX actualizado: fuente dinámica, corte dinámico, caché V2 y API cache-buster.")
+              print("INDEX actualizado: fuente dinámica, corte dinámico y caché V2.")
           else:
               print("INDEX ya estaba actualizado; no se requieren cambios.")
           PY
