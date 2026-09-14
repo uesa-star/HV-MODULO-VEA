@@ -12,6 +12,9 @@ on:
       - "scripts/sync_vea.py"
       - "requirements-sync.txt"
 
+permissions:
+  contents: write
+
 concurrency:
   group: vea-sync
   cancel-in-progress: false
@@ -23,6 +26,8 @@ jobs:
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -105,3 +110,93 @@ jobs:
 
           print("VERIFICACIÓN OK: las 5 tablas obligatorias responden después de la sincronización.")
           PY
+
+      - name: Actualizar INDEX para datos vigentes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("index.html")
+          text = path.read_text(encoding="utf-8")
+          original = text
+
+          text = text.replace(
+              "<!-- VEA_BUILD: F6_10_CARGA_INICIAL_MOVIL_ANIO_ACTIVO -->",
+              "<!-- VEA_BUILD: F6_20_MASTER_DINAMICO_CACHE_V2 -->",
+              1,
+          )
+
+          text = text.replace(
+              "// Fuente maestra validada el 10.Sep.2026. Se conserva todo el repositorio\n        // hasta la S.E.35; el boletín puede aplicar un corte menor mediante filtros.",
+              "// F6.20 — Fuente maestra dinámica: el corte se obtiene de Supabase y no se fija en el código.",
+              1,
+          )
+          text = text.replace("archivo: 'vigilancia VEA(20260910-202811).xlsx'", "archivo: 'vigilancia VEA.xlsx'", 1)
+          text = text.replace("sha256: '9479023f7e3182ee4726cea5f02d8c115f17feda999e0e5496620684f8969c7c'", "sha256: null", 1)
+          text = text.replace("fecha: '10.Sep.2026'", "fecha: null", 1)
+          text = text.replace("ultimaSemana: 35", "ultimaSemana: null", 1)
+
+          text = text.replace(
+              "esperado: VEA_FUENTE_MAESTRA_20260910.ultimaSemana,\n                coincideCorte: ultimaSemana === VEA_FUENTE_MAESTRA_20260910.ultimaSemana,",
+              "esperado: ultimaSemana,\n                coincideCorte: ultimaSemana !== null,",
+              1,
+          )
+
+          text = text.replace(
+              "const VEA_CACHE_DB = 'VEA_CACHE_DB_V1';",
+              "const VEA_CACHE_DB = 'VEA_CACHE_DB_V2_20260914';",
+              1,
+          )
+          text = text.replace(
+              "const VEA_CACHE_KEY = 'dataset_procesado';",
+              "const VEA_CACHE_KEY = 'dataset_procesado_master_dinamico_v2';",
+              1,
+          )
+
+          text = text.replace(
+              "`Última sincronización: ${fecha} · Fuente maestra 10.Sep.2026 · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`",
+              "`Última sincronización: ${fecha} · Fuente maestra vigente · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'} · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`",
+              1,
+          )
+
+          url_marker = """            if (year !== null && year !== undefined && String(year).trim() !== '') {
+                url += `&year=${encodeURIComponent(String(year).trim())}`;
+            }
+            const controlador = new AbortController();"""
+          url_new = """            if (year !== null && year !== undefined && String(year).trim() !== '') {
+                url += `&year=${encodeURIComponent(String(year).trim())}`;
+            }
+            url += '&build=F620_20260914';
+            const controlador = new AbortController();"""
+          if "&build=F620_20260914" not in text:
+              if url_marker not in text:
+                  raise SystemExit("ERROR: no se encontró el punto de cache-buster del API")
+              text = text.replace(url_marker, url_new, 1)
+
+          if "Fuente maestra 10.Sep.2026" in text:
+              raise SystemExit("ERROR: aún existe el texto fijo Fuente maestra 10.Sep.2026")
+          if "VEA_CACHE_DB_V1" in text:
+              raise SystemExit("ERROR: aún existe la caché antigua V1")
+          if "F6_20_MASTER_DINAMICO_CACHE_V2" not in text:
+              raise SystemExit("ERROR: no se aplicó la firma F6.20")
+
+          if text != original:
+              path.write_text(text, encoding="utf-8")
+              print("INDEX actualizado: fuente dinámica, corte dinámico, caché V2 y API cache-buster.")
+          else:
+              print("INDEX ya estaba actualizado; no se requieren cambios.")
+          PY
+
+      - name: Publicar INDEX actualizado si cambió
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "INDEX sin cambios pendientes."
+            exit 0
+          fi
+          git config user.name "uesa-star"
+          git config user.email "uesa@hospitaldeventanilla.gob.pe"
+          git add index.html
+          git commit -m "VEA: datos vigentes, cache V2 y corte dinamico"
+          git push origin HEAD:main
