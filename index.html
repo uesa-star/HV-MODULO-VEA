@@ -11192,7 +11192,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             const fecha = formatearFechaHoraPieGraficoVea(veaUltimaActualizacionDatos);
             const estadoCarga = document.getElementById('veaCargaFechaMaster');
             if (estadoCarga) estadoCarga.textContent = veaUltimaActualizacionDatos
-                ? `Última sincronización: ${fecha} · Fuente maestra vigente · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'} · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`
+                ? `Última actualización base: ${fecha} · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'}`
                 : 'Verificando última sincronización…';
             document.querySelectorAll('.vea-chart-meta').forEach(pie => {
                 const canvas = document.getElementById(pie.dataset.canvasId || '');
