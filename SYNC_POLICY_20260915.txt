@@ -1,0 +1,1 @@
+Política vigente: el Master VEA se sincroniza automáticamente mediante GitHub Actions cada 5 minutos, límite práctico del cron usado. Para una reacción en segundos se requeriría un mecanismo por evento/webhook diferente.
