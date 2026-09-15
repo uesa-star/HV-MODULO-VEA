@@ -1,0 +1,9 @@
+VEA — SINCRONIZACIÓN MASTER
+Fecha: 15.Sep.2026
+
+GitHub Actions no admite programación cada 5 segundos mediante cron.
+Se ajustó el flujo automático al mínimo práctico soportado por cron: cada 5 minutos.
+Workflow: .github/workflows/sync-vea.yml
+Commit: c5feaeec367d4753468a106a37f1a1fcc3e5249b
+
+El módulo sigue leyendo Supabase dinámicamente; no se modificaron filtros, KPIs, gráficos ni cálculos.
