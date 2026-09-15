@@ -1,0 +1,1 @@
+Respaldo lógico del ajuste de sincronización automática del Master VEA a cada 5 minutos. El estado funcional del módulo permanece en F6.20 con lectura dinámica desde Supabase.
