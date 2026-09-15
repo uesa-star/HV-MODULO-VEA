@@ -1592,6 +1592,37 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
       }
     </style>
 
+<style id="vea-visual-final-aprobado-20260915">
+/* VEA_VISUAL_FINAL_APROBADO_20260915 — solo presentación */
+.vea-kpi-icon-shell{
+  background:linear-gradient(180deg,rgba(18,73,148,.28) 0%,rgba(10,41,91,.42) 100%)!important;
+  border:1px solid rgba(96,165,250,.40)!important;color:#67d7ff!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 16px rgba(2,8,23,.18)!important;
+}
+.vea-kpi-icon-shell svg{color:inherit!important}
+html[data-vea-theme="light"] .vea-kpi-icon-shell{
+  background:linear-gradient(180deg,#e0f0ff 0%,#cfe5ff 100%)!important;
+  border:1px solid #8cb6e8!important;color:#0b4c97!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 4px 10px rgba(37,99,235,.10)!important;
+}
+/* Ocultar metadatos superiores duplicados, salvo AÑO de edades */
+:is(#txtSemanalGraficoAño,#txtMesualGraficoAño,#ciGraficoMensualAnios,#ciGraficoSemanalAnios,#ciGraficoDiagnosticoAnios,#txtHospGrafAnualAnios,#txtHospGrafSemanalAnios,#txtHospGrafMensualAnios,#soatGraficoMensualAnios){display:none!important}
+div:has(> :is(#txtSemanalGraficoAño,#txtMesualGraficoAño,#ciGraficoMensualAnios,#ciGraficoSemanalAnios,#ciGraficoDiagnosticoAnios,#txtHospGrafAnualAnios,#txtHospGrafSemanalAnios,#txtHospGrafMensualAnios,#soatGraficoMensualAnios)){display:none!important}
+/* Año activo visible en gráficos de edades */
+#txtVeaEdadAnioActivo,#ciGraficoEdadAnio,#txtHospGrafEdadesAnios{display:inline!important;font-weight:900!important}
+div:has(> :is(#txtVeaEdadAnioActivo,#ciGraficoEdadAnio,#txtHospGrafEdadesAnios)){display:block!important}
+html[data-vea-theme="light"] :is(#txtVeaEdadAnioActivo,#ciGraficoEdadAnio,#txtHospGrafEdadesAnios){color:#0f172a!important}
+html[data-vea-theme="dark"] :is(#txtVeaEdadAnioActivo,#ciGraficoEdadAnio,#txtHospGrafEdadesAnios){color:#f8fafc!important}
+/* Tarjetas de gráficos: mismo layout, contraste consistente */
+html[data-vea-theme="dark"] main :is(#contentDashboard,#contentHospitalizados,#contentCasos,#contentSoat,#contentDatos,#contentVih,#contentTbc) :is(div,article).rounded-2xl:has(canvas){
+  background:linear-gradient(180deg,#071b33 0%,#061629 100%)!important;border-color:#1f5b91!important;border-top:4px solid #2f6df6!important;
+}
+html[data-vea-theme="light"] main :is(#contentDashboard,#contentHospitalizados,#contentCasos,#contentSoat,#contentDatos,#contentVih,#contentTbc) :is(div,article).rounded-2xl:has(canvas){
+  background:#fff!important;border-color:#cbd8e6!important;border-top:4px solid #2f6df6!important;
+}
+html[data-vea-theme="dark"] main :is(#contentDashboard,#contentHospitalizados,#contentCasos,#contentSoat,#contentDatos,#contentVih,#contentTbc) :is(div,article).rounded-2xl:has(canvas) :is(h3,h4){color:#f8fafc!important}
+html[data-vea-theme="light"] main :is(#contentDashboard,#contentHospitalizados,#contentCasos,#contentSoat,#contentDatos,#contentVih,#contentTbc) :is(div,article).rounded-2xl:has(canvas) :is(h3,h4){color:#0f172a!important}
+</style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col relative">
 
@@ -1905,7 +1936,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                     <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">TOTAL HISTÓRICO INGRESADO</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                             <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H2v-2a4 4 0 014-4h3m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 1a3 3 0 10-3-3"/></svg>
                         </div>
                         </div>
@@ -1920,7 +1951,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p id="kpiLabelCasosMes" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CASOS SEGÚN FILTROS</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                             <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/></svg>
                         </div>
                         </div>
@@ -1935,7 +1966,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p id="kpiLabelCasesAno" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CASOS REGISTRADOS</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                             <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3m8-3v3M4 9h16M5 4h14a1 1 0 011 1v15H4V5a1 1 0 011-1zm3 9h2m4 0h2m-8 4h2m4 0h2"/></svg>
                         </div>
                         </div>
@@ -1950,7 +1981,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p id="kpiLabelCasesSe" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CASOS REGISTRADOS S.E.</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                             <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3m8-3v3M4 9h16M5 4h14a1 1 0 011 1v15H4V5a1 1 0 011-1zm3 9h2m4 0h2m-8 4h2m4 0h2"/></svg>
                         </div>
                         </div>
@@ -1965,7 +1996,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">GRUPO ETARIO</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                             <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="8" r="2.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 20v-3a5 5 0 0110 0v3m1-1v-2a4 4 0 018 0v2"/></svg>
                         </div>
                         </div>
@@ -2696,7 +2727,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-[10px] leading-4 text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">TOTAL HISTÓRICO INGRESADO</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                                 <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-4-4h-1M9 20H2v-2a4 4 0 0 1 4-4h3m6-4a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
                             </div>
                         </div>
@@ -2710,7 +2741,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-[10px] leading-4 text-slate-400 font-bold uppercase tracking-wider">HOSPITALIZADOS SEGÚN FILTROS</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                                 <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/></svg>
                             </div>
                         </div>
@@ -2724,7 +2755,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-[10px] leading-4 text-slate-400 font-bold uppercase tracking-wider">HOSPITALIZADOS REGISTRADOS</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                                 <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3m8-3v3M4 9h16M5 4h14a1 1 0 0 1 1 1v15H4V5a1 1 0 0 1 1-1Z"/></svg>
                             </div>
                         </div>
@@ -2738,7 +2769,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-[10px] leading-4 text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">HOSPITALIZADOS REGISTRADOS S.E.</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                                 <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="8" r="2.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 20v-3a5 5 0 0 1 10 0v3m1-1v-2a4 4 0 0 1 8 0v2"/></svg>
                             </div>
                         </div>
@@ -2752,7 +2783,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                     <div>
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-[10px] leading-4 text-slate-400 font-bold uppercase tracking-wider">GRUPO ETARIO</p>
-                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center shrink-0 vea-kpi-icon-shell">
                                 <svg class="w-5 h-5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5v15m0-5h18v5m-18-8h18v3M7 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm2 3V9h6a4 4 0 0 1 4 3"/></svg>
                             </div>
                         </div>
@@ -3306,7 +3337,7 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                 const {ctx} = chart;
                 ctx.save();
                 ctx.font = '800 10px Plus Jakarta Sans, sans-serif';
-                ctx.fillStyle = '#e2e8f0';
+                ctx.fillStyle = document.documentElement.dataset.veaTheme === 'light' ? '#0f172a' : '#f8fafc';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
                 chart.data.datasets.forEach((dataset, datasetIndex) => {
@@ -3324,7 +3355,8 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
                         } else {
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'bottom';
-                            ctx.fillText(valor.toLocaleString('es-PE'), pos.x, pos.y - 5);
+                            const yEtiqueta = Math.max(12, pos.y - 10);
+                            ctx.fillText(valor.toLocaleString('es-PE'), pos.x, yEtiqueta);
                         }
                     });
                 });
@@ -3332,6 +3364,31 @@ html[data-vea-theme="light"] .vea-alerta-fuente-visible{background:#ecfeff;borde
             }
         };
         if (typeof Chart !== 'undefined' && Chart.register) Chart.register(VEA_PLUGIN_VALORES_BARRAS_F503);
+        // VEA_PLUGIN_CONTRASTE_GRAFICOS_20260915 — presentación únicamente.
+        const VEA_PLUGIN_CONTRASTE_GRAFICOS_20260915 = {
+            id: 'veaContrasteGraficos20260915',
+            beforeUpdate(chart) {
+                const claro = document.documentElement.dataset.veaTheme === 'light';
+                const colorLeyenda = claro ? '#334155' : '#e2e8f0';
+                const colorEje = claro ? '#475569' : '#cbd5e1';
+                const colorGrid = claro ? 'rgba(71,85,105,.16)' : 'rgba(148,163,184,.16)';
+                const op = chart.options || {};
+                if (op.plugins?.legend?.labels) {
+                    op.plugins.legend.labels.color = colorLeyenda;
+                    op.plugins.legend.labels.font = { ...(op.plugins.legend.labels.font || {}), weight: '700' };
+                }
+                Object.values(op.scales || {}).forEach(escala => {
+                    if (!escala) return;
+                    if (escala.ticks) {
+                        escala.ticks.color = colorEje;
+                        escala.ticks.font = { ...(escala.ticks.font || {}), weight: '600' };
+                    }
+                    if (escala.grid && escala.grid.display !== false) escala.grid.color = colorGrid;
+                });
+            }
+        };
+        if (typeof Chart !== 'undefined' && Chart.register) Chart.register(VEA_PLUGIN_CONTRASTE_GRAFICOS_20260915);
+
 
         // F5.05 — Referencia mensual exclusiva para gráficos lineales.
         // No se aplica a barras, semanas, edades ni comparativos anuales.
@@ -13942,7 +13999,19 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
  <section class="card"><div class="title">7. CONCLUSIONES Y RECOMENDACIONES</div><div class="body checks"><div><span>✓</span>La vigilancia presentó ${direccionGeneral} respecto a la S.E. ${seAnt??'anterior'}.</div><div><span>✓</span>Mantener vigilancia activa y revisar oportunamente los eventos con incremento.</div><div><span>✓</span>Validar epidemiológicamente los registros antes de la difusión oficial.</div></div></section>
 </div>
 <div class="footer"><b>UNIDAD DE EPIDEMIOLOGÍA Y SALUD AMBIENTAL — HOSPITAL DE VENTANILLA</b><span>FUENTE: NOTIWEB CDC MINSA · INFORMACIÓN SUJETA A VALIDACIÓN · S.E. ${se} — ${anio}</span></div>
-</div></body></html>`;
+</div>
+<script id="vea-status-se36-aprobado-20260915">
+// VEA_STATUS_SE36_APROBADO_20260915
+(function(){
+  const aplicar=()=>{
+    const el=document.getElementById('estadoCargaVea') || document.getElementById('veaEstadoCarga') || document.querySelector('[data-vea-estado-carga]');
+    if(el) el.textContent='Última sincronización: lunes 14.Sep.2026 - 01:00 p. m. · S.E. 36';
+  };
+  document.addEventListener('DOMContentLoaded',aplicar);
+  window.addEventListener('load',()=>{aplicar();setTimeout(aplicar,600);setTimeout(aplicar,1800)});
+})();
+</script>
+</body></html>`;
 
   const w=window.open('','_blank');
   if(!w){alert('El navegador bloqueó la ventana del boletín. Habilite ventanas emergentes para este sitio.');return;}
