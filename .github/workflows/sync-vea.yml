@@ -152,7 +152,12 @@ jobs:
 
           text = text.replace(
               "`Última sincronización: ${fecha} · Fuente maestra 10.Sep.2026 · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`",
+              "`Última actualización base: ${fecha} · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'}`",
+              1,
+          )
+          text = text.replace(
               "`Última sincronización: ${fecha} · Fuente maestra vigente · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'} · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`",
+              "`Última actualización base: ${fecha} · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'}`",
               1,
           )
 
@@ -165,7 +170,7 @@ jobs:
 
           if text != original:
               path.write_text(text, encoding="utf-8")
-              print("INDEX actualizado: fuente dinámica, corte dinámico y caché V2.")
+              print("INDEX actualizado: indicador de carga simplificado y fuente dinámica vigente.")
           else:
               print("INDEX ya estaba actualizado; no se requieren cambios.")
           PY
@@ -180,5 +185,5 @@ jobs:
           git config user.name "uesa-star"
           git config user.email "uesa@hospitaldeventanilla.gob.pe"
           git add index.html
-          git commit -m "VEA: datos vigentes, cache V2 y corte dinamico"
+          git commit -m "VEA: simplificar indicador de carga actualizada"
           git push origin HEAD:main
