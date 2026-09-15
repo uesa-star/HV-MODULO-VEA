@@ -1,1 +1,0 @@
-Checkpoint lógico del ajuste de sincronización automática del Master VEA a cada 5 minutos. No modifica la lógica epidemiológica ni visual del módulo.
