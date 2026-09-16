@@ -9,28 +9,65 @@ permissions:
 
 jobs:
   fix-years:
-    if: ${{ !contains(github.event.head_commit.message, 'VEA: corregir filtro completo de años') }}
+    if: ${{ !contains(github.event.head_commit.message, 'VEA: publicar filtro completo de años') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Corregir regla de tres años
+      - name: Corregir regla de años y presentación del dropdown
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          old="""function tresAniosMasRecientesVea(anios) {\n            return normalizarListaAniosVea(anios).sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);\n        }\n\n        function estadoTemporalVeaDesdeAnios(anios) {\n            return {\n                anios: tresAniosMasRecientesVea(anios),\n                mes: 'Todos',\n                semana: 'Todas',\n                inicializado: true\n            };\n        }"""
-          new="""function tresAniosMasRecientesVea(anios) {\n            // Compatibilidad histórica: conserva el nombre de la función,\n            // pero el filtro visible debe ofrecer TODOS los años disponibles.\n            return normalizarListaAniosVea(anios).sort((a, b) => a - b);\n        }\n\n        function estadoTemporalVeaDesdeAnios(anios) {\n            return {\n                // El usuario debe poder seleccionar cualquier año existente en la base.\n                anios: tresAniosMasRecientesVea(anios),\n                mes: 'Todos',\n                semana: 'Todas',\n                inicializado: true\n            };\n        }"""
-          if old not in s:
-              raise SystemExit('No se encontró la regla responsable del límite de 3 años')
-          s=s.replace(old,new,1)
+
+          old="""function tresAniosMasRecientesVea(anios) {
+            return normalizarListaAniosVea(anios).sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);
+        }"""
+          new="""function tresAniosMasRecientesVea(anios) {
+            // Compatibilidad histórica: el filtro visible debe ofrecer TODOS los años disponibles.
+            return normalizarListaAniosVea(anios).sort((a, b) => a - b);
+        }"""
+          if old in s:
+              s=s.replace(old,new,1)
+          elif 'VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915' not in s:
+              raise SystemExit('No se encontró la regla de tres años ni el marcador de corrección')
+
+          css='''
+          <style id="vea-fix-filtro-anios-visual-20260915">
+          /* VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915 */
+          #dropdownAniosContent{
+            width:100%!important;
+            max-height:22rem!important;
+            overflow-y:auto!important;
+            overflow-x:hidden!important;
+            box-sizing:border-box!important;
+            z-index:80!important;
+          }
+          #dropdownAniosContent label{
+            min-height:2.45rem;
+            box-sizing:border-box;
+          }
+          #dropdownAniosContent::-webkit-scrollbar{width:5px}
+          @media(max-width:767px){
+            #dropdownAniosContent{max-height:18rem!important}
+          }
+          </style>
+          '''
+          if 'vea-fix-filtro-anios-visual-20260915' not in s:
+              s=s.replace('</head>',css+'\n</head>',1)
+
           marker='VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915'
           if marker not in s:
-              s=s.replace('</head>', f'<!-- {marker} -->\n</head>',1)
+              s=s.replace('</head>',f'<!-- {marker} -->\n</head>',1)
+
+          if 'F6_20_MASTER_DINAMICO_CACHE_V2' not in s:
+              raise SystemExit('Firma F6.20 ausente')
+          if 'return normalizarListaAniosVea(anios).sort((a, b) => a - b);' not in s:
+              raise SystemExit('La regla completa de años no quedó aplicada')
           p.write_text(s,encoding='utf-8')
-          print('OK: filtro de años completo')
+          print('OK: todos los años + dropdown visual estable')
           PY
       - name: Validar
         run: |
@@ -42,5 +79,9 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
-          git commit -m 'VEA: corregir filtro completo de años'
+          if git diff --cached --quiet; then
+            echo 'Sin cambios'
+            exit 0
+          fi
+          git commit -m 'VEA: publicar filtro completo de años'
           git push
