@@ -1,16 +1,18 @@
-name: VEA filtro 2024 2025 2026 v2
+name: VEA filtro completo de años
 on:
   push:
     paths:
       - '.github/workflows/vea-filtro-2024-2026-v2.yml'
+      - 'index.html'
 jobs:
   patch:
+    if: ${{ !contains(github.event.head_commit.message, 'VEA: corregir filtro completo de años') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Aplicar regla de filtro aprobado
+      - name: Aplicar filtro completo de años
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -21,20 +23,28 @@ jobs:
           }
 """
           new = """        function tresAniosMasRecientesVea(anios) {
-              const disponibles = normalizarListaAniosVea(anios).sort((a, b) => a - b);
-              const aprobados = [2024, 2025, 2026].filter(anio => disponibles.includes(anio));
-              if (aprobados.length === 3) return aprobados;
-              return [...disponibles].sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);
+              // Compatibilidad histórica del nombre: el filtro visible debe ofrecer TODOS los años disponibles.
+              return normalizarListaAniosVea(anios).sort((a, b) => a - b);
           }
 """
           if old not in s:
-              raise SystemExit('No se encontro el bloque esperado')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+              raise SystemExit('No se encontro el bloque de tres años; no se publica ningún cambio.')
+          s = s.replace(old, new, 1)
+          marker = 'VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915'
+          if marker not in s:
+              s = s.replace('</head>', f'<!-- {marker} -->\n</head>', 1)
+          p.write_text(s, encoding='utf-8')
           PY
-      - name: Commit
+      - name: Validar
+        run: |
+          grep -q 'VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915' index.html
+          grep -q 'return normalizarListaAniosVea(anios).sort((a, b) => a - b);' index.html
+          grep -q 'F6_20_MASTER_DINAMICO_CACHE_V2' index.html
+      - name: Commit reparación
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "VEA: fijar filtro inicial 2024 2025 2026"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "VEA: corregir filtro completo de años"
           git push
