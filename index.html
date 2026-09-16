@@ -4,6 +4,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1655,6 +1656,163 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 #filtrosVigilancia .vea-filtros-dashboard-grid .vea-filtros-acciones{height:42px!important;display:flex!important;align-items:stretch!important;gap:.5rem!important}
 #filtrosVigilancia .vea-filtros-dashboard-grid .vea-filtros-acciones>button{height:42px!important;margin:0!important}
 </style>
+
+<!-- VEA_LAYOUT_CORRECCION_LOCAL_20260916 -->
+<style id="vea-layout-correction-local">
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: hidden; }
+  body { min-width: 0; }
+  #veaAppShell, #veaAppShell > main, #veaAppShell main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  #veaAppShell {
+    display: flex;
+    align-items: stretch;
+    min-height: 100vh;
+  }
+  #veaAppShell > main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: clip;
+  }
+  #veaAppShell main > section,
+  #veaAppShell main > div,
+  #contentDashboard,
+  #contentDatosAcumulados,
+  #contentNotiIndividual {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .vea-kpis-regulares,
+  .vea-filtros-dashboard-grid,
+  .grid,
+  [class*="grid-cols"] {
+    min-width: 0;
+  }
+  .vea-kpis-regulares > *,
+  .vea-filtros-dashboard-grid > *,
+  .grid > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  canvas, img, svg, video, iframe {
+    max-width: 100%;
+  }
+  table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+  }
+  .overflow-x-auto {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  input, select, textarea, button {
+    max-width: 100%;
+    min-width: 0;
+  }
+  @media (min-width: 1024px) {
+    #veaAppShell > main { padding-left: 0; padding-right: 0; }
+    .vea-kpis-regulares {
+      display: grid !important;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: 1rem !important;
+      align-items: stretch !important;
+    }
+  }
+  @media (max-width: 1023px) {
+    #veaAppShell { display: block; }
+    #veaAppShell > main { width: 100%; }
+    .vea-kpis-regulares {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: .75rem !important;
+    }
+  }
+  @media (max-width: 640px) {
+    .vea-kpis-regulares { grid-template-columns: minmax(0, 1fr) !important; }
+    .vea-filtros-dashboard-grid,
+    [class*="grid-cols-2"],
+    [class*="grid-cols-3"],
+    [class*="grid-cols-4"] {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+    .p-6 { padding: 1rem !important; }
+    .p-5 { padding: .875rem !important; }
+  }
+</style>
+
+<!-- VEA_COMPARATIVO_DEFAULT_3_ANIOS_20260916 -->
+
+<!-- VEA_KPI_SIZE_ALIGNMENT_ONLY_20260916 -->
+<style id="vea-kpi-size-alignment-only">
+  /* Solo tamaño y alineación de los 5 KPI del Dashboard principal */
+  #contentDashboard .vea-kpis-regulares {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+    align-items: stretch !important;
+  }
+
+  #contentDashboard .vea-kpis-regulares > div {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 118px !important;
+    min-height: 118px !important;
+    padding: 0.75rem !important;
+    overflow: hidden !important;
+    transform: none !important;
+  }
+
+  #contentDashboard .vea-kpis-regulares .vea-kpi-icon-shell {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    border-radius: 0.7rem !important;
+  }
+
+  #contentDashboard .vea-kpis-regulares h3 {
+    font-size: 1.45rem !important;
+    line-height: 1.15 !important;
+    margin-top: 0.2rem !important;
+  }
+
+  #contentDashboard .vea-kpis-regulares p {
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere;
+  }
+
+  #contentDashboard .vea-kpis-regulares > div > div:last-child {
+    margin-top: 0.35rem !important;
+    line-height: 1.15 !important;
+  }
+
+  @media (max-width: 1199px) {
+    #contentDashboard .vea-kpis-regulares {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+  }
+
+  @media (max-width: 767px) {
+    #contentDashboard .vea-kpis-regulares {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+    #contentDashboard .vea-kpis-regulares > div {
+      height: 112px !important;
+      min-height: 112px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    #contentDashboard .vea-kpis-regulares {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+  }
+</style>
+
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col relative">
 
@@ -3672,8 +3830,11 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         }
 
         function tresAniosMasRecientesVea(anios) {
-            // Compatibilidad histórica: el filtro visible ofrece TODOS los años disponibles.
-            return normalizarListaAniosVea(anios).sort((a, b) => a - b);
+            // VEA_COMPARATIVO_DEFAULT_3_ANIOS_20260916:
+            // Inicia con los tres años epidemiológicos más recientes disponibles.
+            // En la base actual esperada: 2024, 2025 y 2026.
+            const disponibles = normalizarListaAniosVea(anios);
+            return disponibles.slice(-3);
         }
 
         function estadoTemporalVeaDesdeAnios(anios) {
@@ -10229,6 +10390,16 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
             const reader = new FileReader();
             reader.onload = function(e) {
+                // VEA_ETL_TRANSACCIONAL_20260916: conservar la base anterior
+                // hasta que el archivo nuevo termine de validarse y procesarse.
+                const respaldoAntesDeCarga = {
+                    databaseActiva: typeof structuredClone === 'function'
+                        ? structuredClone(databaseActiva)
+                        : JSON.parse(JSON.stringify(databaseActiva)),
+                    datosModulosIndependientes: typeof structuredClone === 'function'
+                        ? structuredClone(datosModulosIndependientes)
+                        : JSON.parse(JSON.stringify(datosModulosIndependientes))
+                };
                 const informe = {
                     archivo: file.name,
                     hojasDetectadas: [],
@@ -10513,6 +10684,15 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                         informe.errores === 0 ? "exito" : "error"
                     );
                 } catch (err) {
+                    // Si falla la validación/procesamiento, restaurar la última base válida.
+                    try {
+                        Object.assign(databaseActiva, respaldoAntesDeCarga.databaseActiva);
+                        Object.assign(datosModulosIndependientes, respaldoAntesDeCarga.datosModulosIndependientes);
+                        reinicializarEstadosFiltrosTrasCargaVea();
+                        actualizarCalculosYGraficos();
+                    } catch (restauracionError) {
+                        console.error('[VEA ETL] No se pudo restaurar la base anterior:', restauracionError);
+                    }
                     ultimoInformeCargaVea = informe;
                     publicarAuditoriaCargaVea(informe);
                     if (led) led.className = "w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse";
@@ -12125,6 +12305,50 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
         }
         window.cargarRepositorioVeaDesdeSupabase = cargarRepositorioVeaDesdeSupabase;
 
+        // VEA_SYNC_GUARD_20260916 — actualización remota segura.
+        // La aplicación vuelve a consultar Supabase al abrirse, al regresar a la pestaña
+        // después de 7 días y mediante un control periódico no invasivo.
+        const VEA_SYNC_SEMANAL_MS = 7 * 24 * 60 * 60 * 1000;
+        const VEA_SYNC_ULTIMA_REVISION_KEY = 'veaSyncUltimaRevisionRemota';
+        let veaSyncEnCurso = false;
+
+        async function veaActualizarDesdeSupabaseSeguro(origen = 'manual') {
+            if (veaSyncEnCurso) return { omitida: true, motivo: 'sincronización en curso' };
+            veaSyncEnCurso = true;
+            try {
+                const resultado = await cargarRepositorioVeaDesdeSupabase();
+                if (resultado && (resultado.totalRemoto > 0 || resultado.cacheConservada)) {
+                    try { actualizarCalculosYGraficos(); } catch (error) { console.warn('[VEA SYNC] Cálculos pendientes:', error); }
+                    try { actualizarKpisVigilancia(); } catch (error) { console.warn('[VEA SYNC] KPI pendientes:', error); }
+                    try { actualizarCabeceraDinamicaVeaF483(); } catch (error) { console.warn('[VEA SYNC] Cabecera pendiente:', error); }
+                }
+                localStorage.setItem(VEA_SYNC_ULTIMA_REVISION_KEY, String(Date.now()));
+                console.info('[VEA SYNC] Revisión completada:', { origen, resultado });
+                return resultado;
+            } catch (error) {
+                console.error('[VEA SYNC] Revisión fallida:', { origen, error });
+                return { error: error?.message || String(error) };
+            } finally {
+                veaSyncEnCurso = false;
+            }
+        }
+
+        function veaProgramarRevisionSemanalSegura() {
+            const revisar = () => {
+                const ultima = Number(localStorage.getItem(VEA_SYNC_ULTIMA_REVISION_KEY) || 0);
+                if (!ultima || Date.now() - ultima >= VEA_SYNC_SEMANAL_MS) {
+                    veaActualizarDesdeSupabaseSeguro('control semanal');
+                }
+            };
+            window.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') revisar();
+            }, { passive: true });
+            setInterval(revisar, 6 * 60 * 60 * 1000);
+        }
+
+        window.veaActualizarDesdeSupabaseSeguro = veaActualizarDesdeSupabaseSeguro;
+        window.veaProgramarRevisionSemanalSegura = veaProgramarRevisionSemanalSegura;
+
         window.onload = async function() {
             // F6.01 — ARRANQUE UNIVERSAL ROBUSTO
             // Ningún fallo visual puede impedir la sincronización de datos.
@@ -12180,6 +12404,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                 }
                 if (barra) barra.style.width = '100%';
                 console.info('[VEA F6.01] Arranque universal completado', resultado);
+                veaProgramarRevisionSemanalSegura();
             } catch (err) {
                 const mensaje = String(err?.message || err || 'Error desconocido');
                 if (txt) txt.textContent = cacheVeaDisponible
@@ -14046,6 +14271,51 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
   window.addEventListener('load',()=>{aplicar();setTimeout(aplicar,600);setTimeout(aplicar,1800)});
 })();
 <\/script>
+
+<!-- VEA_SYNC_BACKEND_ADAPTER_20260916 -->
+<script id="vea-sync-backend-adapter-20260916">
+(function () {
+  'use strict';
+  window.veaSincronizacionControlada = {
+    version: 'VEA_SYNC_BACKEND_ADAPTER_20260916',
+    estado: 'PENDIENTE_CONFIGURACION_VERCEL',
+    async enviarCargaValidada(informe, registros) {
+      if (!informe || Number(informe.errores || 0) > 0) {
+        throw new Error('La carga no puede sincronizarse: existen errores de auditoría.');
+      }
+      if (!Array.isArray(registros) || registros.length === 0) {
+        throw new Error('No hay registros válidos para sincronizar.');
+      }
+
+      const endpoint = window.VEA_SYNC_ENDPOINT || '/api/vea-sync';
+      const tabla = String(
+        informe?.tabla || informe?.table || window.VEA_SYNC_TABLE || ''
+      ).trim().toLowerCase();
+
+      if (!tabla) {
+        return {
+          ok: false,
+          estado: 'PENDIENTE_TABLA_DESTINO',
+          mensaje: 'Falta definir la tabla Supabase de destino.'
+        };
+      }
+
+      const respuesta = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ version: this.version, tabla, informe, registros })
+      });
+
+      if (!respuesta.ok) {
+        throw new Error(`El servidor rechazó la sincronización (${respuesta.status}).`);
+      }
+      return await respuesta.json();
+    }
+  };
+})();
+</script>
+
 </body></html>`;
 
   const w=window.open('','_blank');
