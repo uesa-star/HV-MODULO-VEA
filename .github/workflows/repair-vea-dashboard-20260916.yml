@@ -1,0 +1,73 @@
+name: VEA reparar dashboard 20260916
+on:
+  push:
+    paths:
+      - '.github/workflows/repair-vea-dashboard-20260916.yml'
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reparar JavaScript embebido y alineación
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # 1) Evitar que un </script> contenido dentro de un template literal
+          # del boletín cierre el script principal y deje JavaScript como texto visible.
+          out=[]
+          in_template=False
+          escaped=False
+          i=0
+          while i < len(s):
+              ch=s[i]
+              if in_template and s.startswith('</script>', i):
+                  out.append('<\\/script>')
+                  i += len('</script>')
+                  continue
+              out.append(ch)
+              if escaped:
+                  escaped=False
+              elif ch=='\\':
+                  escaped=True
+              elif ch=='`':
+                  in_template=not in_template
+              i += 1
+          s=''.join(out)
+
+          # 2) Alinear los filtros Año / Mes / Semana y las acciones.
+          s=s.replace(
+              'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-4 lg:items-end',
+              'grid vea-filtros-dashboard-grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.15fr_1fr_1fr_auto] gap-4 lg:items-end',
+              1
+          )
+          css='''\n<style id="vea-fix-dashboard-layout-20260916">\n/* VEA_FIX_DASHBOARD_LAYOUT_20260916 */\n#filtrosVigilancia .vea-filtros-dashboard-grid{align-items:end!important}\n#filtrosVigilancia .vea-filtros-dashboard-grid>div{min-width:0!important}\n#filtrosVigilancia .vea-filtros-dashboard-grid>div>label{min-height:1rem!important;display:flex!important;align-items:flex-end!important;margin-bottom:.375rem!important;line-height:1!important}\n#filtrosVigilancia .vea-filtros-dashboard-grid #btnDropdownAnios,#filtrosVigilancia .vea-filtros-dashboard-grid select{height:42px!important;min-height:42px!important;box-sizing:border-box!important}\n#filtrosVigilancia .vea-filtros-dashboard-grid .vea-filtros-acciones{height:42px!important;display:flex!important;align-items:stretch!important;gap:.5rem!important}\n#filtrosVigilancia .vea-filtros-dashboard-grid .vea-filtros-acciones>button{height:42px!important;margin:0!important}\n</style>\n'''
+          if 'vea-fix-dashboard-layout-20260916' not in s:
+              s=s.replace('</head>',css+'</head>',1)
+
+          # 3) Validación estructural.
+          if 'F6_20_MASTER_DINAMICO_CACHE_V2' not in s: raise SystemExit('F6.20 ausente')
+          if '</script>\n</body></html>`' in s: raise SystemExit('Persistió cierre peligroso')
+          if 'VEA_FIX_DASHBOARD_LAYOUT_20260916' not in s: raise SystemExit('CSS de alineación ausente')
+          if '<\\/script>' not in s: raise SystemExit('No se protegió ningún cierre interno')
+          p.write_text(s,encoding='utf-8')
+          print('OK: corrupción reparada y filtros alineados')
+      - name: Publicar corrección
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "VEA: corregir corrupción JS y alinear filtros"
+          git push
+      - name: Retirar workflow temporal
+        if: success()
+        run: |
+          git rm .github/workflows/repair-vea-dashboard-20260916.yml || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "VEA: retirar workflow temporal de reparación" || true
+          git push || true
