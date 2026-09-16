@@ -1,0 +1,87 @@
+name: VEA normalizar módulos 20260916
+on:
+  push:
+    paths:
+      - '.github/workflows/normalizar-modulos-vea-20260916.yml'
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Normalizar presentación de todos los módulos
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = 'VEA_NORMALIZACION_MODULOS_20260916'
+          css = r'''<style id="vea-normalizacion-modulos-20260916">
+/* VEA_NORMALIZACION_MODULOS_20260916 — sistema común de alineación, orden y sincronía visual */
+#veaAppShell>main{box-sizing:border-box;width:100%!important;max-width:96rem!important;min-width:0!important;margin-left:auto!important;margin-right:auto!important}
+#veaMasterMenu{display:flex!important;flex-direction:column!important;gap:.4rem!important}
+#veaMasterMenu .vea-menu-item{box-sizing:border-box!important;width:100%!important;min-height:42px!important;height:42px!important;margin:0!important;display:flex!important;align-items:center!important}
+#btnTabDashboard{order:1!important}#btnTabHospitalizados{order:2!important}#btnTabCasos{order:3!important}#btnTabDatos{order:4!important}
+#contentDashboard,#contentCanal,#contentTabla,#contentHospitalizados,#contentCasos,#contentSoat,#contentVih,#contentTbc,#contentConfiguracion,#contentDatos{box-sizing:border-box!important;width:100%!important;max-width:none!important;min-width:0!important;margin-left:0!important;margin-right:0!important}
+#contentDashboard,#contentHospitalizados{gap:1rem!important}
+#contentDashboard>.grid,#contentHospitalizados>.grid{width:100%!important;min-width:0!important;margin-left:0!important;margin-right:0!important}
+#contentDashboard .vea-kpis-regulares>div,#contentHospitalizados>.grid:first-child>div{box-sizing:border-box!important;min-height:166px!important;height:100%!important}
+#contentCanal>#canalHostModulo,#contentTabla>#matrizSEHostModulo{width:100%!important;max-width:none!important;margin:0!important}
+#canalPanelCompartido,#matrizSEPanelCompartido{box-sizing:border-box!important;width:100%!important;max-width:none!important;margin:0!important}
+#contentDashboard :is(.rounded-xl,.rounded-2xl),#contentHospitalizados :is(.rounded-xl,.rounded-2xl),#contentCasos :is(.rounded-xl,.rounded-2xl),#contentDatos :is(.rounded-xl,.rounded-2xl),#contentCanal :is(.rounded-xl,.rounded-2xl),#contentTabla :is(.rounded-xl,.rounded-2xl){box-sizing:border-box!important;max-width:100%}
+#contentDashboard canvas,#contentHospitalizados canvas,#contentCasos canvas,#contentDatos canvas,#contentCanal canvas,#contentTabla canvas{max-width:100%!important}
+#bandaSituacionCompleta,#filtrosVigilancia{box-sizing:border-box!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important}
+#bandaSituacionCompleta{min-height:64px!important}
+#filtrosVigilancia{margin-top:0!important}
+/* Misma separación vertical para todas las superficies principales */
+#contentDashboard,#contentCanal,#contentTabla,#contentHospitalizados,#contentCasos,#contentDatos{scroll-margin-top:1rem}
+@media(min-width:768px){
+  #veaAppShell>main{padding-left:0!important;padding-right:0!important}
+  #contentDashboard>.grid,#contentHospitalizados>.grid{align-items:stretch!important}
+}
+@media(max-width:767px){
+  #veaAppShell>main{width:100%!important;max-width:100%!important;padding-left:.5rem!important;padding-right:.5rem!important}
+  #contentDashboard,#contentCanal,#contentTabla,#contentHospitalizados,#contentCasos,#contentSoat,#contentVih,#contentTbc,#contentConfiguracion,#contentDatos{width:100%!important;max-width:100%!important}
+  #contentDashboard .vea-kpis-regulares>div,#contentHospitalizados>.grid:first-child>div{min-height:0!important;height:auto!important}
+}
+</style>
+'''
+          if marker not in s:
+              s = s.replace('</head>', css + '</head>', 1)
+          else:
+              raise SystemExit('La normalización ya existe; no se duplica')
+          # Validaciones: preservar la arquitectura y la reparación anterior.
+          required = [
+              'F6_20_MASTER_DINAMICO_CACHE_V2',
+              'VEA_FIX_DASHBOARD_LAYOUT_20260916',
+              marker,
+              'id="contentDashboard"',
+              'id="contentHospitalizados"',
+              'id="contentCasos"',
+              'id="contentDatos"',
+              'id="contentCanal"',
+              'id="contentTabla"'
+          ]
+          for x in required:
+              if x not in s:
+                  raise SystemExit('Falta: ' + x)
+          if '</script>\n</body></html>`' in s:
+              raise SystemExit('Se detectó nuevamente cierre interno peligroso')
+          p.write_text(s, encoding='utf-8')
+          print('OK: módulos normalizados sin tocar cálculos ni ETL')
+      - name: Publicar normalización
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "VEA: normalizar alineación orden y sincronía visual de módulos"
+          git push
+      - name: Retirar workflow temporal
+        if: success()
+        run: |
+          git rm .github/workflows/normalizar-modulos-vea-20260916.yml || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "VEA: retirar workflow temporal de normalización" || true
+          git push || true
