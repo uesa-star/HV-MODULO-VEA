@@ -1,0 +1,46 @@
+name: VEA corregir filtro completo de años
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-years:
+    if: ${{ !contains(github.event.head_commit.message, 'VEA: corregir filtro completo de años') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Corregir regla de tres años
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="""function tresAniosMasRecientesVea(anios) {\n            return normalizarListaAniosVea(anios).sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);\n        }\n\n        function estadoTemporalVeaDesdeAnios(anios) {\n            return {\n                anios: tresAniosMasRecientesVea(anios),\n                mes: 'Todos',\n                semana: 'Todas',\n                inicializado: true\n            };\n        }"""
+          new="""function tresAniosMasRecientesVea(anios) {\n            // Compatibilidad histórica: conserva el nombre de la función,\n            // pero el filtro visible debe ofrecer TODOS los años disponibles.\n            return normalizarListaAniosVea(anios).sort((a, b) => a - b);\n        }\n\n        function estadoTemporalVeaDesdeAnios(anios) {\n            return {\n                // El usuario debe poder seleccionar cualquier año existente en la base.\n                anios: tresAniosMasRecientesVea(anios),\n                mes: 'Todos',\n                semana: 'Todas',\n                inicializado: true\n            };\n        }"""
+          if old not in s:
+              raise SystemExit('No se encontró la regla responsable del límite de 3 años')
+          s=s.replace(old,new,1)
+          marker='VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915'
+          if marker not in s:
+              s=s.replace('</head>', f'<!-- {marker} -->\n</head>',1)
+          p.write_text(s,encoding='utf-8')
+          print('OK: filtro de años completo')
+          PY
+      - name: Validar
+        run: |
+          grep -q 'VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915' index.html
+          grep -q 'return normalizarListaAniosVea(anios).sort((a, b) => a - b);' index.html
+          grep -q 'F6_20_MASTER_DINAMICO_CACHE_V2' index.html
+      - name: Publicar
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'VEA: corregir filtro completo de años'
+          git push
