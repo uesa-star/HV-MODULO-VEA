@@ -1,0 +1,62 @@
+name: VEA aplicar correccion filtro completo de años
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/apply-years-fix-20260915.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aplicar corrección
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          path=Path('index.html')
+          text=path.read_text(encoding='utf-8')
+          original=text
+          pattern=r'(function\s+tresAniosMasRecientesVea\s*\(anios\)\s*\{).*?(\n\s*\})'
+          match=re.search(pattern,text,re.S)
+          if not match:
+              raise SystemExit('ERROR: no se encontró la función del filtro de años.')
+          replacement='function tresAniosMasRecientesVea(anios) {\n            // Compatibilidad histórica: el filtro visible ofrece TODOS los años disponibles.\n            return normalizarListaAniosVea(anios).sort((a, b) => a - b);\n        }'
+          text=text[:match.start()]+replacement+text[match.end():]
+          css='''\n<style id="vea-fix-filtro-anios-visual-20260915">\n/* VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915 */\n#dropdownAniosContent{width:100%!important;max-height:22rem!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important;z-index:80!important}\n#dropdownAniosContent label{min-height:2.45rem;box-sizing:border-box}\n#dropdownAniosContent::-webkit-scrollbar{width:5px}\n@media(max-width:767px){#dropdownAniosContent{max-height:18rem!important}}\n</style>\n'''
+          if 'vea-fix-filtro-anios-visual-20260915' not in text:
+              text=text.replace('</head>',css+'</head>',1)
+          if 'F6_20_MASTER_DINAMICO_CACHE_V2' not in text:
+              raise SystemExit('ERROR: firma F6.20 ausente.')
+          if 'return normalizarListaAniosVea(anios).sort((a, b) => a - b);' not in text:
+              raise SystemExit('ERROR: no se aplicó la regla completa.')
+          path.write_text(text,encoding='utf-8')
+          print('OK')
+          PY
+
+      - name: Validar
+        shell: bash
+        run: |
+          grep -q 'VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915' index.html
+          grep -q 'return normalizarListaAniosVea(anios).sort((a, b) => a - b);' index.html
+          grep -q 'F6_20_MASTER_DINAMICO_CACHE_V2' index.html
+
+      - name: Publicar INDEX corregido
+        shell: bash
+        run: |
+          git config user.name "uesa-star"
+          git config user.email "uesa@hospitaldeventanilla.gob.pe"
+          git add index.html
+          git commit -m "VEA: publicar filtro completo de años"
+          git push origin HEAD:main
