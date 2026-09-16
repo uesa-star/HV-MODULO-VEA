@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 p = Path('index.html')
 s = p.read_text(encoding='utf-8')
@@ -43,13 +42,13 @@ if '</head>' not in s:
     raise SystemExit('ERROR: no se encontró cierre HEAD')
 s = s.replace('</head>', css + '\n</head>', 1)
 
-# 5) Marca de auditoría y comprobaciones estructurales mínimas.
-if s.count('<html') != 1 or s.count('</html>') != 1:
-    raise SystemExit('ERROR: estructura HTML raíz inválida')
-if s.count('<body') != 1 or s.count('</body>') != 1:
-    raise SystemExit('ERROR: estructura BODY inválida')
+# 5) Validaciones que no confunden el HTML de la página con el HTML generado dentro del boletín.
 if 'F6_20_MASTER_DINAMICO_CACHE_V2' not in s:
     raise SystemExit('ERROR: firma F6.20 ausente')
+if 'abrirAvisoBoletinSEVea();' not in s:
+    raise SystemExit('ERROR: generador dinámico del boletín ausente')
+if 'VEA_REPARACION_BOLETIN_LAYOUT_20260915' not in s:
+    raise SystemExit('ERROR: marcador de reparación ausente')
 
 s = s.replace('</head>', f'<!-- {MARK} -->\n</head>', 1)
 p.write_text(s, encoding='utf-8')
