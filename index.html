@@ -1637,6 +1637,14 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 }
 </style>
 <!-- VEA_REPARACION_BOLETIN_LAYOUT_20260915 -->
+
+<style id="vea-fix-filtro-anios-visual-20260915">
+/* VEA_FIX_FILTRO_ANIOS_COMPLETO_20260915 */
+#dropdownAniosContent{width:100%!important;max-height:22rem!important;overflow-y:auto!important;overflow-x:hidden!important;box-sizing:border-box!important;z-index:80!important}
+#dropdownAniosContent label{min-height:2.45rem;box-sizing:border-box}
+#dropdownAniosContent::-webkit-scrollbar{width:5px}
+@media(max-width:767px){#dropdownAniosContent{max-height:18rem!important}}
+</style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col relative">
 
@@ -3654,7 +3662,8 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         }
 
         function tresAniosMasRecientesVea(anios) {
-            return normalizarListaAniosVea(anios).sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);
+            // Compatibilidad histórica: el filtro visible ofrece TODOS los años disponibles.
+            return normalizarListaAniosVea(anios).sort((a, b) => a - b);
         }
 
         function estadoTemporalVeaDesdeAnios(anios) {
