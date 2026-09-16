@@ -1623,6 +1623,20 @@ html[data-vea-theme="light"] main :is(#contentDashboard,#contentHospitalizados,#
 html[data-vea-theme="dark"] main :is(#contentDashboard,#contentHospitalizados,#contentCasos,#contentSoat,#contentDatos,#contentVih,#contentTbc) :is(div,article).rounded-2xl:has(canvas) :is(h3,h4){color:#f8fafc!important}
 html[data-vea-theme="light"] main :is(#contentDashboard,#contentHospitalizados,#contentCasos,#contentSoat,#contentDatos,#contentVih,#contentTbc) :is(div,article).rounded-2xl:has(canvas) :is(h3,h4){color:#0f172a!important}
 </style>
+<style id="vea-reparacion-boletin-layout-20260915">
+/* VEA_REPARACION_BOLETIN_LAYOUT_20260915 — estabilización de presentación */
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+#veaAppShell{width:100%;max-width:100%;min-width:0;box-sizing:border-box;overflow-x:clip}
+#veaAppShell>main{box-sizing:border-box;width:100%;max-width:96rem!important;min-width:0;margin-left:auto!important;margin-right:auto!important}
+#veaAppShell>main>:is(#contentDashboard,#contentCasos,#contentCanal,#contentTabla,#contentHospitalizados,#contentSoat,#contentVih,#contentTbc,#contentConfiguracion,#contentDatos){box-sizing:border-box;width:100%;max-width:none;min-width:0;margin-left:0;margin-right:0}
+#contentConfiguracion{overflow-x:hidden}
+#contentConfiguracion>*{box-sizing:border-box;max-width:100%}
+@media(max-width:767px){
+ #veaAppShell>main{width:100%!important;max-width:100%!important;padding-left:0!important;padding-right:0!important}
+ #veaAppShell>main>:is(#contentDashboard,#contentCasos,#contentCanal,#contentTabla,#contentHospitalizados,#contentSoat,#contentVih,#contentTbc,#contentConfiguracion,#contentDatos){width:100%!important;max-width:100%!important}
+}
+</style>
+<!-- VEA_REPARACION_BOLETIN_LAYOUT_20260915 -->
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col relative">
 
@@ -12654,12 +12668,15 @@ function generarBoletinSeleccionadoVea(){
   const semana=Number(document.getElementById('selectSemanaBoletinVea')?.value);
   if(!anio||!semana)return;
   window.__veaBoletinSeleccion={anio,semana};
-  cerrarSelectorBoletinVea();actualizarTextoBoletinSEVea();abrirBoletinAvanzadoVea();
+  cerrarSelectorBoletinVea();actualizarTextoBoletinSEVea();abrirAvisoBoletinSEVea();
 }
 function abrirBoletinAvanzadoVea(){
-  const url='Hosp_Ventanilla_BOLETIN_SE_34_2026_PUNTO3_VEA_GRAFICOS_PRO.pdf';
-  const w=window.open(url,'_blank','noopener');
-  if(!w) alert('El navegador bloqueó la ventana del boletín. Habilita las ventanas emergentes para este módulo.');
+  // Generación dinámica: usa exactamente el Año + S.E. elegidos en el selector.
+  if(typeof abrirAvisoBoletinSEVea === 'function'){
+    abrirAvisoBoletinSEVea();
+    return;
+  }
+  alert('El generador del Boletín VEA todavía no está disponible.');
 }
 function cambiarZoomBoletinVea(ventana,paso){
   let zoom=Number(window.__veaBoletinZoom||1);
@@ -12697,7 +12714,6 @@ function obtenerSemanaBoletinVea(){
 }
 // F4.81 — el acceso conserva una etiqueta breve y estable al entrar y salir.
 function actualizarTextoBoletinSEVea(){
-  document.getElementById('btnBoletinProVea')?.remove();
   const el=document.getElementById('textoBtnBoletinSEVea');
   if(el)el.textContent='Boletín';
 }
