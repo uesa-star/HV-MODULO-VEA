@@ -20,21 +20,11 @@ module.exports = async function handler(req, res) {
   if (!apikey || !authorization) return res.status(401).json({ error: 'Credenciales públicas faltantes' });
 
   const params = new URLSearchParams({ select: '*', offset: String(offset), limit: String(limit) });
-  // Las tablas VEA entregan los nombres epidemiológicos en mayúsculas.
-  if (table === 'edas' || table === 'iras' || table === 'febriles') {
-    params.set('order', 'ANO.asc,_row_id.asc');
-  } else {
-    params.set('order', 'ANO.asc');
-  }
+  // No usar _row_id: puede no existir en la tabla y dejar todos los gráficos sin datos.
+  // El orden epidemiológico se resuelve en el cliente después de recibir los registros.
 
-  if (year) {
-    if (table === 'edas' || table === 'iras' || table === 'febriles') {
-      const y = Number(year);
-      params.set('ANO', `in.(${y - 2},${y - 1},${y})`);
-    } else {
-      params.set('ANO', `eq.${year}`);
-    }
-  }
+  // No aplicar filtros por nombre de columna desde el API: las tablas pueden tener
+  // variaciones de mayúsculas/minúsculas. El cliente normaliza ANO/ano y filtra localmente.
 
   const upstreamUrl = `https://qtsfkoasfoaovadilwgk.supabase.co/rest/v1/${encodeURIComponent(table)}?${params.toString()}`;
   try {
