@@ -34,7 +34,7 @@ Fecha de protección: 2026-09-16
     <!-- Supabase: fuente remota; Excel/CSV permanece como respaldo manual -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; transition: background-color 0.5s ease; }
         /* F5.04 — eliminar filas auxiliares duplicadas de totales. */
         .vea-chart-summary { display: none !important; }
@@ -14318,7 +14318,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
       });
 
       if (!respuesta.ok) {
-        throw new Error(`El servidor rechazó la sincronización (${respuesta.status}).`);
+        throw new Error('El servidor rechazó la sincronización (' + respuesta.status + ').');
       }
       return await respuesta.json();
     }
