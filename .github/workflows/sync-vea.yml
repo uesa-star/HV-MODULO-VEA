@@ -185,8 +185,9 @@ jobs:
               raise SystemExit("ERROR: aún existe el texto fijo Fuente maestra 10.Sep.2026")
           if "VEA_CACHE_DB_V1" in text:
               raise SystemExit("ERROR: aún existe la caché antigua V1")
-          if "F6_20_MASTER_DINAMICO_CACHE_V2" not in text:
-              raise SystemExit("ERROR: no se aplicó la firma F6.20")
+          firmas_validas = ("F6_20_MASTER_DINAMICO_CACHE_V2", "F6_24_AUTO_SYNC_SE37_CORREGIDO")
+          if not any(firma in text for firma in firmas_validas):
+              raise SystemExit("ERROR: no se encontró ninguna firma de build válida (F6.20/F6.24)")
 
           if text != original:
               path.write_text(text, encoding="utf-8")
