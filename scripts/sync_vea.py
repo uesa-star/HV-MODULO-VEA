@@ -50,10 +50,12 @@ def required(name: str) -> str:
     return value
 
 
-def column_name(value: Any, index: int) -> str:
+def column_name(value: Any, index: int) -> str | None:
     text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode()
     text = re.sub(r"[^a-zA-Z0-9]+", "_", text.strip()).strip("_").lower()
-    return text or f"columna_{index + 1}"
+    # Cabeceras vacías (columnas de relleno del Excel) no existen en Supabase
+    # y provocan PGRST204 si se envían como "columna_N".
+    return text or None
 
 
 def json_value(value: Any) -> Any:
@@ -74,17 +76,25 @@ def read_sheet(ws: Any) -> list[dict[str, Any]]:
         headers = next(rows)
     except StopIteration:
         return []
-    names: list[str] = []
+    names: list[tuple[int, str]] = []
     used: dict[str, int] = {}
     for i, header in enumerate(headers):
         name = column_name(header, i)
+        if name is None:
+            continue
         used[name] = used.get(name, 0) + 1
-        names.append(name if used[name] == 1 else f"{name}_{used[name]}")
+        final = name if used[name] == 1 else f"{name}_{used[name]}"
+        names.append((i, final))
     output = []
     for row in rows:
         if not any(value not in (None, "") for value in row):
             continue
-        output.append({name: json_value(row[i] if i < len(row) else None) for i, name in enumerate(names)})
+        record = {
+            name: json_value(row[i] if i < len(row) else None)
+            for i, name in names
+        }
+        if record:
+            output.append(record)
     return output
 
 
@@ -130,6 +140,54 @@ def supabase_request(base: str, key: str, method: str, table: str, **kwargs: Any
     if extra_headers:
         headers.update(extra_headers)
     return requests.request(method, f"{base}/rest/v1/{table}", headers=headers, timeout=120, **kwargs)
+
+
+def filter_rows_to_schema(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Elimina columnas que no existen en Supabase antes de borrar datos.
+
+    PostgREST rechaza el insert (PGRST204) si el payload trae una columna
+    desconocida. Aquí se detecta con SELECT (400 = no existe) y se descartan
+    esas claves antes del CLEAR, para no dejar la tabla vacía a medias.
+    """
+    if not rows:
+        return rows
+    candidatas = sorted({k for row in rows for k in row})
+    validas: set[str] = set()
+    pendientes = list(candidatas)
+    while pendientes:
+        response = supabase_request(
+            base,
+            key,
+            "GET",
+            table,
+            params={"select": ",".join(pendientes), "limit": "1"},
+        )
+        if response.status_code < 300:
+            validas.update(pendientes)
+            break
+        missing = None
+        try:
+            message = response.json().get("message", "")
+        except Exception:
+            message = response.text
+        match = re.search(r"column\s+[\w.]+\.(\w+)\s+does not exist", message)
+        if match:
+            missing = match.group(1)
+        if missing and missing in pendientes:
+            pendientes.remove(missing)
+            continue
+        # Error no relacionado con columnas: mejor fallar antes de borrar.
+        raise RuntimeError(
+            f"{table}: no se pudo validar el esquema ({response.status_code}): {message[:500]}"
+        )
+
+    descartadas = sorted(set(candidatas) - validas)
+    if descartadas:
+        print(f"{table}: columnas del Excel ausentes en Supabase (se omiten): {', '.join(descartadas)}")
+    filtradas = [{k: v for k, v in row.items() if k in validas} for row in rows]
+    if not any(filtradas):
+        raise RuntimeError(f"{table}: todas las columnas del Excel son desconocidas en Supabase")
+    return filtradas
 
 
 def count_table(base: str, key: str, table: str) -> int:
@@ -226,6 +284,9 @@ def clear_table_by_ranges(base: str, key: str, table: str) -> None:
 
 def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> None:
     # Evita COUNT(*) sobre tablas infladas: en SOAT superaba el statement timeout.
+    # Validar columnas ANTES de borrar: un insert rechazado tras el CLEAR
+    # dejaría la tabla vacía (así se perdió febriles en 2026-09-24).
+    rows = filter_rows_to_schema(base, key, table, rows)
     clear_table_by_ranges(base, key, table)
 
     for start in range(0, len(rows), BATCH):

@@ -11998,8 +11998,9 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
                 // FASE 3.7: primer pintado inmediato.
                 // Restauramos datos primero y diferimos el trabajo pesado de UI al siguiente frame.
-                const txt = document.getElementById('textoProgresoVea');
-                const barra = document.getElementById('barraProgresoVea');
+                // El DOM real usa #textoProgreso/#barraProgreso (sin sufijo Vea).
+                const txt = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
+                const barra = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
                 const total = Number(payload.totalRemoto) || (
                     databaseActiva.EDAs.length + databaseActiva.IRAs.length + databaseActiva.Febriles.length +
                     datosModulosIndependientes.casos.length
@@ -12107,8 +12108,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             window.__veaModeloDatosF326 = null;
             window.__veaCasosFiltradosF401 = null;
             window.__veaSoatPreparadoF326 = false;
-            const txtEstadoSupabase = document.getElementById('textoProgresoVea');
-            const barraSupabase = document.getElementById('barraProgresoVea');
+            const txtEstadoSupabase = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
+            const barraSupabase = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
             if (txtEstadoSupabase) txtEstadoSupabase.textContent = 'Conectando con Supabase…';
             if (barraSupabase) barraSupabase.style.width = '15%';
             const modoRestMovil = true; // F6.00 motor universal same-origin vía Vercel
@@ -12377,8 +12378,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             veaPasoSeguroF601('estado filtros', () => restaurarEstadoFiltrosEvento(selectedEvent));
             veaPasoSeguroF601('tema', () => aplicarTemaGraficoYBotones());
 
-            const txt = document.getElementById('textoProgresoVea');
-            const barra = document.getElementById('barraProgresoVea');
+            const txt = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
+            const barra = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
             if (txt) txt.textContent = 'Iniciando sincronización VEA…';
             if (barra) barra.style.width = '10%';
 

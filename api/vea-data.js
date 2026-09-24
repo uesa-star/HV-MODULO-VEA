@@ -23,8 +23,10 @@ module.exports = async function handler(req, res) {
   // No usar _row_id: puede no existir en la tabla y dejar todos los gráficos sin datos.
   // El orden epidemiológico se resuelve en el cliente después de recibir los registros.
 
-  // No aplicar filtros por nombre de columna desde el API: las tablas pueden tener
-  // variaciones de mayúsculas/minúsculas. El cliente normaliza ANO/ano y filtra localmente.
+  // El cliente (móvil) envía year=YYYY esperando filtrado en servidor. El filtro se
+  // aplica con el nombre canónico snake_case "ano" que usa sync_vea.py en todas
+  // las tablas (edas/iras/febriles/individual).
+  if (year) params.append('ano', `eq.${year}`);
 
   const upstreamUrl = `https://qtsfkoasfoaovadilwgk.supabase.co/rest/v1/${encodeURIComponent(table)}?${params.toString()}`;
   try {
