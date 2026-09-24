@@ -1,22 +1,23 @@
 name: Sincronización VEA desde Google Drive
 
-# Automatización diaria segura (hora de Perú, UTC-5):
-# 06:00 Perú = 11:00 UTC. Descarga el Master "vigilancia VEA.xlsx"
-# y reemplaza las tablas en Supabase para que el módulo VEA lo refleje al abrir.
+# Automatización horaria segura (hora de Perú, UTC-5):
+# Revisa el Master en Google Drive cada hora.
+# Solo sincroniza Supabase cuando Google Drive reporta un cambio.
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 11 * * *"
+    - cron: "0 * * * *"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/sync-vea.yml"
       - "scripts/sync_vea.py"
+      - "scripts/sync_vea_guard.py"
       - "requirements-sync.txt"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: vea-sync
@@ -30,7 +31,7 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -40,25 +41,23 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements-sync.txt
 
-      - name: Sincronizar Excel con Supabase
+      - name: Revisar y sincronizar solo si Google Drive cambió
         env:
-          # Secretos SOLO en GitHub Settings → Secrets → Actions (nunca en el repo).
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # Master "vigilancia VEA.xlsx" (Google Sheets/Drive).
           GOOGLE_DRIVE_FILE_ID: "1TJaDJ5U7M3RZYgfAR6LI3kFTABBH0UYb"
         shell: bash
         run: |
           set -e
           for intento in 1 2 3; do
-            echo "Intento de sincronización ${intento}/3"
-            if python scripts/sync_vea.py; then
-              echo "Sincronización completada correctamente."
+            echo "Revisión/sincronización VEA: intento ${intento}/3"
+            if python scripts/sync_vea_guard.py; then
+              echo "Proceso VEA completado correctamente."
               break
             fi
             if [ "$intento" -eq 3 ]; then
-              echo "ERROR: la sincronización falló después de 3 intentos."
+              echo "ERROR: el proceso VEA falló después de 3 intentos."
               exit 1
             fi
             sleep 20
@@ -82,10 +81,8 @@ jobs:
               "Prefer": "count=exact",
           }
           obligatorias = ["edas", "iras", "febriles", "individual", "soat"]
-          opcionales = ["vih", "tbc"]
           fallos = []
 
-          print("Verificando tablas obligatorias del Master VEA...")
           for tabla in obligatorias:
               try:
                   r = requests.get(
@@ -97,114 +94,16 @@ jobs:
                   if r.status_code >= 300:
                       fallos.append(f"{tabla}: HTTP {r.status_code}")
                       print(f"FAIL {tabla}: HTTP {r.status_code} {r.text[:200]}")
-                      continue
-                  print(f"OBLIGATORIA {tabla}: {r.headers.get('content-range', '?')}")
+                  else:
+                      print(f"OK {tabla}: {r.headers.get('content-range', '?')}")
               except Exception as exc:
                   fallos.append(f"{tabla}: {exc}")
                   print(f"FAIL {tabla}: {exc}")
-
-          print("Verificando tablas opcionales...")
-          for tabla in opcionales:
-              try:
-                  r = requests.get(
-                      f"{base}/rest/v1/{tabla}",
-                      headers=headers,
-                      params={"select": "_row_id", "limit": "1"},
-                      timeout=60,
-                  )
-                  if r.ok:
-                      print(f"OPCIONAL {tabla}: {r.headers.get('content-range', '?')}")
-                  else:
-                      print(f"OPCIONAL {tabla}: no disponible (HTTP {r.status_code})")
-              except Exception as exc:
-                  print(f"OPCIONAL {tabla}: no verificada ({exc})")
 
           if fallos:
               print("VERIFICACIÓN FALLIDA:")
               for item in fallos:
                   print(f" - {item}")
               sys.exit(1)
-          print("VERIFICACIÓN OK: las 5 tablas obligatorias responden después de la sincronización.")
+          print("VERIFICACIÓN OK: las tablas obligatorias responden.")
           PY
-
-      - name: Actualizar INDEX para datos vigentes
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("index.html")
-          text = path.read_text(encoding="utf-8")
-          original = text
-
-          text = text.replace(
-              "<!-- VEA_BUILD: F6_10_CARGA_INICIAL_MOVIL_ANIO_ACTIVO -->",
-              "<!-- VEA_BUILD: F6_20_MASTER_DINAMICO_CACHE_V2 -->",
-              1,
-          )
-
-          text = text.replace(
-              "// Fuente maestra validada el 10.Sep.2026. Se conserva todo el repositorio\n        // hasta la S.E.35; el boletín puede aplicar un corte menor mediante filtros.",
-              "// F6.20 — Fuente maestra dinámica: el corte se obtiene de Supabase y no se fija en el código.",
-              1,
-          )
-          text = text.replace("archivo: 'vigilancia VEA(20260910-202811).xlsx'", "archivo: 'vigilancia VEA.xlsx'", 1)
-          text = text.replace("sha256: '9479023f7e3182ee4726cea5f02d8c115f17feda999e0e5496620684f8969c7c'", "sha256: null", 1)
-          text = text.replace("fecha: '10.Sep.2026'", "fecha: null", 1)
-          text = text.replace("ultimaSemana: 35", "ultimaSemana: null", 1)
-
-          text = text.replace(
-              "esperado: VEA_FUENTE_MAESTRA_20260910.ultimaSemana,\n                coincideCorte: ultimaSemana === VEA_FUENTE_MAESTRA_20260910.ultimaSemana,",
-              "esperado: ultimaSemana,\n                coincideCorte: ultimaSemana !== null,",
-              1,
-          )
-
-          text = text.replace(
-              "const VEA_CACHE_DB = 'VEA_CACHE_DB_V1';",
-              "const VEA_CACHE_DB = 'VEA_CACHE_DB_V2_20260914';",
-              1,
-          )
-          text = text.replace(
-              "const VEA_CACHE_KEY = 'dataset_procesado';",
-              "const VEA_CACHE_KEY = 'dataset_procesado_master_dinamico_v2';",
-              1,
-          )
-
-          text = text.replace(
-              "`Última sincronización: ${fecha} · Fuente maestra 10.Sep.2026 · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`",
-              "`Última actualización base: ${fecha} · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'}`",
-              1,
-          )
-          text = text.replace(
-              "`Última sincronización: ${fecha} · Fuente maestra vigente · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'} · Duplicados excluidos: ${Number(veaDuplicadosUltimaCarga || 0).toLocaleString('es-PE')}`",
-              "`Última actualización base: ${fecha} · S.E. ${veaAuditarCorteFuenteMaestra().ultimaSemana ?? '—'}`",
-              1,
-          )
-
-          if "Fuente maestra 10.Sep.2026" in text:
-              raise SystemExit("ERROR: aún existe el texto fijo Fuente maestra 10.Sep.2026")
-          if "VEA_CACHE_DB_V1" in text:
-              raise SystemExit("ERROR: aún existe la caché antigua V1")
-          firmas_validas = ("F6_20_MASTER_DINAMICO_CACHE_V2", "F6_24_AUTO_SYNC_SE37_CORREGIDO")
-          if not any(firma in text for firma in firmas_validas):
-              raise SystemExit("ERROR: no se encontró ninguna firma de build válida (F6.20/F6.24)")
-
-          if text != original:
-              path.write_text(text, encoding="utf-8")
-              print("INDEX actualizado: indicador de carga simplificado y fuente dinámica vigente.")
-          else:
-              print("INDEX ya estaba actualizado; no se requieren cambios.")
-          PY
-
-      - name: Publicar INDEX actualizado si cambió
-        shell: bash
-        run: |
-          if git diff --quiet -- index.html; then
-            echo "INDEX sin cambios pendientes."
-            exit 0
-          fi
-          git config user.name "uesa-star"
-          git config user.email "uesa@hospitaldeventanilla.gob.pe"
-          git add index.html
-          git commit -m "VEA: simplificar indicador de carga actualizada"
-          git push origin HEAD:main
