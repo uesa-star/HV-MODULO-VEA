@@ -1,4 +1,3 @@
-
 <!--
 VEA — BLOQUEO DE CONTINUIDAD / PROTECCIÓN DE VERSIÓN
 Versión: VEA_SYNC_BACKEND_ADAPTER_20260916_CORREGIDO
@@ -18,7 +17,8 @@ Fecha de protección: 2026-09-16
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- VEA_BUILD: F6_20_MASTER_DINAMICO_CACHE_V2 -->
+    <!-- VEA_BUILD: F6_24_AUTO_SYNC_SE37_CORREGIDO -->
+    <!-- VEA_F6.21_EXCEL_SYNC: carga Excel persistente + refresco inmediato de Individual -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MÓDULO DE VIGILANCIA EPIDEMIOLÓGICA INTEGRAL - VEA</title>
@@ -34,7 +34,7 @@ Fecha de protección: 2026-09-16
     <!-- Supabase: fuente remota; Excel/CSV permanece como respaldo manual -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; transition: background-color 0.5s ease; }
         /* F5.04 — eliminar filas auxiliares duplicadas de totales. */
         .vea-chart-summary { display: none !important; }
@@ -1823,6 +1823,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
   }
 </style>
 
+    <!-- VEA_AUDITORIA_RESPONSIVE_DATOS_20260916 -->
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col relative">
 
@@ -3875,7 +3876,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
         function obtenerAniosComunesVigilanciaVea() {
             const listas = ['EDAs', 'IRAs', 'Febriles'].map(evento =>
-                new Set((databaseActiva[evento] || []).map(r => Number(r.ANO)).filter(Number.isFinite))
+                new Set((databaseActiva[evento] || []).map(r => Number(getValByCandidatos(r, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"]))).filter(Number.isFinite))
             );
             if (listas.some(s => s.size === 0)) return [];
             return [...listas[0]].filter(anio => listas.slice(1).every(s => s.has(anio))).sort((a, b) => a - b);
@@ -3894,7 +3895,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         // ÚNICO punto de inicialización automática de los tres años tras una carga/reemplazo.
         function reinicializarEstadosFiltrosTrasCargaVea() {
             ['EDAs', 'IRAs', 'SOBA', 'Febriles'].forEach(evento => {
-                const anios = (databaseActiva[evento] || []).map(d => Number(d.ANO)).filter(Number.isFinite);
+                const anios = (databaseActiva[evento] || []).map(d => Number(getValByCandidatos(d, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"]))).filter(Number.isFinite);
                 estadoFiltrosVea[evento] = estadoTemporalVeaDesdeAnios(anios);
             });
 
@@ -3912,12 +3913,17 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
             estadoFiltrosVea.Hospitalizados = {};
             ['EDAs', 'IRAs', 'Febriles'].forEach(evento => {
-                const anios = (databaseActiva[evento] || []).map(d => Number(d.ANO)).filter(Number.isFinite);
+                const anios = (databaseActiva[evento] || []).map(d => Number(getValByCandidatos(d, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"]))).filter(Number.isFinite);
                 estadoFiltrosVea.Hospitalizados[evento] = estadoTemporalVeaDesdeAnios(anios);
             });
 
             sincronizarReferenciasFiltrosVigilanciaVea();
             aniosSeleccionadosComparativa = [...(estadoFiltrosVea[selectedEvent]?.anios || [])];
+            if (aniosSeleccionadosComparativa.length === 0) {
+                const disponiblesActuales = normalizarListaAniosVea((databaseActiva[selectedEvent] || []).map(d => getValByCandidatos(d, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"])));
+                aniosSeleccionadosComparativa = tresAniosMasRecientesVea(disponiblesActuales);
+                estadoFiltrosVea[selectedEvent].anios = [...aniosSeleccionadosComparativa];
+            }
         }
 
         // Conservada por compatibilidad interna; en FASE 1B solo debe invocarse explícitamente
@@ -3925,7 +3931,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         function inicializarAniosPorDefecto(evento = selectedEvent, forzar = false) {
             if (!['EDAs', 'IRAs', 'SOBA', 'Febriles'].includes(evento)) return;
             if (!forzar && estadoFiltrosVea[evento]?.inicializado) return;
-            const anios = (databaseActiva[evento] || []).map(d => Number(d.ANO)).filter(Number.isFinite);
+            const anios = (databaseActiva[evento] || []).map(d => Number(getValByCandidatos(d, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"]))).filter(Number.isFinite);
             estadoFiltrosVea[evento] = estadoTemporalVeaDesdeAnios(anios);
             sincronizarReferenciasFiltrosVigilanciaVea();
         }
@@ -3946,7 +3952,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 return { anios: [], mes: 'Todos', semana: 'Todas', inicializado: false };
             }
 
-            const disponibles = normalizarListaAniosVea((databaseActiva[evento] || []).map(d => d.ANO));
+            const disponibles = normalizarListaAniosVea((databaseActiva[evento] || []).map(d => getValByCandidatos(d, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"])));
             let estado = estadoFiltrosVea[evento] || { anios: [], mes: 'Todos', semana: 'Todas', inicializado: false };
 
             // Navegar nunca ejecuta la regla automática de 3 años.
@@ -4158,9 +4164,9 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
             const porAnio = new Map();
 
             registros.forEach(registro => {
-                const anio = Number(registro.ANO);
-                const semana = Number(registro.SEMANA);
-                const casos = Number(registro.CASOS);
+                const anio = Number(getValByCandidatos(registro, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"]));
+                const semana = Number(getValByCandidatos(registro, ["SEMANA", "semana", "SE", "se"]));
+                const casos = Number(getValByCandidatos(registro, ["CASOS", "casos", "TOTAL", "total", "TO_ACU", "to_acu", "FEB_TOT", "feb_tot"]));
 
                 if (!Number.isInteger(anio) || !Number.isInteger(semana) || semana < 1 || semana > 53) return;
                 if (!Number.isFinite(casos)) return;
@@ -4244,7 +4250,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
         function obtenerAniosDisponiblesCanalV3B(evento = selectedEvent) {
             return [...new Set((databaseActiva[evento] || [])
-                .map(r => Number(r.ANO))
+                .map(r => Number(getValByCandidatos(r, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"])))
                 .filter(Number.isInteger))]
                 .sort((a, b) => a - b);
         }
@@ -4371,7 +4377,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
             const container = document.getElementById('dropdownAniosContent');
             if (!container) return;
             const dataActivaDeEvento = databaseActiva[selectedEvent] || [];
-            const todosLosAnios = normalizarListaAniosVea(dataActivaDeEvento.map(d => d.ANO)).sort((a,b) => b - a);
+            const todosLosAnios = normalizarListaAniosVea(dataActivaDeEvento.map(d => getValByCandidatos(d, ["ANO", "ano", "ANIO", "anio", "YEAR", "year"]))).sort((a,b) => b - a);
             
             container.innerHTML = '';
             if (!todosLosAnios.length) {
@@ -6437,25 +6443,41 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         function ciV21Anio(row) {
             const canon = enteroRealVea(row?.__VEA_CANONICO?.ANO);
             if (canon !== null) return canon;
-            return enteroRealVea(valorExactoVea(row, 'ano'));
+            const valor = typeof getValByCandidatos === 'function'
+                ? getValByCandidatos(row, ['ANO','ano','ANIO','anio','YEAR','year'])
+                : valorExactoVea(row, 'ano');
+            return enteroRealVea(valor);
         }
 
         function ciV21Semana(row) {
             const canon = enteroRealVea(row?.__VEA_CANONICO?.SEMANA_EPIDEMIOLOGICA);
             if (canon !== null) return canon;
-            return enteroRealVea(valorExactoVea(row, 'semana'));
+            const valor = typeof getValByCandidatos === 'function'
+                ? getValByCandidatos(row, ['SEMANA','semana','SE','se','SEMANA_EPIDEMIOLOGICA'])
+                : valorExactoVea(row, 'semana');
+            return enteroRealVea(valor);
         }
 
         function ciV21Mes(row) {
-            const directo = normalizarMesRealVea(valorExactoVea(row, 'mes'));
-            const nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-            if (directo) return nombres.indexOf(directo) + 1;
+            const bruto = typeof getValByCandidatos === 'function'
+                ? getValByCandidatos(row, ['MES','mes','MONTH','month'])
+                : valorExactoVea(row, 'mes');
+            const textoMes = ciV21Texto(bruto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            const meses = {
+                ene:1,enero:1,feb:2,febrero:2,mar:3,marzo:3,abr:4,abril:4,may:5,mayo:5,jun:6,junio:6,
+                jul:7,julio:7,ago:8,agosto:8,sep:9,set:9,setiembre:9,septiembre:9,oct:10,octubre:10,
+                nov:11,noviembre:11,dic:12,diciembre:12
+            };
+            if (/^\d{1,2}$/.test(textoMes)) {
+                const n = Number(textoMes);
+                if (n >= 1 && n <= 12) return n;
+            }
+            if (meses[textoMes]) return meses[textoMes];
+            const directo = normalizarMesRealVea(bruto);
+            const abreviados = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            if (directo) return abreviados.indexOf(directo) + 1 || null;
             const valor = valorExactoVea(row, 'fecha_not');
             if (valor instanceof Date && !Number.isNaN(valor.getTime())) return valor.getMonth() + 1;
-            if (typeof valor === 'number' && typeof XLSX !== 'undefined' && XLSX.SSF?.parse_date_code) {
-                const fechaExcel = XLSX.SSF.parse_date_code(valor);
-                if (fechaExcel?.m) return Number(fechaExcel.m);
-            }
             const texto = ciV21Texto(valor);
             const ddmmyyyy = texto.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
             if (ddmmyyyy) return Number(ddmmyyyy[2]);
@@ -6491,7 +6513,10 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         }
 
         function ciV21Dataset() {
-            return Array.isArray(datosModulosIndependientes.casos) ? datosModulosIndependientes.casos : [];
+            const directo = Array.isArray(datosModulosIndependientes?.casos) ? datosModulosIndependientes.casos : [];
+            if (directo.length) return directo;
+            const alterno = Array.isArray(window.databaseActiva?.individual) ? window.databaseActiva.individual : [];
+            return alterno;
         }
 
         function ciV21AniosDisponibles() {
@@ -6504,7 +6529,9 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
             if (estadoCasosIndividualesV21.datasetRef === dataset && estadoCasosIndividualesV21.inicializado) return;
 
             const anios = ciV21AniosDisponibles();
-            estadoCasosIndividualesV21.anios = anios.slice(-3);
+            estadoCasosIndividualesV21.anios = typeof tresAniosMasRecientesVea === 'function'
+                ? tresAniosMasRecientesVea(anios)
+                : anios.slice(-3);
             estadoCasosIndividualesV21.mes = 'Todos';
             estadoCasosIndividualesV21.semana = 'Todas';
             estadoCasosIndividualesV21.datasetRef = dataset;
@@ -6593,7 +6620,9 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
             if (resumenAnios) {
                 const seleccion = [...estadoCasosIndividualesV21.anios].sort((a,b)=>a-b);
-                resumenAnios.textContent = seleccion.length ? seleccion.join(', ') : 'Ninguno';
+                resumenAnios.textContent = seleccion.length
+                    ? `${seleccion.length} año${seleccion.length === 1 ? '' : 's'} · ${seleccion.join(' · ')}`
+                    : 'Ninguno';
             }
 
             const baseAnios = ciV21RegistrosPorAnios();
@@ -6634,8 +6663,22 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
             const disponibles = new Set(ciV21AniosDisponibles());
             const actual = new Set(estadoCasosIndividualesV21.anios);
             const valor = Number(anio);
-            if (activo && disponibles.has(valor)) actual.add(valor);
-            else actual.delete(valor);
+            if (activo && disponibles.has(valor)) {
+                actual.add(valor);
+                // El comparativo del Módulo 04 trabaja con un máximo de 3 años.
+                if (actual.size > 3) {
+                    const candidatos = [...actual].sort((a,b)=>a-b);
+                    // Al agregar un cuarto año se conserva el nuevo seleccionado y
+                    // se elimina el año más antiguo distinto del seleccionado.
+                    const conservar = candidatos.filter(a => a !== valor);
+                    conservar.shift();
+                    actual.clear();
+                    conservar.forEach(a => actual.add(a));
+                    actual.add(valor);
+                }
+            } else {
+                actual.delete(valor);
+            }
             estadoCasosIndividualesV21.anios = [...actual].sort((a,b)=>a-b);
             estadoCasosIndividualesV21.mes = 'Todos';
             estadoCasosIndividualesV21.semana = 'Todas';
@@ -6651,9 +6694,12 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
         function limpiarFiltrosCasosIndividualesV21() {
             const anios = ciV21AniosDisponibles();
-            estadoCasosIndividualesV21.anios = anios.slice(-3);
+            estadoCasosIndividualesV21.anios = typeof tresAniosMasRecientesVea === 'function'
+                ? tresAniosMasRecientesVea(anios)
+                : anios.slice(-3);
             estadoCasosIndividualesV21.mes = 'Todos';
             estadoCasosIndividualesV21.semana = 'Todas';
+            ciV21SincronizarControles();
             actualizarCasosIndividualesV21();
         }
 
@@ -8289,12 +8335,12 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             if (!ctx) return;
 
             const evento = selectedEvent;
-            const anioObservado = actualizarSelectorAnioObservadoCanalV3B(evento);
             const titleEl = document.getElementById('canalTitleText');
             const historiaEl = document.getElementById('canalHistoriaAnios');
             const metodologiaEl = document.getElementById('canalEstadoMetodologia');
             const estadoEl = document.getElementById('estadoChartCanalEndemico');
             const porAnio = consolidarCasosSemanalesCanalV3B(evento);
+            const anioObservado = actualizarSelectorAnioObservadoCanalV3B(evento);
 
             if (estadoEl) {
                 estadoEl.classList.add('hidden');
@@ -8751,25 +8797,6 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             return mapa[n] || null;
         }
 
-        // FEBRILES: el Master no siempre trae ING_MES; se deriva de fecha_ing
-        // (ISO o serial de Excel) para no rechazar toda la hoja.
-        function mesDesdeFechaIngVea(valor) {
-            if (valor === null || valor === undefined || valor === "") return null;
-            const texto = String(valor).trim();
-            if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
-                const d = new Date(texto);
-                if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getMonth() + 1);
-            }
-            if (/^\d+(\.\d+)?$/.test(texto)) {
-                const serial = Number(texto);
-                if (serial >= 20000 && serial < 60000) {
-                    const d = new Date(Math.round((serial - 25569) * 86400000));
-                    if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getUTCMonth() + 1);
-                }
-            }
-            return normalizarMesRealVea(texto);
-        }
-
         function agregarCausaVea(contador, causa) {
             contador[causa] = (contador[causa] || 0) + 1;
         }
@@ -9074,8 +9101,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             extraido.registros.forEach(row => {
                 const ano = enteroRealVea(valorExactoVea(row, "ANO"));
                 const semana = enteroRealVea(valorExactoVea(row, "SEMANA"));
-                let mes = normalizarMesRealVea(valorExactoVea(row, "ING_MES"));
-                if (!mes) mes = mesDesdeFechaIngVea(valorExactoVea(row, "FECHA_ING"));
+                const mes = normalizarMesRealVea(valorExactoVea(row, "ING_MES"));
                 const casos = numeroRealVea(valorExactoVea(row, "feb_tot"));
 
                 if (ano === null || ano < 1900 || ano > 2100) { agregarCausaVea(causas, "AÑO inválido"); return; }
@@ -10419,7 +10445,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             if (txtProgreso) txtProgreso.innerHTML = `Auditando repositorio VEA...`;
 
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 // VEA_ETL_TRANSACCIONAL_20260916: conservar la base anterior
                 // hasta que el archivo nuevo termine de validarse y procesarse.
                 const respaldoAntesDeCarga = {
@@ -10672,8 +10698,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                         ? "w-1.5 h-1.5 rounded-full bg-emerald-400"
                         : "w-1.5 h-1.5 rounded-full bg-amber-400";
                     if (txtProgreso) txtProgreso.innerHTML = informe.errores === 0
-                        ? `Repositorio VEA cargado y auditado`
-                        : `Repositorio VEA cargado con ${informe.errores} error(es)`;
+                        ? `Excel actualizado · ${Number(informe.totalAlmacenados || 0).toLocaleString('es-PE')} registros · fuente activa`
+                        : `Excel cargado con ${informe.errores} error(es)`;
 
                     const escapar = (valor) => String(valor ?? "")
                         .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -10703,6 +10729,46 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                         }
                     });
                     lineas.push(`<b>Hojas no reconocidas:</b> ${informe.noReconocidas}`);
+
+                    // F6.21 — la carga Excel queda como fuente activa y persistente.
+                    veaUltimaActualizacionDatos = Date.now();
+                    veaFuenteDatosActual = 'EXCEL_MANUAL';
+                    veaFirmaRemotaActual = null;
+                    veaMetaCargaExcelActual = {
+                        nombre: file.name,
+                        size: Number(file.size) || 0,
+                        lastModified: Number(file.lastModified) || 0,
+                        cargadoEn: veaUltimaActualizacionDatos,
+                        totalRegistros: Number(informe.totalAlmacenados) || 0
+                    };
+                    try {
+                        await veaCacheGuardarProcesado(
+                            Number(informe.totalAlmacenados) || 0,
+                            { fuente: 'EXCEL_MANUAL', metaCargaExcel: veaMetaCargaExcelActual }
+                        );
+                    } catch (errorCacheExcel) {
+                        console.warn('[VEA Excel F6.21] No se pudo persistir la carga Excel:', errorCacheExcel);
+                    }
+
+                    // Invalidar índices derivados para que Individual y Matriz no conserven
+                    // resultados del Excel anterior.
+                    try { cacheFilasIndividualResumenV6B.clear(); } catch (_) {}
+                    try { fuenteCacheFilasIndividualResumenV6B = null; longitudCacheFilasIndividualResumenV6B = -1; } catch (_) {}
+                    try { cacheModelosDatosAcumuladosV6B.clear(); } catch (_) {}
+                    try { cacheKpisAnualesDatosV6B.clear(); } catch (_) {}
+                    try { estadoCasosIndividualesV21.datasetRef = null; estadoCasosIndividualesV21.inicializado = false; } catch (_) {}
+                    try { ciV21UltimaFirmaRenderF318 = null; } catch (_) {}
+                    try { estadoMatrizConsultaCiV21.datasetRef = null; estadoMatrizConsultaCiV21.cache = null; estadoMatrizConsultaCiV21.resultados = null; } catch (_) {}
+
+                    // Refresco inmediato si el usuario ya está dentro de Individual.
+                    requestAnimationFrame(() => {
+                        try {
+                            if (typeof ciV21InicializarSiCorresponde === 'function') ciV21InicializarSiCorresponde();
+                            if (typeof actualizarCasosIndividualesV21 === 'function') actualizarCasosIndividualesV21(true);
+                        } catch (errorIndividual) {
+                            console.warn('[VEA Excel F6.21] Individual pendiente de refresco:', errorIndividual);
+                        }
+                    });
 
                     // F4.19: registrar cuándo esta carga terminó de procesarse.
                     veaUltimaActualizacionDatos = Date.now();
@@ -11232,31 +11298,35 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
         async function veaSupabaseLeerPaginaRestMovil(tabla, desde, hasta, year = null) {
             const limite = Math.max(1, (hasta - desde) + 1);
-            let url = `/api/vea-data?table=${encodeURIComponent(tabla)}&offset=${desde}&limit=${limite}`;
-            if (year !== null && year !== undefined && String(year).trim() !== '') {
-                url += `&year=${encodeURIComponent(String(year).trim())}`;
+            const rutaApi = `/api/vea-data?table=${encodeURIComponent(tabla)}&offset=${desde}&limit=${limite}`;
+            const rutaDirecta = `${VEA_SUPABASE_URL}/rest/v1/${encodeURIComponent(tabla)}?select=*&offset=${desde}&limit=${limite}&order=ano.asc,semana.asc`;
+            const usarDirecto = window.location?.protocol === 'file:' || window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1';
+            const rutas = usarDirecto ? [rutaDirecta, rutaApi] : [rutaApi, rutaDirecta];
+            let ultimoError = null;
+            for (const url of rutas) {
+                const controlador = new AbortController();
+                const timer = setTimeout(() => controlador.abort(), 25000);
+                try {
+                    const respuesta = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'apikey': VEA_SUPABASE_PUBLISHABLE_KEY,
+                            'Authorization': `Bearer ${VEA_SUPABASE_PUBLISHABLE_KEY}`,
+                            'Accept': 'application/json'
+                        },
+                        cache: 'no-store',
+                        signal: controlador.signal
+                    });
+                    if (!respuesta.ok) throw new Error(`VEA API ${tabla}: HTTP ${respuesta.status}`);
+                    const data = await respuesta.json();
+                    return { data: Array.isArray(data) ? data : [], error: null };
+                } catch (error) {
+                    ultimoError = error;
+                } finally {
+                    clearTimeout(timer);
+                }
             }
-            const controlador = new AbortController();
-            const timer = setTimeout(() => controlador.abort(), 25000);
-            try {
-                const respuesta = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'apikey': VEA_SUPABASE_PUBLISHABLE_KEY,
-                        'Authorization': `Bearer ${VEA_SUPABASE_PUBLISHABLE_KEY}`,
-                        'Accept': 'application/json'
-                    },
-                    cache: 'no-store',
-                    signal: controlador.signal
-                });
-                if (!respuesta.ok) throw new Error(`VEA API ${tabla}: HTTP ${respuesta.status}`);
-                const data = await respuesta.json();
-                return { data: Array.isArray(data) ? data : [], error: null };
-            } catch (error) {
-                return { data: null, error };
-            } finally {
-                clearTimeout(timer);
-            }
+            return { data: null, error: ultimoError || new Error(`No se pudo leer ${tabla}`) };
         }
         async function veaSupabaseLeerTablaCompleta(tabla, year = null) {
             const lote = 300;
@@ -11379,14 +11449,25 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             if (!lista) throw new Error('Supabase no disponible');
             veaSupabaseClient ||= window.supabase.createClient(VEA_SUPABASE_URL, VEA_SUPABASE_PUBLISHABLE_KEY);
             const tablas = ['edas','iras','febriles','individual'];
+            // F6.23 — la firma de actualización no depende solo del conteo.
+            // Si entra una nueva S.E. sustituyendo/actualizando registros y el total no cambia,
+            // la firma también debe cambiar. Por eso se incluye el corte máximo AÑO/S.E.
             const partes = await Promise.all(tablas.map(async tabla => {
-                const respuesta = await veaSupabaseClient
-                    .from(tabla)
-                    .select('_row_id', { count:'exact' })
-                    .order('_row_id', { ascending:false })
-                    .limit(1);
-                if (respuesta.error) throw respuesta.error;
-                return `${tabla}:${Number(respuesta.count) || 0}:${respuesta.data?.[0]?._row_id ?? ''}`;
+                const base = veaSupabaseClient.from(tabla);
+                const [conteo, ultimo] = await Promise.all([
+                    base.select('*', { count:'exact', head:true }),
+                    veaSupabaseClient.from(tabla)
+                        .select('ano,semana')
+                        .order('ano', { ascending:false })
+                        .order('semana', { ascending:false })
+                        .limit(1)
+                        .maybeSingle()
+                ]);
+                if (conteo.error) throw conteo.error;
+                if (ultimo.error) throw ultimo.error;
+                const anio = String(ultimo.data?.ano ?? '').trim();
+                const semana = String(ultimo.data?.semana ?? '').trim();
+                return `${tabla}:${Number(conteo.count) || 0}:${anio}:${semana}`;
             }));
             return partes.join('|');
         }
@@ -11418,6 +11499,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
         // F4.19 — Metadatos de procedencia y actualización del repositorio VEA.
         // La hora representa la carga/sincronización real del repositorio, no la hora de apertura del navegador.
         let veaUltimaActualizacionDatos = null;
+        let veaFuenteDatosActual = 'SUPABASE';
+        let veaMetaCargaExcelActual = null;
         const VEA_FUENTE_VIGILANCIA = 'NOTIWEB — CDC Perú / MINSA';
 
         function formatearFechaHoraActualizacionVea(valor) {
@@ -11899,7 +11982,10 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             const fuente = document.getElementById('fuenteGraficoSemanalVea');
             const actualizado = document.getElementById('actualizacionGraficoMensualVea');
             if (fuente) fuente.textContent = `Fuente: ${VEA_FUENTE_VIGILANCIA}`;
-            if (actualizado) actualizado.textContent = `Última actualización de datos: ${formatearFechaHoraActualizacionVea(veaUltimaActualizacionDatos)}`;
+            if (actualizado) {
+                const origen = veaFuenteDatosActual === 'EXCEL_MANUAL' ? 'Excel cargado manualmente' : 'Repositorio remoto';
+                actualizado.textContent = `${origen} · Última actualización: ${formatearFechaHoraActualizacionVea(veaUltimaActualizacionDatos)}`;
+            }
             veaInstalarPiesInformativosGraficosF468();
         }
 
@@ -11909,7 +11995,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             veaInstalarPiesInformativosGraficosF468();
         }
 
-        async function veaCacheGuardarProcesado(totalRemoto) {
+        async function veaCacheGuardarProcesado(totalRemoto, opciones = {}) {
             try {
                 const db = await veaCacheAbrirDB();
                 const payload = {
@@ -11917,6 +12003,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                     ultimaActualizacionDatos: veaUltimaActualizacionDatos || Date.now(),
                     totalRemoto,
                     firmaRemota: veaFirmaRemotaActual,
+                    fuente: opciones.fuente || veaFuenteDatosActual || 'SUPABASE',
+                    metaCargaExcel: opciones.metaCargaExcel || veaMetaCargaExcelActual || null,
                     databaseActiva: {
                         EDAs: databaseActiva.EDAs || [],
                         IRAs: databaseActiva.IRAs || [],
@@ -11990,6 +12078,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                 if (cantidadCache === 0 || Number(payload.totalRemoto) === 0) return null;
 
                 veaFirmaRemotaActual = payload.firmaRemota || null;
+                veaFuenteDatosActual = payload.fuente || 'SUPABASE';
+                veaMetaCargaExcelActual = payload.metaCargaExcel || null;
 
                 veaUltimaActualizacionDatos = payload.ultimaActualizacionDatos || payload.ts || null;
                 actualizarMetadatosGraficosVea();
@@ -12018,9 +12108,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
                 // FASE 3.7: primer pintado inmediato.
                 // Restauramos datos primero y diferimos el trabajo pesado de UI al siguiente frame.
-                // El DOM real usa #textoProgreso/#barraProgreso (sin sufijo Vea).
-                const txt = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
-                const barra = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
+                const txt = document.getElementById('textoProgresoVea');
+                const barra = document.getElementById('barraProgresoVea');
                 const total = Number(payload.totalRemoto) || (
                     databaseActiva.EDAs.length + databaseActiva.IRAs.length + databaseActiva.Febriles.length +
                     datosModulosIndependientes.casos.length
@@ -12128,8 +12217,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             window.__veaModeloDatosF326 = null;
             window.__veaCasosFiltradosF401 = null;
             window.__veaSoatPreparadoF326 = false;
-            const txtEstadoSupabase = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
-            const barraSupabase = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
+            const txtEstadoSupabase = document.getElementById('textoProgresoVea');
+            const barraSupabase = document.getElementById('barraProgresoVea');
             if (txtEstadoSupabase) txtEstadoSupabase.textContent = 'Conectando con Supabase…';
             if (barraSupabase) barraSupabase.style.width = '15%';
             const modoRestMovil = true; // F6.00 motor universal same-origin vía Vercel
@@ -12336,50 +12425,73 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
         }
         window.cargarRepositorioVeaDesdeSupabase = cargarRepositorioVeaDesdeSupabase;
 
-        // VEA_SYNC_GUARD_20260916 — actualización remota segura.
-        // La aplicación vuelve a consultar Supabase al abrirse, al regresar a la pestaña
-        // después de 24 horas y mediante un control periódico no invasivo.
-        // Frecuencia diaria alineada con la sincronización automática del Master VEA.
-        const VEA_SYNC_SEMANAL_MS = 24 * 60 * 60 * 1000;
+        // VEA_SYNC_GUARD_F623 — actualización remota automática de alta frecuencia.
+        // El módulo NO espera una semana ni seis horas para detectar una nueva S.E.
+        // Revisa la firma liviana periódicamente y solo descarga/recalcula cuando cambia.
+        const VEA_SYNC_AUTO_MS = 5 * 60 * 1000;
         const VEA_SYNC_ULTIMA_REVISION_KEY = 'veaSyncUltimaRevisionRemota';
+        const VEA_SYNC_ULTIMA_FIRMA_KEY = 'veaSyncUltimaFirmaRemota';
         let veaSyncEnCurso = false;
+        let veaSyncAutoTimer = null;
 
-        async function veaActualizarDesdeSupabaseSeguro(origen = 'manual') {
+        async function veaActualizarDesdeSupabaseSeguro(origen = 'manual', forzar = false) {
             if (veaSyncEnCurso) return { omitida: true, motivo: 'sincronización en curso' };
             veaSyncEnCurso = true;
             try {
+                let firmaActual = null;
+                try { firmaActual = await veaSupabaseObtenerFirmaLiviana(); }
+                catch (errorFirma) {
+                    console.warn('[VEA AUTO SYNC] No se pudo consultar firma remota:', errorFirma);
+                }
+                const firmaAnterior = localStorage.getItem(VEA_SYNC_ULTIMA_FIRMA_KEY) || '';
+                if (!forzar && firmaActual && firmaAnterior && firmaActual === firmaAnterior) {
+                    localStorage.setItem(VEA_SYNC_ULTIMA_REVISION_KEY, String(Date.now()));
+                    return { sinCambios:true, firma:firmaActual, origen };
+                }
+
                 const resultado = await cargarRepositorioVeaDesdeSupabase();
                 if (resultado && (resultado.totalRemoto > 0 || resultado.cacheConservada)) {
                     try { actualizarCalculosYGraficos(); } catch (error) { console.warn('[VEA SYNC] Cálculos pendientes:', error); }
                     try { actualizarKpisVigilancia(); } catch (error) { console.warn('[VEA SYNC] KPI pendientes:', error); }
                     try { actualizarCabeceraDinamicaVeaF483(); } catch (error) { console.warn('[VEA SYNC] Cabecera pendiente:', error); }
                 }
+                if (firmaActual) {
+                    veaFirmaRemotaActual = firmaActual;
+                    localStorage.setItem(VEA_SYNC_ULTIMA_FIRMA_KEY, firmaActual);
+                }
                 localStorage.setItem(VEA_SYNC_ULTIMA_REVISION_KEY, String(Date.now()));
-                console.info('[VEA SYNC] Revisión completada:', { origen, resultado });
+                console.info('[VEA AUTO SYNC] Revisión completada:', { origen, resultado, firmaActual });
                 return resultado;
             } catch (error) {
-                console.error('[VEA SYNC] Revisión fallida:', { origen, error });
+                console.error('[VEA AUTO SYNC] Revisión fallida:', { origen, error });
                 return { error: error?.message || String(error) };
             } finally {
                 veaSyncEnCurso = false;
             }
         }
 
-        function veaProgramarRevisionSemanalSegura() {
-            const revisar = () => {
-                const ultima = Number(localStorage.getItem(VEA_SYNC_ULTIMA_REVISION_KEY) || 0);
-                if (!ultima || Date.now() - ultima >= VEA_SYNC_SEMANAL_MS) {
-                    veaActualizarDesdeSupabaseSeguro('control semanal');
-                }
+        function veaProgramarRevisionAutomaticaF623() {
+            const revisar = (origen = 'temporizador') => {
+                if (document.visibilityState !== 'visible' && origen !== 'inicio') return;
+                veaActualizarDesdeSupabaseSeguro(origen, false);
             };
-            window.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') revisar();
-            }, { passive: true });
-            setInterval(revisar, 6 * 60 * 60 * 1000);
+            // Primera comprobación al abrir el módulo: detecta una S.E. nueva sin esperar.
+            setTimeout(() => revisar('inicio'), 1500);
+            // Después, comprobación cada 5 minutos. No redibuja si la firma no cambió.
+            if (veaSyncAutoTimer) clearInterval(veaSyncAutoTimer);
+            veaSyncAutoTimer = setInterval(() => revisar('auto 5 min'), VEA_SYNC_AUTO_MS);
+            window.addEventListener('focus', () => revisar('ventana activa'), { passive:true });
+            window.addEventListener('online', () => revisar('conexión restablecida'), { passive:true });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') revisar('pestaña visible');
+            }, { passive:true });
         }
 
         window.veaActualizarDesdeSupabaseSeguro = veaActualizarDesdeSupabaseSeguro;
-        window.veaProgramarRevisionSemanalSegura = veaProgramarRevisionSemanalSegura;
+        window.veaProgramarRevisionSemanalSegura = veaProgramarRevisionAutomaticaF623;
+        window.veaProgramarRevisionAutomaticaF623 = veaProgramarRevisionAutomaticaF623;
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', veaProgramarRevisionAutomaticaF623, { once:true });
+        else veaProgramarRevisionAutomaticaF623();
 
         window.onload = async function() {
             // F6.01 — ARRANQUE UNIVERSAL ROBUSTO
@@ -12398,8 +12510,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             veaPasoSeguroF601('estado filtros', () => restaurarEstadoFiltrosEvento(selectedEvent));
             veaPasoSeguroF601('tema', () => aplicarTemaGraficoYBotones());
 
-            const txt = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
-            const barra = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
+            const txt = document.getElementById('textoProgresoVea');
+            const barra = document.getElementById('barraProgresoVea');
             if (txt) txt.textContent = 'Iniciando sincronización VEA…';
             if (barra) barra.style.width = '10%';
 
@@ -12420,9 +12532,25 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             }
 
             try {
-                const resultado = await cargarRepositorioVeaDesdeSupabase();
-                if (!resultado.totalRemoto && resultado.errores?.length && !cacheVeaDisponible) {
-                    throw new Error(resultado.errores.join(' | '));
+                let resultado;
+                const cargaExcelPersistida = cacheVeaDisponible?.fuente === 'EXCEL_MANUAL';
+                if (cargaExcelPersistida) {
+                    resultado = {
+                        totalRemoto: Number(cacheVeaDisponible.totalRemoto) || 0,
+                        cargadas: ['EXCEL_MANUAL'],
+                        protegidas: [],
+                        errores: [],
+                        fuente: 'EXCEL_MANUAL'
+                    };
+                    veaFuenteDatosActual = 'EXCEL_MANUAL';
+                    veaMetaCargaExcelActual = cacheVeaDisponible.metaCargaExcel || veaMetaCargaExcelActual;
+                    if (txt) txt.textContent = `Excel cargado · ${resultado.totalRemoto.toLocaleString('es-PE')} registros · fuente activa`;
+                    if (barra) barra.style.width = '100%';
+                } else {
+                    resultado = await cargarRepositorioVeaDesdeSupabase();
+                    if (!resultado.totalRemoto && resultado.errores?.length && !cacheVeaDisponible) {
+                        throw new Error(resultado.errores.join(' | '));
+                    }
                 }
 
                 // Render únicamente después de que exista base válida en memoria.
@@ -12430,13 +12558,21 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                 veaPasoSeguroF601('módulos dinámicos', () => renderizarModulosDinamicosVea());
                 veaPasoSeguroF601('KPIs', () => actualizarKpisVigilancia());
                 veaPasoSeguroF601('cabecera', () => actualizarCabeceraDinamicaVeaF483());
+                if (resultado?.fuente === 'EXCEL_MANUAL' || veaFuenteDatosActual === 'EXCEL_MANUAL') {
+                    veaPasoSeguroF601('Individual actualizado desde Excel', () => {
+                        estadoCasosIndividualesV21.datasetRef = null;
+                        estadoCasosIndividualesV21.inicializado = false;
+                        ciV21UltimaFirmaRenderF318 = null;
+                        if (typeof actualizarCasosIndividualesV21 === 'function') actualizarCasosIndividualesV21(true);
+                    });
+                }
 
                 if (txt && resultado.totalRemoto > 0) {
                     txt.textContent = `Carga actualizada · ${resultado.totalRemoto.toLocaleString('es-PE')} registros`;
                 }
                 if (barra) barra.style.width = '100%';
                 console.info('[VEA F6.01] Arranque universal completado', resultado);
-                veaProgramarRevisionSemanalSegura();
+                if (!veaSyncAutoTimer) veaProgramarRevisionAutomaticaF623();
             } catch (err) {
                 const mensaje = String(err?.message || err || 'Error desconocido');
                 if (txt) txt.textContent = cacheVeaDisponible
@@ -12911,7 +13047,13 @@ function abrirSelectorBoletinVea(){
   if(!modal||!anioEl)return;
   const anios=aniosDisponiblesBoletinVea();
   anioEl.innerHTML=anios.map(a=>`<option value="${a}">${a}</option>`).join('');
-  if(window.__veaBoletinSeleccion&&anios.includes(Number(window.__veaBoletinSeleccion.anio)))anioEl.value=String(window.__veaBoletinSeleccion.anio);
+  // VEA F6.24 — al abrir el selector, partir siempre del último año disponible.
+  // Si ya existe una selección manual válida, se conserva; si no, se usa el año más reciente.
+  if(window.__veaBoletinSeleccion&&anios.includes(Number(window.__veaBoletinSeleccion.anio))) {
+    anioEl.value=String(window.__veaBoletinSeleccion.anio);
+  } else if(anios.length){
+    anioEl.value=String(anios[0]);
+  }
   if(!anios.length){
     anioEl.innerHTML='<option value="">Sin años disponibles</option>';
     if(estado){estado.textContent='Carga el Excel maestro VEA con información desde 2024 para generar el boletín.';estado.classList.remove('hidden')}
@@ -12931,7 +13073,13 @@ function actualizarSemanasSelectorBoletinVea(){
   const semanas=semanasDisponiblesBoletinVea(Number(anioEl.value));
   semanaEl.innerHTML=semanas.map(s=>`<option value="${s}">S.E. ${String(s).padStart(2,'0')}</option>`).join('');
   const previa=window.__veaBoletinSeleccion;
-  if(previa&&Number(previa.anio)===Number(anioEl.value)&&semanas.includes(Number(previa.semana)))semanaEl.value=String(previa.semana);
+  if(previa&&Number(previa.anio)===Number(anioEl.value)&&semanas.includes(Number(previa.semana))){
+    semanaEl.value=String(previa.semana);
+  } else if(semanas.length){
+    // VEA F6.24 — si hay datos nuevos (p. ej. S.E. 37), mostrar automáticamente la última S.E.
+    // disponible para el año activo, sin exigir que el usuario cambie el filtro manualmente.
+    semanaEl.value=String(semanas[0]);
+  }
   if(!semanas.length)semanaEl.innerHTML='<option value="">Sin semanas disponibles</option>';
   if(generar)generar.disabled=!semanas.length;
 }
@@ -14292,17 +14440,6 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
 </div>
 <div class="footer"><b>UNIDAD DE EPIDEMIOLOGÍA Y SALUD AMBIENTAL — HOSPITAL DE VENTANILLA</b><span>FUENTE: NOTIWEB CDC MINSA · INFORMACIÓN SUJETA A VALIDACIÓN · S.E. ${se} — ${anio}</span></div>
 </div>
-<script id="vea-status-se36-aprobado-20260915">
-// VEA_STATUS_SE36_APROBADO_20260915
-(function(){
-  const aplicar=()=>{
-    const el=document.getElementById('estadoCargaVea') || document.getElementById('veaEstadoCarga') || document.querySelector('[data-vea-estado-carga]');
-    if(el) el.textContent='Última sincronización: lunes 14.Sep.2026 - 01:00 p. m. · S.E. 36';
-  };
-  document.addEventListener('DOMContentLoaded',aplicar);
-  window.addEventListener('load',()=>{aplicar();setTimeout(aplicar,600);setTimeout(aplicar,1800)});
-})();
-<\/script>
 
 <!-- VEA_SYNC_BACKEND_ADAPTER_20260916 -->
 <script id="vea-sync-backend-adapter-20260916">
@@ -14340,7 +14477,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
       });
 
       if (!respuesta.ok) {
-        throw new Error('El servidor rechazó la sincronización (' + respuesta.status + ').');
+        throw new Error(`El servidor rechazó la sincronización (${respuesta.status}).`);
       }
       return await respuesta.json();
     }
@@ -14348,6 +14485,40 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
 })();
 <\/script>
 
+
+<!-- VEA_FILTROS_UNIFICADOS_20260917 — capa segura de coherencia visual y de estado -->
+<style id="vea-filtros-unificados-20260917">
+  :where(#filtrosVigilancia select,#filtrosVigilancia button,#ciPanelFiltrosSegmentacion select,#ciPanelFiltrosSegmentacion button,#soatPanelFiltrosProfesionales select,#soatPanelFiltrosProfesionales button,#filtrosDatosAcumuladosReferencia select,#filtrosDatosAcumuladosReferencia button){
+    min-height:42px;box-sizing:border-box;border-radius:8px;font-size:12px;font-weight:700;
+  }
+  :where(#filtrosVigilancia select,#ciPanelFiltrosSegmentacion select,#soatPanelFiltrosProfesionales select,#filtrosDatosAcumuladosReferencia select){
+    background-color:#0b1329;color:#cbd5e1;border:1px solid #26344b;padding:0 12px;
+  }
+  :where(#filtrosVigilancia label,#ciPanelFiltrosSegmentacion label,#soatPanelFiltrosProfesionales label,#filtrosDatosAcumuladosReferencia label){
+    line-height:1.25;
+  }
+  .vea-filtro-unificado-activo{outline:1px solid rgba(239,68,68,.55);outline-offset:1px;}
+  #ciPanelFiltrosSegmentacion #ciDetallesAnios > summary{min-height:42px;box-sizing:border-box;border-radius:8px;background:#0b1329;border-color:#26344b;color:#cbd5e1;}
+  #ciPanelFiltrosSegmentacion #ciAniosCheckboxes{top:46px;max-height:274px;overflow-y:auto;background:#020817;border-color:#26344b;}
+  #ciPanelFiltrosSegmentacion #ciAniosCheckboxes label{min-height:37px;box-sizing:border-box;margin:0 0 2px 0;padding:8px 10px;border-color:#172036;background:#0b1329;}
+  #ciPanelFiltrosSegmentacion #ciAniosCheckboxes label:hover{border-color:#334155;background:#111827;}
+</style>
+<script id="vea-filtros-unificados-20260917">
+(function(){
+  'use strict';
+  // VEA — unificación visual sin compartir estado entre módulos.
+  // Cada módulo conserva sus filtros independientes: Individual no modifica
+  // Mes/S.E. de Dashboard, SOAT ni otros módulos.
+  const ids=['selectMes','selectSemana','ciSelectMes','ciSelectSemana','soatFiltroMes','soatFiltroSemana'];
+  const mark=()=>{
+    ids.map(id=>document.getElementById(id)).filter(Boolean).forEach(n=>n.classList.add('vea-filtro-unificado-control'));
+    ['btnLimpiarFiltros','ciBtnLimpiarFiltros','soatBtnLimpiarFiltros'].map(id=>document.getElementById(id)).filter(Boolean).forEach(n=>{
+      n.setAttribute('title','Limpiar los filtros del módulo');
+    });
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',mark); else mark();
+})();
+<\/script>
 </body></html>`;
 
   const w=window.open('','_blank');
