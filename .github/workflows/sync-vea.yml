@@ -1,9 +1,12 @@
 name: Sincronización VEA desde Google Drive
 
+# Automatización diaria segura (hora de Perú, UTC-5):
+# 06:00 Perú = 11:00 UTC. Descarga el Master "vigilancia VEA.xlsx"
+# y reemplaza las tablas en Supabase para que el módulo VEA lo refleje al abrir.
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 11 * * *"
   push:
     branches:
       - main
@@ -39,9 +42,11 @@ jobs:
 
       - name: Sincronizar Excel con Supabase
         env:
+          # Secretos SOLO en GitHub Settings → Secrets → Actions (nunca en el repo).
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Master "vigilancia VEA.xlsx" (Google Sheets/Drive).
           GOOGLE_DRIVE_FILE_ID: "1TJaDJ5U7M3RZYgfAR6LI3kFTABBH0UYb"
         shell: bash
         run: |
@@ -66,6 +71,7 @@ jobs:
         run: |
           python - <<'PY'
           import os
+          import sys
           import requests
 
           base = os.environ["SUPABASE_URL"].rstrip("/")
@@ -77,17 +83,25 @@ jobs:
           }
           obligatorias = ["edas", "iras", "febriles", "individual", "soat"]
           opcionales = ["vih", "tbc"]
+          fallos = []
 
           print("Verificando tablas obligatorias del Master VEA...")
           for tabla in obligatorias:
-              r = requests.get(
-                  f"{base}/rest/v1/{tabla}",
-                  headers=headers,
-                  params={"select": "_row_id", "limit": "1"},
-                  timeout=60,
-              )
-              r.raise_for_status()
-              print(f"OBLIGATORIA {tabla}: {r.headers.get('content-range', '?')}")
+              try:
+                  r = requests.get(
+                      f"{base}/rest/v1/{tabla}",
+                      headers=headers,
+                      params={"select": "_row_id", "limit": "1"},
+                      timeout=60,
+                  )
+                  if r.status_code >= 300:
+                      fallos.append(f"{tabla}: HTTP {r.status_code}")
+                      print(f"FAIL {tabla}: HTTP {r.status_code} {r.text[:200]}")
+                      continue
+                  print(f"OBLIGATORIA {tabla}: {r.headers.get('content-range', '?')}")
+              except Exception as exc:
+                  fallos.append(f"{tabla}: {exc}")
+                  print(f"FAIL {tabla}: {exc}")
 
           print("Verificando tablas opcionales...")
           for tabla in opcionales:
@@ -104,6 +118,12 @@ jobs:
                       print(f"OPCIONAL {tabla}: no disponible (HTTP {r.status_code})")
               except Exception as exc:
                   print(f"OPCIONAL {tabla}: no verificada ({exc})")
+
+          if fallos:
+              print("VERIFICACIÓN FALLIDA:")
+              for item in fallos:
+                  print(f" - {item}")
+              sys.exit(1)
           print("VERIFICACIÓN OK: las 5 tablas obligatorias responden después de la sincronización.")
           PY
 

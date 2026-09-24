@@ -12317,8 +12317,9 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
         // VEA_SYNC_GUARD_20260916 — actualización remota segura.
         // La aplicación vuelve a consultar Supabase al abrirse, al regresar a la pestaña
-        // después de 7 días y mediante un control periódico no invasivo.
-        const VEA_SYNC_SEMANAL_MS = 7 * 24 * 60 * 60 * 1000;
+        // después de 24 horas y mediante un control periódico no invasivo.
+        // Frecuencia diaria alineada con la sincronización automática del Master VEA.
+        const VEA_SYNC_SEMANAL_MS = 24 * 60 * 60 * 1000;
         const VEA_SYNC_ULTIMA_REVISION_KEY = 'veaSyncUltimaRevisionRemota';
         let veaSyncEnCurso = false;
 
