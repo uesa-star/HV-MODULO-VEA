@@ -8798,7 +8798,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
         }
 
         // FEBRILES: el Master no siempre trae ING_MES; se deriva de fecha_ing
-        // (ISO o serial de Excel) para no rechazar toda la hoja.
+        // (ISO, dd-mm-yyyy o serial de Excel) para no rechazar toda la hoja.
         function mesDesdeFechaIngVea(valor) {
             if (valor === null || valor === undefined || valor === "") return null;
             const texto = String(valor).trim();
@@ -8806,6 +8806,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                 const d = new Date(texto);
                 if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getMonth() + 1);
             }
+            const dmy = texto.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+            if (dmy) return normalizarMesRealVea(Number(dmy[2]));
             if (/^\d+(\.\d+)?$/.test(texto)) {
                 const serial = Number(texto);
                 if (serial >= 20000 && serial < 60000) {

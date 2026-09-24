@@ -347,6 +347,12 @@ def _mes_desde_valor(valor: Any) -> str | None:
             return MESES_CORTOS[datetime.fromisoformat(texto.replace("Z", "+00:00")).month - 1]
         except ValueError:
             return None
+    dmy = re.match(r"^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$", texto)
+    if dmy:
+        try:
+            return MESES_CORTOS[date(int(dmy.group(3)), int(dmy.group(2)), int(dmy.group(1))).month - 1]
+        except ValueError:
+            return None
     if re.match(r"^\d+(\.\d+)?$", texto):
         serial = float(texto)
         if 20000 <= serial < 60000:
