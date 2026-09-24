@@ -8797,6 +8797,25 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             return mapa[n] || null;
         }
 
+        // FEBRILES: el Master no siempre trae ING_MES; se deriva de fecha_ing
+        // (ISO o serial de Excel) para no rechazar toda la hoja.
+        function mesDesdeFechaIngVea(valor) {
+            if (valor === null || valor === undefined || valor === "") return null;
+            const texto = String(valor).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
+                const d = new Date(texto);
+                if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getMonth() + 1);
+            }
+            if (/^\d+(\.\d+)?$/.test(texto)) {
+                const serial = Number(texto);
+                if (serial >= 20000 && serial < 60000) {
+                    const d = new Date(Math.round((serial - 25569) * 86400000));
+                    if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getUTCMonth() + 1);
+                }
+            }
+            return normalizarMesRealVea(texto);
+        }
+
         function agregarCausaVea(contador, causa) {
             contador[causa] = (contador[causa] || 0) + 1;
         }
@@ -9101,7 +9120,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             extraido.registros.forEach(row => {
                 const ano = enteroRealVea(valorExactoVea(row, "ANO"));
                 const semana = enteroRealVea(valorExactoVea(row, "SEMANA"));
-                const mes = normalizarMesRealVea(valorExactoVea(row, "ING_MES"));
+                let mes = normalizarMesRealVea(valorExactoVea(row, "ING_MES"));
+                if (!mes) mes = mesDesdeFechaIngVea(valorExactoVea(row, "FECHA_ING"));
                 const casos = numeroRealVea(valorExactoVea(row, "feb_tot"));
 
                 if (ano === null || ano < 1900 || ano > 2100) { agregarCausaVea(causas, "AÑO inválido"); return; }
@@ -11298,8 +11318,11 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
         async function veaSupabaseLeerPaginaRestMovil(tabla, desde, hasta, year = null) {
             const limite = Math.max(1, (hasta - desde) + 1);
-            const rutaApi = `/api/vea-data?table=${encodeURIComponent(tabla)}&offset=${desde}&limit=${limite}`;
-            const rutaDirecta = `${VEA_SUPABASE_URL}/rest/v1/${encodeURIComponent(tabla)}?select=*&offset=${desde}&limit=${limite}&order=ano.asc,semana.asc`;
+            const anioTexto = year !== null && year !== undefined && /^\d{4}$/.test(String(year).trim()) ? String(year).trim() : null;
+            const filtroAnioApi = anioTexto ? `&year=${encodeURIComponent(anioTexto)}` : '';
+            const filtroAnioDirecto = anioTexto ? `&ano=eq.${encodeURIComponent(anioTexto)}` : '';
+            const rutaApi = `/api/vea-data?table=${encodeURIComponent(tabla)}&offset=${desde}&limit=${limite}${filtroAnioApi}`;
+            const rutaDirecta = `${VEA_SUPABASE_URL}/rest/v1/${encodeURIComponent(tabla)}?select=*&offset=${desde}&limit=${limite}${filtroAnioDirecto}&order=ano.asc,semana.asc`;
             const usarDirecto = window.location?.protocol === 'file:' || window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1';
             const rutas = usarDirecto ? [rutaDirecta, rutaApi] : [rutaApi, rutaDirecta];
             let ultimoError = null;
@@ -12108,8 +12131,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
 
                 // FASE 3.7: primer pintado inmediato.
                 // Restauramos datos primero y diferimos el trabajo pesado de UI al siguiente frame.
-                const txt = document.getElementById('textoProgresoVea');
-                const barra = document.getElementById('barraProgresoVea');
+                const txt = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
+                const barra = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
                 const total = Number(payload.totalRemoto) || (
                     databaseActiva.EDAs.length + databaseActiva.IRAs.length + databaseActiva.Febriles.length +
                     datosModulosIndependientes.casos.length
@@ -12217,8 +12240,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             window.__veaModeloDatosF326 = null;
             window.__veaCasosFiltradosF401 = null;
             window.__veaSoatPreparadoF326 = false;
-            const txtEstadoSupabase = document.getElementById('textoProgresoVea');
-            const barraSupabase = document.getElementById('barraProgresoVea');
+            const txtEstadoSupabase = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
+            const barraSupabase = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
             if (txtEstadoSupabase) txtEstadoSupabase.textContent = 'Conectando con Supabase…';
             if (barraSupabase) barraSupabase.style.width = '15%';
             const modoRestMovil = true; // F6.00 motor universal same-origin vía Vercel
@@ -12510,8 +12533,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             veaPasoSeguroF601('estado filtros', () => restaurarEstadoFiltrosEvento(selectedEvent));
             veaPasoSeguroF601('tema', () => aplicarTemaGraficoYBotones());
 
-            const txt = document.getElementById('textoProgresoVea');
-            const barra = document.getElementById('barraProgresoVea');
+            const txt = document.getElementById('textoProgresoVea') || document.getElementById('textoProgreso');
+            const barra = document.getElementById('barraProgresoVea') || document.getElementById('barraProgreso');
             if (txt) txt.textContent = 'Iniciando sincronización VEA…';
             if (barra) barra.style.width = '10%';
 
