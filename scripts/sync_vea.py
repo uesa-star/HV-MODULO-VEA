@@ -282,11 +282,24 @@ def clear_table_by_ranges(base: str, key: str, table: str) -> None:
     print(f"{table}: limpieza completa en {blocks} bloques")
 
 
+def unify_row_keys(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """PostgREST exige que todos los objetos del payload tengan las mismas claves (PGRST102)."""
+    if not rows:
+        return rows
+    all_keys: set[str] = set()
+    for row in rows:
+        all_keys.update(row.keys())
+    normalized = []
+    for row in rows:
+        normalized.append({k: row.get(k) for k in all_keys})
+    return normalized
+
+
 def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -> None:
     # Evita COUNT(*) sobre tablas infladas: en SOAT superaba el statement timeout.
     # Validar columnas ANTES de borrar: un insert rechazado tras el CLEAR
     # dejaría la tabla vacía (así se perdió febriles en 2026-09-24).
-    rows = filter_rows_to_schema(base, key, table, rows)
+    rows = unify_row_keys(filter_rows_to_schema(base, key, table, rows))
     clear_table_by_ranges(base, key, table)
 
     for start in range(0, len(rows), BATCH):
