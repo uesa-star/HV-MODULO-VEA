@@ -14502,7 +14502,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
       });
 
       if (!respuesta.ok) {
-        throw new Error(`El servidor rechazó la sincronización (${respuesta.status}).`);
+        throw new Error('El servidor rechazó la sincronización (' + respuesta.status + ').');
       }
       return await respuesta.json();
     }
