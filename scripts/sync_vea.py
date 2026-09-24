@@ -17,7 +17,7 @@ import re
 import sys
 import tempfile
 import unicodedata
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import requests
@@ -318,6 +318,48 @@ def replace_table(base: str, key: str, table: str, rows: list[dict[str, Any]]) -
     print(f"{table}: reemplazo OK, {final_count} filas exactas")
 
 
+MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+
+
+def _mes_desde_valor(valor: Any) -> str | None:
+    if valor is None:
+        return None
+    if isinstance(valor, (datetime, date)):
+        return MESES_CORTOS[valor.month - 1]
+    texto = str(valor).strip()
+    if not texto:
+        return None
+    if re.match(r"^\d{4}-\d{2}-\d{2}", texto):
+        try:
+            return MESES_CORTOS[datetime.fromisoformat(texto.replace("Z", "+00:00")).month - 1]
+        except ValueError:
+            return None
+    if re.match(r"^\d+(\.\d+)?$", texto):
+        serial = float(texto)
+        if 20000 <= serial < 60000:
+            dt = datetime(1899, 12, 30) + timedelta(days=int(serial))
+            return MESES_CORTOS[dt.month - 1]
+        numero = int(serial)
+        if 1 <= numero <= 12:
+            return MESES_CORTOS[numero - 1]
+    return None
+
+
+def completar_ingreso_febriles(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Completa ing_mes desde fecha_ing cuando el Master lo deja vacío."""
+    completadas = 0
+    for row in rows:
+        if row.get("ing_mes"):
+            continue
+        mes = _mes_desde_valor(row.get("fecha_ing"))
+        if mes:
+            row["ing_mes"] = mes
+            completadas += 1
+    if completadas:
+        print(f"febriles: ing_mes derivado de fecha_ing en {completadas} filas")
+    return rows
+
+
 def main() -> int:
     file_id = required("GOOGLE_DRIVE_FILE_ID")
     base = required("SUPABASE_URL").rstrip("/")
@@ -339,6 +381,9 @@ def main() -> int:
 
         for sheet, table in REQUIRED_SHEETS.items():
             parsed[table] = read_sheet(workbook[sheet])
+
+        if "febriles" in parsed:
+            parsed["febriles"] = completar_ingreso_febriles(parsed["febriles"])
 
         optional_present = []
         optional_missing = []

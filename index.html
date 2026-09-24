@@ -8751,6 +8751,25 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             return mapa[n] || null;
         }
 
+        // FEBRILES: el Master no siempre trae ING_MES; se deriva de fecha_ing
+        // (ISO o serial de Excel) para no rechazar toda la hoja.
+        function mesDesdeFechaIngVea(valor) {
+            if (valor === null || valor === undefined || valor === "") return null;
+            const texto = String(valor).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
+                const d = new Date(texto);
+                if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getMonth() + 1);
+            }
+            if (/^\d+(\.\d+)?$/.test(texto)) {
+                const serial = Number(texto);
+                if (serial >= 20000 && serial < 60000) {
+                    const d = new Date(Math.round((serial - 25569) * 86400000));
+                    if (!Number.isNaN(d.getTime())) return normalizarMesRealVea(d.getUTCMonth() + 1);
+                }
+            }
+            return normalizarMesRealVea(texto);
+        }
+
         function agregarCausaVea(contador, causa) {
             contador[causa] = (contador[causa] || 0) + 1;
         }
@@ -9055,7 +9074,8 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             extraido.registros.forEach(row => {
                 const ano = enteroRealVea(valorExactoVea(row, "ANO"));
                 const semana = enteroRealVea(valorExactoVea(row, "SEMANA"));
-                const mes = normalizarMesRealVea(valorExactoVea(row, "ING_MES"));
+                let mes = normalizarMesRealVea(valorExactoVea(row, "ING_MES"));
+                if (!mes) mes = mesDesdeFechaIngVea(valorExactoVea(row, "FECHA_ING"));
                 const casos = numeroRealVea(valorExactoVea(row, "feb_tot"));
 
                 if (ano === null || ano < 1900 || ano > 2100) { agregarCausaVea(causas, "AÑO inválido"); return; }
