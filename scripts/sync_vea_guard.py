@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Guarda de sincronización VEA: solo publica cuando el archivo de Google Drive cambió."""
+"""Guarda de sincronización VEA: solo publica cuando el archivo de Google Drive cambió.
+
+Si la tabla de control (vea_sync_control) no está disponible (permisos/grants
+pendientes), se degrada con fail-open: sincroniza igual para no bloquear el
+reflejo de datos y avisa por stderr.
+"""
 from __future__ import annotations
 import hashlib
 import io
@@ -30,6 +35,35 @@ def drive_service():
     )
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
+def leer_control():
+    """Fila de control actual o None si la tabla no está disponible (fail-open)."""
+    try:
+        current = sb("GET", "vea_sync_control", params={
+            "select": "source_modified_time,source_sha256,last_status",
+            "id": "eq.1",
+        })
+        current.raise_for_status()
+        filas = current.json()
+        return filas[0] if filas else {}
+    except Exception as exc:
+        print(
+            f"VEA_SYNC_CONTROL_NO_DISPONIBLE: {exc}; se omite el control de cambios "
+            "y se sincroniza de todas formas (fail-open).",
+            file=sys.stderr,
+        )
+        return None
+
+def registrar_control(payload, contexto):
+    """Actualiza vea_sync_control sin bloquear el flujo si falla."""
+    try:
+        update = sb("PATCH", "vea_sync_control", params={"id": "eq.1"}, data=json.dumps(payload))
+        update.raise_for_status()
+    except Exception as exc:
+        print(
+            f"VEA_SYNC_CONTROL_{contexto}_NO_REGISTRADO: {exc}",
+            file=sys.stderr,
+        )
+
 def main():
     service = drive_service()
     meta = service.files().get(fileId=FILE_ID, fields="id,name,mimeType,modifiedTime,size").execute()
@@ -37,11 +71,8 @@ def main():
     if not modified:
         raise RuntimeError("Google Drive no devolvió modifiedTime.")
 
-    current = sb("GET", "vea_sync_control", params={"select":"source_modified_time,source_sha256,last_status","id":"eq.1"})
-    current.raise_for_status()
-    row = current.json()[0] if current.json() else {}
-
-    if row.get("source_modified_time") == modified and row.get("last_status") == "success":
+    row = leer_control()
+    if row is not None and row.get("source_modified_time") == modified and row.get("last_status") == "success":
         print(f"VEA_SYNC_SKIP: sin cambios en Google Drive desde {modified}.")
         return 0
 
@@ -49,7 +80,7 @@ def main():
     from sync_vea import main as sync_main
     try:
         result = sync_main()
-        payload = {
+        registrar_control({
             "source_file_id": FILE_ID,
             "source_modified_time": modified,
             "source_sha256": None,
@@ -57,19 +88,16 @@ def main():
             "last_status": "success",
             "last_message": f"Sincronización automática OK: {meta.get('name', FILE_ID)}",
             "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        update = sb("PATCH", "vea_sync_control", params={"id":"eq.1"}, data=json.dumps(payload))
-        update.raise_for_status()
+        }, "SUCCESS")
         return int(result or 0)
     except Exception as exc:
-        payload = {
+        registrar_control({
             "source_file_id": FILE_ID,
             "source_modified_time": modified,
             "last_status": "error",
             "last_message": str(exc)[:1000],
             "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        sb("PATCH", "vea_sync_control", params={"id":"eq.1"}, data=json.dumps(payload))
+        }, "ERROR")
         raise
 
 if __name__ == "__main__":
