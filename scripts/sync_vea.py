@@ -379,6 +379,33 @@ def completar_ingreso_febriles(rows: list[dict[str, Any]]) -> list[dict[str, Any
     return rows
 
 
+def filtrar_filas_header_ano(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Descarta filas cabecera duplicadas como datos (ano='ANO', semana='SEMANA'...)."""
+    limpias: list[dict[str, Any]] = []
+    descartadas = 0
+    for row in rows:
+        valor = row.get("ano")
+        if valor is None:
+            limpias.append(row)
+            continue
+        texto = str(valor).strip()
+        if not texto:
+            limpias.append(row)
+            continue
+        try:
+            anio = int(float(texto))
+        except ValueError:
+            descartadas += 1
+            continue
+        if 1900 <= anio <= 2100:
+            limpias.append(row)
+        else:
+            descartadas += 1
+    if descartadas:
+        print(f"filas descartadas por ANO no numérico (cabecera duplicada): {descartadas}")
+    return limpias
+
+
 def main() -> int:
     file_id = required("GOOGLE_DRIVE_FILE_ID")
     base = required("SUPABASE_URL").rstrip("/")
@@ -414,6 +441,13 @@ def main() -> int:
                 optional_missing.append(sheet)
 
         workbook.close()
+
+    for table in list(parsed):
+        antes = len(parsed[table])
+        parsed[table] = filtrar_filas_header_ano(parsed[table])
+        descartadas = antes - len(parsed[table])
+        if descartadas:
+            print(f"{table}: {descartadas} fila(s) cabecera descartada(s)")
 
     print(
         "Excel descargado y validado:",
