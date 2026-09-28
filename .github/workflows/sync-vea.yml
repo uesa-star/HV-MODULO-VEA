@@ -1,12 +1,11 @@
 name: Sincronización VEA desde Google Drive
 
-# Automatización horaria segura (hora de Perú, UTC-5):
-# Revisa el Master en Google Drive cada hora.
-# Solo sincroniza Supabase cuando Google Drive reporta un cambio.
+# Automatización cada 5 minutos.
+# Revisa el Master en Google Drive y solo sincroniza Supabase cuando detecta un cambio.
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/5 * * * *"
   push:
     branches:
       - main
