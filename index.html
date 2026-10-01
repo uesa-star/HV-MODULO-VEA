@@ -13117,7 +13117,11 @@ function generarBoletinSeleccionadoVea(){
   const semana=Number(document.getElementById('selectSemanaBoletinVea')?.value);
   if(!anio||!semana)return;
   window.__veaBoletinSeleccion={anio,semana};
-  cerrarSelectorBoletinVea();actualizarTextoBoletinSEVea();abrirAvisoBoletinSEVea();
+  cerrarSelectorBoletinVea();actualizarTextoBoletinSEVea();
+  try{
+    if(typeof abrirBoletinV17DinamicoVea==='function'){abrirBoletinV17DinamicoVea(anio,semana);return;}
+  }catch(e){console.warn('Boletín V17 no disponible:',e);}
+  abrirAvisoBoletinSEVea();
 }
 function abrirBoletinAvanzadoVea(){
   // Generación dinámica: usa exactamente el Año + S.E. elegidos en el selector.
@@ -14560,6 +14564,1036 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#eaf1f9;te
 document.addEventListener('change',function(){setTimeout(actualizarTextoBoletinSEVea,0)});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',actualizarTextoBoletinSEVea);
 else actualizarTextoBoletinSEVea();
+</script>
+
+<script>
+/* VEA V17 — BOLETIN EPIDEMICOLOGICO DE 28 PAGINAS (A4) — generado dinamicamente con Año + S.E. */
+/* ============================================================
+   VEA V17 — BOLETÍN EPIDEMIOLÓGICO DE 28 PÁGINAS (A4)
+   Generación dinámica a partir de Año + Semana Epidemiológica.
+   Fuente exclusiva: repositorio VEA activo (databaseActiva).
+   ============================================================ */
+function construirHTMLBoletinV17(anio, se, baseAssets) {
+  anio = Number(anio); se = Number(se);
+  if (!anio || !se) throw new Error('Seleccione un año y una Semana Epidemiológica válidos.');
+
+  const db = (typeof window !== 'undefined' && window.databaseActiva) ? window.databaseActiva : {};
+  const individual = (typeof datosModulosIndependientes !== 'undefined' && Array.isArray(datosModulosIndependientes.casos))
+    ? datosModulosIndependientes.casos : [];
+
+  const MESES3 = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const ETIQ7 = ['&lt; 1 año', '1 – 4 años', '5 – 11 años', '12 – 17 años', '18 – 29 años', '30 – 59 años', '&gt; 60 años'];
+  const KEY7 = ['M_1', 'M_1_4', 'M_5_11', 'M_12_17', 'M_18_29', 'M_30_59', 'M_60'];
+  const KEY7DIS = ['A < 1a', 'A 1-4 a', 'A 5-11 a', 'A 12-17 a', 'A 18-29 a', 'A 30-59 a', 'A >60 a'];
+  const ETIQ6 = ['2 años', '2 – 4 años', '5 – 9 años', '10 – 19 años', '20 – 59 años', '&gt; 60 años'];
+  const KEY6SOBA = ['SOB_2A', 'SOB_2_4A', 'SOB_5_9A', 'SOB_10_19A', 'SOB_20_59A', 'SOB_60A'];
+
+  const num = v => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const canon = (r, k) => (r && r.__VEA_CANONICO) ? r.__VEA_CANONICO[k] : undefined;
+  const year = r => Number(r && r.ANO != null ? r.ANO : (r && r.ANIO != null ? r.ANIO : canon(r, 'ANO')));
+  const week = r => Number(r && r.SEMANA != null ? r.SEMANA : canon(r, 'SEMANA_EPIDEMIOLOGICA'));
+  const fmt = n => Number(n || 0).toLocaleString('es-PE');
+  const pctTxt = v => (v == null || !isFinite(v)) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const variacion = (a, p) => p ? ((a - p) / p * 100) : null;
+  const arrow = v => v > 0 ? '↑' : v < 0 ? '↓' : '→';
+  const cls = v => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
+  const asset = n => {
+    if (baseAssets && typeof URL !== 'undefined') { try { return new URL('assets/boletin/' + n, baseAssets).href; } catch (e) { } }
+    return 'assets/boletin/' + n;
+  };
+
+  const seAnt = se > 1 ? se - 1 : null;
+  const rangoSemana = (y, w) => {
+    const jan4 = new Date(Date.UTC(y, 0, 4));
+    const sunday = new Date(jan4);
+    sunday.setUTCDate(jan4.getUTCDate() - jan4.getUTCDay() + (w - 1) * 7);
+    const saturday = new Date(sunday);
+    saturday.setUTCDate(sunday.getUTCDate() + 6);
+    if (sunday.getUTCMonth() === saturday.getUTCMonth()) return `${sunday.getUTCDate()} al ${saturday.getUTCDate()} de ${MESES[saturday.getUTCMonth()]} del ${saturday.getUTCFullYear()}`;
+    return `${sunday.getUTCDate()} de ${MESES[sunday.getUTCMonth()]} al ${saturday.getUTCDate()} de ${MESES[saturday.getUTCMonth()]} del ${saturday.getUTCFullYear()}`;
+  };
+  const rangoSE = rangoSemana(anio, se);
+  const fechaEmision = (() => { try { return new Date().toLocaleDateString('es-PE'); } catch (e) { return ''; } })();
+
+  /* ---------- Eventos vigilados ---------- */
+  const edadesGenericas = r => ({ labels: ETIQ7, vals: KEY7.map(k => num(r[k])) });
+  const EVENTOS = [
+    { id: 'acu', nombre: 'EDAs Acuosas', color: '#65a83d', src: 'EDAs', caso: r => num(r.CASOS), hos: r => num(r.TO_HOS), edades: edadesGenericas },
+    { id: 'dis', nombre: 'EDAs Disentéricas', color: '#6d45ad', src: 'EDAs', caso: r => num(r.TO_DIS), hos: r => num(r.HOS_DIS != null ? r.HOS_DIS : r.TO_HOS_DIS), edades: r => { const o = r.DIS_EDADES_VEA || {}; return { labels: ETIQ7, vals: KEY7DIS.map(k => num(o[k])) }; } },
+    { id: 'ira', nombre: 'IRAs', color: '#1455c0', src: 'IRAs', caso: r => num(r.CASOS), hos: r => num(r.TO_HOS), edades: edadesGenericas },
+    { id: 'soba', nombre: 'SOBA', color: '#0aa5bf', src: 'SOBA', caso: r => num(r.CASOS), hos: r => num(r.TO_HOS), edades: r => { const o = r.EDADES_VEA || r.SOBA_EDADES_VEA || {}; return { labels: ETIQ6, vals: KEY6SOBA.map(k => num(o[k])) }; } },
+    { id: 'feb', nombre: 'Fiebre/Febriles', color: '#e32636', src: 'Febriles', caso: r => num(r.CASOS), hos: r => num(r.TO_HOS), edades: edadesGenericas }
+  ];
+
+  const agg = EVENTOS.map(e => {
+    const rows = (Array.isArray(db[e.src]) ? db[e.src] : []).filter(r => year(r) === anio);
+    const enSe = rows.filter(r => week(r) === se);
+    const enAnt = seAnt ? rows.filter(r => week(r) === seAnt) : [];
+    const casos = enSe.reduce((a, r) => a + e.caso(r), 0);
+    const prev = enAnt.reduce((a, r) => a + e.caso(r), 0);
+    const hos = rows.filter(r => week(r) === se).reduce((a, r) => a + e.hos(r), 0);
+    const hosPrev = seAnt ? rows.filter(r => week(r) === seAnt).reduce((a, r) => a + e.hos(r), 0) : 0;
+    const acum = rows.reduce((a, r) => a + e.caso(r), 0);
+    const serie = Array.from({ length: se }, (_, i) => rows.filter(r => week(r) === i + 1).reduce((a, r) => a + e.caso(r), 0));
+    const hosSerie = Array.from({ length: se }, (_, i) => rows.filter(r => week(r) === i + 1).reduce((a, r) => a + e.hos(r), 0));
+    const porMes = MESES3.map(m => rows.filter(r => String(r.MES) === m).reduce((a, r) => a + e.caso(r), 0));
+    const porMesHosp = MESES3.map(m => rows.filter(r => String(r.MES) === m).reduce((a, r) => a + e.hos(r), 0));
+    const et = enSe.length ? e.edades(enSe[0]) : { labels: (e.id === 'soba') ? ETIQ6 : ETIQ7, vals: ((e.id === 'soba') ? ETIQ6 : ETIQ7).map(() => 0) };
+    const edVals = et.vals.slice();
+    enSe.slice(1).forEach(r => { const x = e.edades(r); x.vals.forEach((v, i) => { edVals[i] = (edVals[i] || 0) + v; }); });
+    const edTotal = edVals.reduce((a, v) => a + v, 0);
+    return Object.assign({}, e, { hosFn: e.hos, rows, enSe, casos, prev, hos, hosPrev, acum, serie, hosSerie, porMes, porMesHosp, edLabels: et.labels, edVals, edTotal });
+  });
+
+  const totalCasos = agg.reduce((a, x) => a + x.casos, 0);
+  const totalPrev = agg.reduce((a, x) => a + x.prev, 0);
+  const totalHosp = agg.reduce((a, x) => a + x.hos, 0);
+  const totalHospPrev = agg.reduce((a, x) => a + x.hosPrev, 0);
+  const totalAcum = agg.reduce((a, x) => a + x.acum, 0);
+  const totalAcumHosp = agg.reduce((a, x) => a + x.rows.reduce((s, r) => s + x.hosFn(r), 0), 0);
+  const dominante = [...agg].sort((a, b) => b.casos - a.casos)[0] || { nombre: 'Sin datos', casos: 0, prev: 0 };
+  const dominantePrev = dominante.prev || 0;
+  const varTotal = totalCasos - totalPrev;
+  const pctTotal = variacion(totalCasos, totalPrev);
+  const direccion = varTotal > 0 ? 'incremento' : varTotal < 0 ? 'disminución' : 'estabilidad';
+
+  const aniosDatos = [...new Set(
+    EVENTOS.flatMap(e => (Array.isArray(db[e.src]) ? db[e.src] : [])).concat(individual).map(year).filter(Number.isFinite)
+  )].filter(y => y >= 2024 && y <= 2100).sort((a, b) => b - a);
+  const aniosComparados = (aniosDatos.includes(anio) ? aniosDatos : [anio].concat(aniosDatos)).slice(0, 3).sort((a, b) => a - b);
+
+  /* ---------- Casos individuales ---------- */
+  const claveDx = r => {
+    const c = r.__VEA_CANONICO || {};
+    const cod = String(r.CODIGO != null ? r.CODIGO : (r.diagnostic != null ? r.diagnostic : (c.CODIGO != null ? c.CODIGO : ''))).trim();
+    const nom = String(r.DIAGNOSTICO != null ? r.DIAGNOSTICO : (r.Enfermedad != null ? r.Enfermedad : (r.enfermedad != null ? r.enfermedad : (c.DIAGNOSTICO != null ? c.DIAGNOSTICO : '')))).trim();
+    return [cod, nom].filter(Boolean).join(' · ') || 'Sin diagnóstico';
+  };
+  const indAnio = individual.filter(r => year(r) === anio);
+  const indSe = indAnio.filter(r => week(r) === se);
+  const indAnt = seAnt ? indAnio.filter(r => week(r) === seAnt) : [];
+  const contarDx = lista => { const o = {}; lista.forEach(r => { const k = claveDx(r); o[k] = (o[k] || 0) + 1; }); return o; };
+  const dxSe = contarDx(indSe), dxAnt = contarDx(indAnt), dxAcum = contarDx(indAnio);
+  const topDx = Object.entries(dxSe).sort((a, b) => b[1] - a[1]);
+  const universoTop = Object.entries(dxAcum).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([nombre]) => ({
+    nombre, acum: dxAcum[nombre] || 0, actual: dxSe[nombre] || 0, previo: dxAnt[nombre] || 0
+  }));
+  const indPred = topDx[0] || ['Sin registros', 0];
+  const indSerie = Array.from({ length: se }, (_, i) => indAnio.filter(r => week(r) === i + 1).length);
+  const indAcumTot = indAnio.length;
+  const varInd = indSe.length - indAnt.length;
+  const pctInd = variacion(indSe.length, indAnt.length);
+
+  const sexoDe = r => {
+    const s = String(canon(r, 'SEXO') == null ? '' : canon(r, 'SEXO')).trim().toUpperCase();
+    if (s === 'M' || s === 'MASCULINO' || s === 'VARON' || s === 'VARÓN') return 'Masculino';
+    if (s === 'F' || s === 'FEMENINO' || s === 'MUJER') return 'Femenino';
+    return s ? s.charAt(0) + s.slice(1).toLowerCase() : 'No especificado';
+  };
+  const grupoEdad = r => {
+    const raw = canon(r, 'EDAD');
+    const txt = String(raw == null ? '' : raw).trim();
+    const n = Number(txt.replace(/[^0-9.]/g, ''));
+    if (!txt || !isFinite(n)) return 'No especificada';
+    if (n < 1) return '< 1 año';
+    if (n < 5) return '1 – 4 años';
+    if (n < 12) return '5 – 11 años';
+    if (n < 18) return '12 – 17 años';
+    if (n < 30) return '18 – 29 años';
+    if (n < 60) return '30 – 59 años';
+    return '≥ 60 años';
+  };
+  const conteoPor = (lista, fn) => { const o = {}; lista.forEach(r => { const k = fn(r); o[k] = (o[k] || 0) + 1; }); return o; };
+  const ordenarMap = (map, orden) => {
+    const e = Object.entries(map);
+    if (!orden) return e.sort((a, b) => b[1] - a[1]);
+    const fijas = orden.filter(k => map[k] != null).map(k => [k, map[k]]);
+    const resto = e.filter(([k]) => !orden.includes(k)).sort((a, b) => b[1] - a[1]);
+    return fijas.concat(resto);
+  };
+  const sexoMap = conteoPor(indSe, sexoDe);
+  const sexoOrden = ordenarMap(sexoMap, ['Masculino', 'Femenino', 'No especificado']);
+  const edadMap = conteoPor(indSe, grupoEdad);
+  const edadOrden = ordenarMap(edadMap, ['< 1 año', '1 – 4 años', '5 – 11 años', '12 – 17 años', '18 – 29 años', '30 – 59 años', '≥ 60 años', 'No especificada']);
+  const servMap = conteoPor(indSe, r => {
+    const s = String(canon(r, 'SERVICIO') == null ? '' : canon(r, 'SERVICIO')).trim();
+    return s ? esc(s) : 'No especificado';
+  });
+  const servOrden = ordenarMap(servMap);
+  const indMens = MESES3.map(m => indAnio.filter(r => String(canon(r, 'MES')) === m).length);
+  const hospMens = MESES3.map((m, i) => agg.reduce((a, e) => a + e.porMesHosp[i], 0));
+
+  /* ---------- Series mensuales y resumen anual ---------- */
+  const serieMensualAnio = y => MESES3.map(m => EVENTOS.reduce((a, e) =>
+    a + (Array.isArray(db[e.src]) ? db[e.src] : []).filter(r => year(r) === y && String(r.MES) === m).reduce((s, r) => s + e.caso(r), 0), 0));
+  const mensualPorAnio = {};
+  aniosComparados.forEach(y => { mensualPorAnio[y] = serieMensualAnio(y); });
+
+  const resumenAnual = aniosComparados.map(y => {
+    const porEvento = EVENTOS.map(e => (Array.isArray(db[e.src]) ? db[e.src] : [])
+      .filter(r => year(r) === y).reduce((a, r) => a + e.caso(r), 0));
+    const hosp = EVENTOS.reduce((a, e) => a + (Array.isArray(db[e.src]) ? db[e.src] : [])
+      .filter(r => year(r) === y).reduce((s, r) => s + e.hos(r), 0), 0);
+    const inds = individual.filter(r => year(r) === y).length;
+    return { anio: y, porEvento, hosp, inds, total: porEvento.reduce((a, v) => a + v, 0) };
+  });
+
+  /* ---------- Textos de análisis ---------- */
+  const kpiVs = (act, prev) => prev ? `Vs. S.E. anterior ${arrow(act - prev)} ${Math.abs(variacion(act, prev)).toFixed(1)}%` : 'Vs. S.E. anterior —';
+  const analisisComparativo = (() => {
+    if (varTotal === 0) return `El total se mantuvo en ${fmt(totalCasos)} casos entre las S.E. ${seAnt == null ? 'anterior' : seAnt} y ${se}.`;
+    const principal = [...agg].sort((a, b) => Math.abs(b.casos - b.prev) - Math.abs(a.casos - a.prev))[0];
+    return `El total ${varTotal > 0 ? 'aumentó' : 'disminuyó'} de ${fmt(totalPrev)} a ${fmt(totalCasos)} casos: ${fmt(Math.abs(varTotal))} caso(s)${pctTotal != null ? ` (${pctTxt(pctTotal)})` : ''}. Mayor variación: ${principal ? principal.nombre : '—'}.`;
+  })();
+  const lecturaTendencia = `En la S.E. ${se}, ${dominante.nombre} presentó el mayor volumen con ${fmt(dominante.casos)} casos; el total de la semana fue de ${fmt(totalCasos)} casos en los 5 eventos vigilados.`;
+  const lecturaHosp = totalHosp
+    ? `En la S.E. ${se} se registraron ${fmt(totalHosp)} hospitalización(es): ${agg.filter(x => x.hos > 0).map(x => `${x.nombre} (${fmt(x.hos)})`).join(', ') || 'sin desglose por evento'}.`
+    : `En la S.E. ${se} no se registraron hospitalizaciones en los eventos vigilados.`;
+  const lecturaIndividual = indSe.length
+    ? `En la S.E. ${se} se notificaron ${fmt(indSe.length)} caso(s) individual(es); predominó ${indPred[0]} con ${fmt(indPred[1])} registro(s).`
+    : `En la S.E. ${se} no se registraron casos individuales.`;
+
+  /* ---------- Componentes de render ---------- */
+  const ticks = () => { const s = new Set([1, se]); for (let w = 5; w < se; w += 4) s.add(w); return [...s].sort((a, b) => a - b); };
+
+  const svgLinea = (series, opts) => {
+    const o = Object.assign({ w: 660, h: 250, padL: 48, padR: 16, padT: 16, padB: 36, yTitle: 'CASOS', xTitle: 'SEMANA EPIDEMIOLÓGICA', xTicks: [] }, opts || {});
+    const n = Math.max(1, ...series.map(s => s.vals.length));
+    const max = Math.max(1, ...series.flatMap(s => s.vals));
+    const X = i => o.padL + (n <= 1 ? 0 : (i / (n - 1)) * (o.w - o.padL - o.padR));
+    const Y = v => o.padT + (o.h - o.padT - o.padB) - (v / max) * (o.h - o.padT - o.padB);
+    let g = '';
+    for (let t = 0; t <= 5; t++) {
+      const val = Math.round(max * (5 - t) / 5);
+      const y = o.padT + (o.h - o.padT - o.padB) * (t / 5);
+      g += `<line x1="${o.padL}" y1="${y.toFixed(1)}" x2="${o.w - o.padR}" y2="${y.toFixed(1)}" stroke="#dce5f2" stroke-width=".8"/><text x="${o.padL - 7}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="#4a5a72">${val}</text>`;
+    }
+    let x = '';
+    (o.xTicks || []).forEach(w => {
+      const px = X(Math.max(0, Math.min(n - 1, w - 1)));
+      x += `<line x1="${px.toFixed(1)}" y1="${o.h - o.padB}" x2="${px.toFixed(1)}" y2="${o.h - o.padB + 4}" stroke="#7b8aa1"/><text x="${px.toFixed(1)}" y="${o.h - o.padB + 17}" text-anchor="middle" font-size="9" fill="#4a5a72">${w}</text>`;
+    });
+    let paths = '';
+    series.forEach(s => {
+      const pts = s.vals.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+      paths += `<polyline fill="none" stroke="${s.color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>`;
+      paths += s.vals.map((v, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.5" fill="${s.color}" stroke="#fff" stroke-width=".9"/>`).join('');
+    });
+    const midY = (o.padT + (o.h - o.padT - o.padB) / 2).toFixed(1);
+    const midX = ((o.padL + o.w - o.padR) / 2).toFixed(1);
+    return `<svg class="chart" viewBox="0 0 ${o.w} ${o.h}" role="img">${g}<line x1="${o.padL}" y1="${o.h - o.padB}" x2="${o.w - o.padR}" y2="${o.h - o.padB}" stroke="#5b6b84" stroke-width="1.2"/><line x1="${o.padL}" y1="${o.padT}" x2="${o.padL}" y2="${o.h - o.padB}" stroke="#5b6b84" stroke-width="1.2"/>${x}${paths}<text x="14" y="${midY}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#26364d" transform="rotate(-90 14 ${midY})">${o.yTitle}</text><text x="${midX}" y="${o.h - 4}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#26364d">${o.xTitle}</text></svg>`;
+  };
+
+  const svgBarras = (series, grupos, opts) => {
+    const o = Object.assign({ w: 660, h: 250, padL: 48, padR: 16, padT: 16, padB: 36, yTitle: 'CASOS', xTitle: 'MES' }, opts || {});
+    const max = Math.max(1, ...series.flatMap(s => s.vals));
+    const plotW = o.w - o.padL - o.padR, plotH = o.h - o.padT - o.padB;
+    const band = plotW / Math.max(1, grupos.length);
+    const bw = Math.max(3, (band * 0.68) / Math.max(1, series.length));
+    let g = '';
+    for (let t = 0; t <= 5; t++) {
+      const val = Math.round(max * (5 - t) / 5);
+      const y = o.padT + plotH * (t / 5);
+      g += `<line x1="${o.padL}" y1="${y.toFixed(1)}" x2="${o.w - o.padR}" y2="${y.toFixed(1)}" stroke="#dce5f2" stroke-width=".8"/><text x="${o.padL - 7}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="#4a5a72">${val}</text>`;
+    }
+    let bars = '', labels = '';
+    grupos.forEach((gp, i) => {
+      const base = o.padL + i * band + (band - bw * series.length) / 2;
+      series.forEach((s, j) => {
+        const v = s.vals[i] || 0;
+        const h = (v / max) * plotH;
+        const x = base + j * bw, y = o.padT + plotH - h;
+        bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1.5, bw - 1).toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" fill="${s.color}" rx="1.2"/>`;
+      });
+      labels += `<text x="${(o.padL + i * band + band / 2).toFixed(1)}" y="${o.h - o.padB + 16}" text-anchor="middle" font-size="9" fill="#4a5a72">${gp}</text>`;
+    });
+    const midY = (o.padT + plotH / 2).toFixed(1);
+    const midX = ((o.padL + o.w - o.padR) / 2).toFixed(1);
+    return `<svg class="chart" viewBox="0 0 ${o.w} ${o.h}" role="img">${g}<line x1="${o.padL}" y1="${o.h - o.padB}" x2="${o.w - o.padR}" y2="${o.h - o.padB}" stroke="#5b6b84" stroke-width="1.2"/><line x1="${o.padL}" y1="${o.padT}" x2="${o.padL}" y2="${o.h - o.padB}" stroke="#5b6b84" stroke-width="1.2"/>${bars}${labels}<text x="14" y="${midY}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#26364d" transform="rotate(-90 14 ${midY})">${o.yTitle}</text><text x="${midX}" y="${o.h - 4}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#26364d">${o.xTitle}</text></svg>`;
+  };
+
+  const leyenda = items => `<div class="ley">${items.map(i => `<span><i style="background:${i.color}"></i>${esc(i.nombre)}</span>`).join('')}</div>`;
+  const tabla = (cols, filas, clase) => `<table class="tb ${clase || ''}"><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${filas.join('')}</tbody></table>`;
+  const barrasH = (items, color) => {
+    const max = Math.max(1, ...items.map(i => i.valor));
+    const tot = items.reduce((a, i) => a + i.valor, 0);
+    return `<div class="bars">${items.map(i => {
+      const p = (i.valor / max) * 100;
+      const pc = tot ? (i.valor / tot * 100) : 0;
+      return `<div class="barRow"><span class="barLbl">${i.label}</span><span class="barTrack"><span class="barFill" style="width:${p.toFixed(1)}%;background:${i.color || color}"></span></span><span class="barVal">${fmt(i.valor)} · ${pc.toFixed(1)}%</span></div>`;
+    }).join('')}</div>`;
+  };
+  const kpis = items => `<div class="kpis">${items.map(i => `<div class="kpi"><div class="kpiIco">${i.ico}</div><label>${esc(i.label)}</label><strong class="${i.pred ? 'pred' : ''}">${i.value}</strong><small>${esc(i.sub || 'Total registrados')}</small><em>${esc(i.foot || '')}</em></div>`).join('')}</div>`;
+  const bloque = (titulo, cuerpo, extra) => `<section class="card ${extra || ''}"><div class="cardT">${titulo}</div><div class="cardB">${cuerpo}</div></section>`;
+  const nota = txt => `<div class="nota"><b>ANÁLISIS:</b> ${esc(txt)}</div>`;
+  const filaEvento = (x, conAcum) => {
+    const v = x.casos - x.prev;
+    const p = variacion(x.casos, x.prev);
+    return `<tr><td><span class="dot" style="background:${x.color}"></span><b>${esc(x.nombre)}</b></td><td>${fmt(x.prev)}</td><td>${fmt(x.casos)}</td><td class="${cls(v)}">${arrow(v)} ${fmt(Math.abs(v))}</td><td class="${cls(p || 0)}">${pctTxt(p)}</td>${conAcum ? `<td>${fmt(x.acum)}</td>` : ''}</tr>`;
+  };
+
+  /* ---------- Marco de páginas ---------- */
+  const paginas = [];
+  const totalPaginas = 28;
+  const piePag = n => `<div class="pf"><span>Fuente: NOTIWEB — CDC Perú / MINSA</span><span class="pfNum">${n}</span><span>Hospital de Ventanilla · Callao</span></div>`;
+  const cabPag = (n, titulo, sub) => `<div class="band"><b>HOSPITAL DE VENTANILLA</b><span>UNIDAD DE EPIDEMIOLOGÍA Y SALUD PÚBLICA</span></div><div class="phWrap"><div class="ph"><span class="phCrumb">Boletín epidemiológico</span><span class="phMeta">S.E. ${se} · ${anio} · Volumen 01</span></div><div class="secPill">${String(n).padStart(2, '0')} · ${esc(titulo)}</div>${sub ? `<h2 class="phH2">${esc(sub)}</h2>` : ''}</div>`;
+  const pag = (n, titulo, sub, cuerpo) => `<section class="pg"><div class="pgF">${cabPag(n, titulo, sub)}<div class="pgC">${cuerpo}</div>${piePag(n)}</div></section>`;
+
+  /* --- 1. PORTADA --- */
+  const portada = `<section class="pg portada"><div class="pgF portadaF">
+  <div class="covTop">
+    <div class="covBrand"><img src="${asset('logo_master.png')}" alt="Gobierno Regional del Callao — Hospital de Ventanilla"></div>
+    <div class="covOrg"><b>UNIDAD DE EPIDEMIOLOGÍA<br>Y SALUD PÚBLICA</b><i></i><span>HOSPITAL DE VENTANILLA · CALLAO</span></div>
+    <div class="covSlogan"><span>VIGILANCIA</span><span>ANÁLISIS</span><span>PREVENCIÓN</span><span>DECISIONES EN SALUD</span></div>
+  </div>
+  <div class="covBanner"><img src="${asset('banner_master.png')}" alt="Hospital de Ventanilla"></div>
+  <div class="covTitle">
+    <svg class="covChart" width="214" height="94" viewBox="0 0 214 94" aria-hidden="true"><g fill="#dbe9fb"><rect x="4" y="58" width="22" height="36" rx="4"/><rect x="34" y="46" width="22" height="48" rx="4"/><rect x="64" y="62" width="22" height="32" rx="4"/><rect x="94" y="30" width="22" height="64" rx="4"/><rect x="124" y="44" width="22" height="50" rx="4"/><rect x="154" y="16" width="22" height="78" rx="4"/><rect x="184" y="34" width="22" height="60" rx="4"/></g><polyline points="15,74 45,64 75,68 105,44 135,52 165,26 195,38" fill="none" stroke="#2f80ed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><g fill="#2f80ed"><circle cx="15" cy="74" r="3.4"/><circle cx="45" cy="64" r="3.4"/><circle cx="75" cy="68" r="3.4"/><circle cx="105" cy="44" r="3.4"/><circle cx="135" cy="52" r="3.4"/><circle cx="165" cy="26" r="3.4"/><circle cx="195" cy="38" r="3.4"/></g></svg>
+    <div class="covRule"></div>
+    <div class="covT1">BOLETÍN</div>
+    <div class="covT2">EPIDEMIOLÓGICO</div>
+    <div class="covSub">Situación epidemiológica comparativa</div>
+  </div>
+  <div class="covPanel">
+    <div class="covMap">
+      <div class="covMapHead">Distrito de<br>Ventanilla<i></i></div>
+      <div class="covMapCard"><img src="${asset('mapa_master.png')}" alt="Distrito de Ventanilla"></div>
+      
+    </div>
+    <div class="covSide">
+      <div class="covCard">
+        <img src="${asset('foto_analisis_master.png')}" alt="Análisis epidemiológico">
+        <div class="covCardBody"><span class="covIco"><svg viewBox="0 0 24 24"><path d="M4 20h16M7 17V9M12 17V4M17 17v-6"/></svg></span><div class="covCardTxt"><b>Análisis epidemiológico</b><span>Información para la toma de decisiones</span></div></div>
+      </div>
+      <div class="covCard">
+        <img src="${asset('foto_comunidad_master.png')}" alt="Vigilancia en la comunidad">
+        <div class="covCardBody"><span class="covIco"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5v1H2.5z"/><path d="M14.5 19c0-2.3 1.6-4 4-4 2 0 3.5 1.4 3.5 3.4V20H14.5z"/></svg></span><div class="covCardTxt"><b>Vigilancia en la comunidad</b><span>Comunidades más saludables · CDC Perú</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="covBottom">
+    <span><i class="covBi"><svg viewBox="0 0 24 24"><path d="M7 2v3M17 2v3M3.5 9h17M5 4.5h14a2 2 0 0 1 2 2V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2z"/></svg></i><em><b>S.E. ${se} · ${anio}</b><small>${esc(rangoSE)}</small></em></span>
+    <span><i class="covBi alt"><svg viewBox="0 0 24 24"><path d="M4 20h16M7 17V9M12 17V4M17 17v-6"/></svg></i><em><b>Años comparados:</b><small>${aniosComparados.join(' · ')}</small></em></span>
+    <span><i class="covBi alt"><svg viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6zM14 2v5h5M9 12h6M9 16h6"/></svg></i><em><b>Volumen 01</b><small>Boletín epidemiológico</small></em></span>
+    <span><i class="covBi alt"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-4 7 4v13M9.5 10h2M9.5 14h2M14 10h2M14 14h2"/></svg></i><em><b>Hospital de Ventanilla</b><small>Callao</small></em></span>
+    <span><i class="covBi alt"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></i><em><b>Fuente:</b><small>NOTIWEB - CDC Perú / MINSA</small></em></span>
+  </div>
+  <div class="covBars"><i class="nb"></i><i class="tb"></i></div>
+  </div></section>`;
+
+/* --- 2. ÍNDICE --- */
+  const indiceGrupos = [
+    ['General', [3, 4], '#012459'],
+    ['Eventos en vigilancia', [5, 6, 7, 8, 9], '#0053bc'],
+    ['Hospitalizados y casos individuales', [10, 11, 12, 13, 14, 15], '#1266b3'],
+    ['Series y comparativos', [16, 17, 18, 19, 20], '#02a3c4'],
+    ['Analisis y recomendaciones', [21, 22, 23, 24], '#0e3a6b'],
+    ['Metodologia y cierre', [25, 26, 27, 28], '#12a9c4']
+  ];
+  const ordenDe = new Map(); { let o = 1; indiceGrupos.forEach(([, nums]) => nums.forEach(np => ordenDe.set(np, o++))); }
+  const indiceItems = [
+    [3, 'Resumen general de la S.E.'], [4, 'Síntesis y comparativo semanal'],
+    [5, 'Enfermedades diarreicas agudas (EDAs) — Acuosas'], [6, 'EDAs — Disentéricas'],
+    [7, 'Infecciones respiratorias agudas (IRAs)'], [8, 'Síndrome bruto de aguda (SOBA)'],
+    [9, 'Fiebre y enfermedades febriles'], [10, 'Hospitalizados — cuadro semanal'],
+    [11, 'Hospitalizados — tendencia y distribución'], [12, 'Casos individuales — resumen'],
+    [13, 'Casos individuales — tendencia por diagnóstico'], [14, 'Casos individuales — comparativo semanal'],
+    [15, 'Casos individuales — perfil de casos'], [16, 'Serie mensual — total de eventos'],
+    [17, 'Serie mensual — detalle por evento'], [18, 'Serie mensual — hospitalizados e individuales'],
+    [19, 'Resumen anual comparado'], [20, 'Acumulación por semana epidemiológica'],
+    [21, 'Análisis general'], [22, 'Hallazgos de la semana'],
+    [23, 'Conclusiones y recomendaciones'], [24, 'Recomendaciones por evento'],
+    [25, 'Metodología y fuentes'], [26, 'Glosario'],
+    [27, 'Ficha técnica'], [28, 'Cierre institucional']
+  ];
+  paginas.push({ n: 2, html: pag(2, 'Índice del boletín', `Volumen 01 · S.E. ${se} · ${anio}`,
+    `<div class="idx">${indiceGrupos.map(([g, nums, col]) => `<div class="idxG" style="--ga:${col}"><b>${g}</b><em>${String(nums[0]).padStart(2, '0')}-${String(nums[nums.length - 1]).padStart(2, '0')}</em></div>` + nums.map(np => `<div class="idxRow" style="--ga:${col}"><span class="idxN">${String(ordenDe.get(np)).padStart(2, '0')}</span><span class="idxT">${esc(indiceItems.find(x => x[0] === np)[1])}</span><span class="idxL"></span><span class="idxF">${String(np).padStart(2, '0')}</span></div>`).join('')).join('')}</div>
+     <div class="idxNota">Documento de ${totalPaginas} páginas · formato A4 · generado automáticamente desde el módulo VEA con filtro <b>Año ${anio}</b> + <b>S.E. ${se}</b> (${esc(rangoSE)}).</div>`) });
+
+  const pieC3 = 263.9; const pieSegs3 = agg.map((x, i, a) => { const tot = totalCasos || 1; const fr = x.casos / tot; const pre = a.slice(0, i).reduce((s, y) => s + y.casos / tot, 0); return `<circle r="42" cx="60" cy="60" fill="none" stroke="${x.color}" stroke-width="17" stroke-dasharray="${(fr * pieC3).toFixed(1)} ${(pieC3 - fr * pieC3).toFixed(1)}" stroke-dashoffset="${(-pre * pieC3).toFixed(1)}" transform="rotate(-90 60 60)"/>`; }).join("");
+  /* --- 3. RESUMEN GENERAL --- */
+  paginas.push({ n: 3, html: pag(3, 'Resumen general de la S.E. ' + se, rangoSE,
+    kpis([
+      { ico: '📊', label: 'EVENTOS GENERAL', value: fmt(totalCasos + totalHosp + indSe.length), foot: kpiVs(totalCasos + totalHosp + indSe.length, totalPrev + totalHospPrev + indAnt.length) },
+      { ico: '📋', label: 'CASOS VEA', value: fmt(totalCasos), foot: kpiVs(totalCasos, totalPrev) },
+      { ico: '🏥', label: 'HOSPITALIZADOS', value: fmt(totalHosp), foot: kpiVs(totalHosp, totalHospPrev) },
+      { ico: '👤', label: 'INDIVIDUALES', value: fmt(indSe.length), foot: kpiVs(indSe.length, indAnt.length) },
+      { ico: '📈', label: 'EVENTO PREDOMINANTE', value: esc(dominante.nombre) + ' · ' + fmt(dominante.casos), pred: true, foot: kpiVs(dominante.casos, dominantePrev) },
+      { ico: '🔬', label: 'DIAGNÓSTICO PREDOMINANTE', value: esc(indPred[0]) + ' · ' + fmt(indPred[1]), pred: true, foot: kpiVs(indPred[1], (dxAnt[indPred[0]] || 0)) }
+    ]) +
+    bloque('Cuadro resumen por evento — S.E. ' + se + ' vs S.E. ' + (seAnt == null ? '—' : seAnt),
+      tabla(['EVENTO', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VARIACIÓN', '% VAR.', 'ACUM. ' + anio],
+        agg.map(x => filaEvento(x, true)).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(totalPrev)}</b></td><td><b>${fmt(totalCasos)}</b></td><td class="${cls(varTotal)}"><b>${arrow(varTotal)} ${fmt(Math.abs(varTotal))}</b></td><td class="${cls(pctTotal || 0)}"><b>${pctTxt(pctTotal)}</b></td><td><b>${fmt(totalAcum)}</b></td></tr>`]))) +
+    `${bloque('Hospitalizados y casos individuales',
+      tabla(['INDICADOR', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VARIACIÓN', '% VAR.'], [
+        `<tr><td><b>Hospitalizados</b></td><td>${fmt(totalHospPrev)}</td><td>${fmt(totalHosp)}</td><td class="${cls(totalHosp - totalHospPrev)}">${arrow(totalHosp - totalHospPrev)} ${fmt(Math.abs(totalHosp - totalHospPrev))}</td><td class="${cls(variacion(totalHosp, totalHospPrev) || 0)}">${pctTxt(variacion(totalHosp, totalHospPrev))}</td></tr>`,
+        `<tr><td><b>Casos individuales</b></td><td>${fmt(indAnt.length)}</td><td>${fmt(indSe.length)}</td><td class="${cls(varInd)}">${arrow(varInd)} ${fmt(Math.abs(varInd))}</td><td class="${cls(pctInd || 0)}">${pctTxt(pctInd)}</td></tr>`,
+        `<tr class="trTotal"><td><b>TOTAL GENERAL</b></td><td><b>${fmt(totalPrev + totalHospPrev + indAnt.length)}</b></td><td><b>${fmt(totalCasos + totalHosp + indSe.length)}</b></td><td><b>${arrow((totalCasos + totalHosp + indSe.length) - (totalPrev + totalHospPrev + indAnt.length))} ${fmt(Math.abs((totalCasos + totalHosp + indSe.length) - (totalPrev + totalHospPrev + indAnt.length)))}</b></td><td><b>${pctTxt(variacion(totalCasos + totalHosp + indSe.length, totalPrev + totalHospPrev + indAnt.length))}</b></td></tr>`
+      ])) +
+      bloque('Evento predominante y diagnóstico destacado',
+        `<div class="predBox"><div class="predItem"><span>EVENTO</span><b>${esc(dominante.nombre)}</b><em>${fmt(dominante.casos)} casos · ${totalCasos ? (dominante.casos / totalCasos * 100).toFixed(1) : '0.0'}% del total</em></div>
+         <div class="predItem"><span>DIAGNÓSTICO INDIVIDUAL</span><b>${esc(indPred[0])}</b><em>${fmt(indPred[1])} registro(s) · ${indSe.length ? (indPred[1] / indSe.length * 100).toFixed(1) : '0.0'}% de los individuales</em></div></div>`)
+     }` + bloque("Participación por evento · S.E. " + se,
+      `<div class="pieWrap"><svg class="pieSvg" viewBox="0 0 120 120" width="64" height="64">${pieSegs3}<text x="60" y="57" text-anchor="middle" class="pieTot">${fmt(totalCasos)}</text><text x="60" y="73" text-anchor="middle" class="pieLbl">casos</text></svg><div class="pieBars">${agg.map(x => `<div class="pb"><span class="pbN"><i style="background:${x.color}"></i>${esc(x.nombre)}</span><span class="pbT"><i style="width:${totalCasos ? Math.max(3, Math.round(x.casos / totalCasos * 100)) : 0}%;background:${x.color}"></i></span><b>${fmt(x.casos)}</b><em>${totalCasos ? (x.casos / totalCasos * 100).toFixed(1) : "0.0"}%</em></div>`).join("")}</div></div>`) +
+    bloque("Lectura de la semana",
+      `<div class="triCol"><div class="predItem"><span>DIRECCIÓN</span><b>${direccion}</b><em>vs S.E. ${seAnt == null ? "previa" : seAnt} (${pctTxt(pctTotal)})</em></div><div class="predItem"><span>CONCENTRACIÓN</span><b>${esc(dominante.nombre)}</b><em>${totalCasos ? (dominante.casos / totalCasos * 100).toFixed(1) : "0.0"}% de los casos de la semana</em></div><div class="predItem"><span>REGISTRO INDIVIDUAL</span><b>${esc(indPred[0])}</b><em>${fmt(indPred[1])} de ${fmt(indSe.length)} individuales (${indSe.length ? (indPred[1] / indSe.length * 100).toFixed(1) : "0.0"}%)</em></div></div>`) +
+    nota(analisisComparativo)) });
+
+  /* --- 4. SÍNTESIS --- */
+  paginas.push({ n: 4, html: pag(4, 'Síntesis y comparativo semanal', 'S.E. ' + (seAnt == null ? '—' : seAnt) + ' vs S.E. ' + se,
+    `${bloque('Comparativo de eventos',
+      tabla(['EVENTO', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VARIACIÓN', '% VAR.'],
+        agg.map(x => filaEvento(x, false)).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(totalPrev)}</b></td><td><b>${fmt(totalCasos)}</b></td><td class="${cls(varTotal)}"><b>${arrow(varTotal)} ${fmt(Math.abs(varTotal))}</b></td><td class="${cls(pctTotal || 0)}"><b>${pctTxt(pctTotal)}</b></td></tr>`])) +
+      nota(analisisComparativo)) +
+      bloque('Lectura de la semana',
+        `<div class="txt cols2"><p><b>Dirección de la temporada:</b> la S.E. ${se} registra <b>${direccion}</b> frente a la S.E. ${seAnt == null ? 'anterior' : seAnt}.</p>
+         <p><b>Concentración:</b> ${esc(dominante.nombre)} aporta ${totalCasos ? (dominante.casos / totalCasos * 100).toFixed(1) : '0.0'}% de los casos de la semana.</p>
+         <p><b>Hospitalización:</b> ${fmt(totalHosp)} caso(s) — ${fmt(totalHospPrev)} en la S.E. anterior.</p>
+         <p><b>Casos individuales:</b> ${fmt(indSe.length)} notificado(s) — ${fmt(indAnt.length)} en la S.E. anterior.</p>
+         <p><b>Acumulado ${anio}:</b> ${fmt(totalAcum)} casos de eventos vigilados.</p></div>`)
+     }` +
+    bloque('Tendencia de casos por evento (S.E. 1 – ' + se + ')',
+      leyenda(agg.map(x => ({ nombre: x.nombre, color: x.color }))) +
+      svgLinea([...agg].sort((a, b) => b.casos - a.casos).map(x => ({ nombre: x.nombre, color: x.color, vals: x.serie })), { xTicks: ticks(), h: 360 })) +
+    nota(lecturaTendencia)) });
+
+  /* --- 5 a 9. UNA PÁGINA POR EVENTO --- */
+  agg.forEach((x, i) => {
+    const n = 5 + i;
+    const v = x.casos - x.prev, p = variacion(x.casos, x.prev);
+    const edItems = x.edLabels.map((lb, k) => ({ label: lb, valor: x.edVals[k] || 0, color: x.color }));
+    const cuerpo =
+      kpis([
+        { ico: '🧾', label: 'CASOS S.E. ' + se, value: fmt(x.casos), foot: kpiVs(x.casos, x.prev) },
+        { ico: '📅', label: 'S.E. ANTERIOR', value: fmt(x.prev), foot: 'S.E. ' + (seAnt == null ? '—' : seAnt) },
+        { ico: '🔁', label: 'VARIACIÓN', value: arrow(v) + ' ' + fmt(Math.abs(v)), foot: pctTxt(p) },
+        { ico: '🏥', label: 'HOSPITALIZADOS', value: fmt(x.hos), foot: kpiVs(x.hos, x.hosPrev) },
+        { ico: '📈', label: 'ACUMULADO ' + anio, value: fmt(x.acum), foot: 'S.E. 1 – ' + se },
+        { ico: '⚖️', label: '% DEL TOTAL SEMANAL', value: (totalCasos ? (x.casos / totalCasos * 100).toFixed(1) : '0.0') + '%', foot: 'Total VEA: ' + fmt(totalCasos) }
+      ]) +
+      `${bloque('Tendencia semanal (S.E. 1 – ' + se + ')',
+        leyenda([{ nombre: x.nombre, color: x.color }]) +
+        svgLinea([{ nombre: x.nombre, color: x.color, vals: x.serie }], { xTicks: ticks(), h: 140 })) +
+        bloque('Distribución por grupo etario — S.E. ' + se,
+          (x.edTotal > 0 ? barrasH(edItems, x.color) : '<div class="txt">Sin distribución etaria registrada para esta semana.</div>') +
+          tabla(['GRUPO ETARIO', 'CASOS', '% '], x.edLabels.map((lb, k) => `<tr><td>${lb}</td><td>${fmt(x.edVals[k] || 0)}</td><td>${x.edTotal ? ((x.edVals[k] || 0) / x.edTotal * 100).toFixed(1) : '0.0'}%</td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(x.edTotal)}</b></td><td><b>100.0%</b></td></tr>`])))
+        }` +
+      bloque('Comparativo semanal y acumulado',
+        tabla(['INDICADOR', 'VALOR', 'OBSERVACIÓN'], [
+          `<tr><td>Casos S.E. ${se}</td><td><b>${fmt(x.casos)}</b></td><td>Semana en análisis</td></tr>`,
+          `<tr><td>Casos S.E. ${seAnt == null ? '—' : seAnt}</td><td><b>${fmt(x.prev)}</b></td><td>Semana de referencia</td></tr>`,
+          `<tr><td>Variación absoluta</td><td class="${cls(v)}"><b>${arrow(v)} ${fmt(Math.abs(v))}</b></td><td>${pctTxt(p)}</td></tr>`,
+          `<tr><td>Hospitalizados S.E. ${se}</td><td><b>${fmt(x.hos)}</b></td><td>${x.hosPrev ? 'S.E. anterior: ' + fmt(x.hosPrev) : 'Sin hospitalizaciones previas'}</td></tr>`,
+          `<tr><td>Acumulado ${anio}</td><td><b>${fmt(x.acum)}</b></td><td>${x.acum ? ((x.casos / x.acum) * 100).toFixed(1) : '0.0'}% del acumulado se concentra en la semana actual</td></tr>`
+        ])) +
+      nota(v === 0
+        ? `${x.nombre} se mantuvo estable con ${fmt(x.casos)} caso(s) respecto de la S.E. ${seAnt == null ? 'anterior' : seAnt}.`
+        : `${x.nombre} ${v > 0 ? 'aumentó' : 'disminuyó'} de ${fmt(x.prev)} a ${fmt(x.casos)} caso(s)${p != null ? ` (${pctTxt(p)})` : ''}. Hospitalizados en la semana: ${fmt(x.hos)}.`);
+    paginas.push({ n, html: pag(n, x.nombre, 'Evento vigilado · S.E. ' + se + ' · ' + anio, cuerpo) });
+  });
+
+  /* --- 10. HOSPITALIZADOS CUADRO --- */
+  const hospFilas = [...agg].sort((a, b) => b.hos - a.hos);
+  paginas.push({ n: 10, html: pag(10, 'Hospitalizados — cuadro semanal', 'S.E. ' + se + ' · ' + rangoSE,
+    kpis([
+      { ico: '🏥', label: 'HOSPITALIZADOS TOTALES', value: fmt(totalHosp), foot: kpiVs(totalHosp, totalHospPrev) },
+      { ico: '📋', label: 'EVENTOS CON HOSPITALIZACIÓN', value: fmt(agg.filter(x => x.hos > 0).length) + ' / ' + agg.length, foot: 'de 5 eventos vigilados' },
+      { ico: '🔺', label: 'MÁS HOSPITALIZACIONES', value: esc(hospFilas[0] ? hospFilas[0].nombre : '—'), pred: true, foot: fmt(hospFilas[0] ? hospFilas[0].hos : 0) + ' caso(s)' },
+      { ico: '📅', label: 'S.E. ANTERIOR', value: fmt(totalHospPrev), foot: 'S.E. ' + (seAnt == null ? '—' : seAnt) },
+      { ico: '📈', label: 'ACUMULADO ' + anio, value: fmt(totalAcumHosp), foot: 'Hospitalizados del año' },
+      { ico: '⚖️', label: '% DE HOSPITALIZACIÓN', value: (totalCasos ? (totalHosp / totalCasos * 100).toFixed(1) : '0.0') + '%', foot: 'Sobre ' + fmt(totalCasos) + ' casos' }
+    ]) +
+    bloque('Hospitalizados por evento — S.E. ' + (seAnt == null ? '—' : seAnt) + ' vs S.E. ' + se,
+      tabla(['EVENTO', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VARIACIÓN', '% VAR.', 'ACUM. ' + anio],
+        hospFilas.map(x => {
+          const vv = x.hos - x.hosPrev, pp = variacion(x.hos, x.hosPrev);
+          const acumHos = x.rows.reduce((a, r) => a + x.hosFn(r), 0);
+          return `<tr><td><span class="dot" style="background:${x.color}"></span><b>${esc(x.nombre)}</b></td><td>${fmt(x.hosPrev)}</td><td>${fmt(x.hos)}</td><td class="${cls(vv)}">${arrow(vv)} ${fmt(Math.abs(vv))}</td><td class="${cls(pp || 0)}">${pctTxt(pp)}</td><td>${fmt(acumHos)}</td></tr>`;
+        }).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(totalHospPrev)}</b></td><td><b>${fmt(totalHosp)}</b></td><td class="${cls(totalHosp - totalHospPrev)}"><b>${arrow(totalHosp - totalHospPrev)} ${fmt(Math.abs(totalHosp - totalHospPrev))}</b></td><td class="${cls(variacion(totalHosp, totalHospPrev) || 0)}"><b>${pctTxt(variacion(totalHosp, totalHospPrev))}</b></td><td><b>${fmt(totalAcumHosp)}</b></td></tr>`]))) +
+    `${bloque('Participación por evento (S.E. ' + se + ')',
+      barrasH(hospFilas.map(x => ({ label: esc(x.nombre), valor: x.hos, color: x.color })), '#0d4c9d')) +
+      bloque('Lectura de hospitalizaciones',
+        `<div class="txt cols2"><p>${esc(lecturaHosp)}</p><p>La tasa de hospitalización de la semana es de <b>${(totalCasos ? (totalHosp / totalCasos * 100).toFixed(1) : '0.0')}%</b> respecto de ${fmt(totalCasos)} casos notificados.</p><p>Frente a la S.E. ${seAnt == null ? 'anterior' : seAnt}, la variación fue de <b>${arrow(totalHosp - totalHospPrev)} ${fmt(Math.abs(totalHosp - totalHospPrev))} caso(s)</b> (${pctTxt(variacion(totalHosp, totalHospPrev))}).</p></div>`)}` +
+    nota(lecturaHosp)) });
+
+  /* --- 11. HOSPITALIZADOS TENDENCIA --- */
+  paginas.push({ n: 11, html: pag(11, 'Hospitalizados — tendencia y distribución', 'S.E. 1 – ' + se + ' · ' + anio,
+    bloque('Tendencia semanal de hospitalizados (S.E. 1 – ' + se + ')',
+      leyenda([...agg].sort((a, b) => b.hos - a.hos).map(x => ({ nombre: x.nombre, color: x.color }))) +
+      svgLinea([...agg].sort((a, b) => b.hos - a.hos).map(x => ({ nombre: x.nombre, color: x.color, vals: x.hosSerie })), { xTicks: ticks(), h: 220, yTitle: 'HOSPITALIZADOS' })) +
+    `${bloque('Distribución etaria de hospitalizaciones — S.E. ' + se,
+      (() => {
+        const labels = ETIQ7, vals = ETIQ7.map(() => 0);
+        let hubo = false;
+        agg.forEach(x => {
+          if (x.id === 'soba') return;
+          x.enSe.forEach(r => {
+            const o = r.HOSP_EDADES_VEA || {};
+            if (x.id === 'dis') { KEY7DIS.forEach((k, i) => { vals[i] += num(o[k]); }); }
+            else { ['DAA_H1 a', 'DAA_H1_4 a', 'DAA_H5_11 a', 'DAA_H12_17 a', 'DAA_H18_29 a', 'DAA_H30_59 a', 'DAA_H60 a'].forEach((k, i) => { vals[i] += num(o[k]); }); }
+            hubo = true;
+          });
+        });
+        const tot = vals.reduce((a, v) => a + v, 0);
+        if (!hubo || !tot) return '<div class="txt">Sin desglose etario de hospitalizaciones para esta semana.</div>';
+        return barrasH(labels.map((lb, i) => ({ label: lb, valor: vals[i], color: '#0d4c9d' })), '#0d4c9d') +
+          tabla(['GRUPO ETARIO', 'HOSPITALIZADOS', '%'], labels.map((lb, i) => `<tr><td>${lb}</td><td>${fmt(vals[i])}</td><td>${tot ? (vals[i] / tot * 100).toFixed(1) : '0.0'}%</td></tr>`));
+      })()) +
+      bloque('Hospitalizados por mes (' + anio + ')',
+        svgBarras([{ nombre: 'Hospitalizados', color: '#0d4c9d', vals: hospMens }], MESES3, { h: 170, yTitle: 'HOSPITALIZADOS', xTitle: 'MES' }))}` +
+    nota(totalHosp ? `La hospitalización se concentra en ${hospFilas.filter(x => x.hos > 0).map(x => x.nombre).join(', ') || 'sin evento definido'} durante la S.E. ${se}.` : 'La S.E. ' + se + ' no registra hospitalizaciones en los eventos vigilados.')) });
+
+  /* --- 12. INDIVIDUALES RESUMEN --- */
+  paginas.push({ n: 12, html: pag(12, 'Casos individuales — resumen', 'S.E. ' + se + ' · ' + rangoSE,
+    kpis([
+      { ico: '👤', label: 'CASOS INDIVIDUALES', value: fmt(indSe.length), foot: kpiVs(indSe.length, indAnt.length) },
+      { ico: '📅', label: 'S.E. ANTERIOR', value: fmt(indAnt.length), foot: 'S.E. ' + (seAnt == null ? '—' : seAnt) },
+      { ico: '🔁', label: 'VARIACIÓN', value: arrow(varInd) + ' ' + fmt(Math.abs(varInd)), foot: pctTxt(pctInd) },
+      { ico: '📈', label: 'ACUMULADO ' + anio, value: fmt(indAcumTot), foot: 'S.E. 1 – ' + se },
+      { ico: '🔬', label: 'DIAGNÓSTICO PREDOMINANTE', value: esc(indPred[0]), pred: true, foot: fmt(indPred[1]) + ' caso(s)' },
+      { ico: '🧬', label: 'DIAGNÓSTICOS DISTINTOS', value: fmt(topDx.length), foot: 'en la semana actual' }
+    ]) +
+    `${bloque('Diagnósticos más frecuentes — S.E. ' + se,
+      (topDx.length ? tabla(['DIAGNÓSTICO', 'CASOS', '% '], topDx.slice(0, 8).map(([k, vv]) => `<tr><td>${esc(k)}</td><td>${fmt(vv)}</td><td>${indSe.length ? (vv / indSe.length * 100).toFixed(1) : '0.0'}%</td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(indSe.length)}</b></td><td><b>100.0%</b></td></tr>`])) : '<div class="txt">Sin casos individuales registrados en la semana.</div>')) +
+      bloque('Top 5 acumulado del año con comparativo',
+        (universoTop.length ? tabla(['DIAGNÓSTICO', 'ACUM.', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VAR.'], universoTop.map(x => {
+          const vv = x.actual - x.previo;
+          return `<tr><td>${esc(x.nombre)}</td><td>${fmt(x.acum)}</td><td>${fmt(x.previo)}</td><td>${fmt(x.actual)}</td><td class="${cls(vv)}">${arrow(vv)} ${fmt(Math.abs(vv))}</td></tr>`;
+        })) : '<div class="txt">Sin diagnósticos acumulados en el año.</div>'))}` +
+    bloque('Comparativo semanal de casos individuales',
+      tabla(['CONCEPTO', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VARIACIÓN', '% VAR.'], [
+        `<tr><td><b>Total de casos individuales</b></td><td>${fmt(indAnt.length)}</td><td>${fmt(indSe.length)}</td><td class="${cls(varInd)}">${arrow(varInd)} ${fmt(Math.abs(varInd))}</td><td class="${cls(pctInd || 0)}">${pctTxt(pctInd)}</td></tr>`,
+        `<tr><td>Diagnóstico predominante</td><td>${fmt(dxAnt[indPred[0]] || 0)}</td><td>${fmt(indPred[1])}</td><td class="${cls(indPred[1] - (dxAnt[indPred[0]] || 0))}">${arrow(indPred[1] - (dxAnt[indPred[0]] || 0))} ${fmt(Math.abs(indPred[1] - (dxAnt[indPred[0]] || 0)))}</td><td>${pctTxt(variacion(indPred[1], dxAnt[indPred[0]] || 0))}</td></tr>`
+      ])) + nota(lecturaIndividual)) });
+
+  /* --- 13. INDIVIDUALES TENDENCIA --- */
+  const dxLeyenda = Object.entries(dxAcum).sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0]);
+  const paleta = ['#e32636', '#1455c0', '#65a83d', '#6d45ad', '#0aa5bf'];
+  const indSeries = dxLeyenda.map((nombre, i) => ({
+    nombre, color: paleta[i % paleta.length],
+    vals: Array.from({ length: se }, (_, k) => indAnio.filter(r => week(r) === k + 1 && claveDx(r) === nombre).length)
+  }));
+  paginas.push({ n: 13, html: pag(13, 'Casos individuales — tendencia por diagnóstico', 'S.E. 1 – ' + se + ' · ' + anio,
+    bloque('Tendencia semanal de los diagnósticos más frecuentes',
+      (indSeries.length ? leyenda(indSeries) + svgLinea(indSeries, { xTicks: ticks(), h: 230 }) : '<div class="txt">Sin casos individuales para graficar en el año seleccionado.</div>')) +
+    `${bloque('Total de casos individuales por semana',
+      svgLinea([{ nombre: 'Casos individuales', color: '#0d4c9d', vals: indSerie }], { xTicks: ticks(), h: 250 })) +
+      bloque('Lectura de la tendencia',
+        `<div class="txt cols2"><p>${esc(lecturaIndividual)}</p><p>El acumulado del año ${anio} alcanza <b>${fmt(indAcumTot)}</b> caso(s) individual(es) en las S.E. 1 – ${se}.</p><p>La semana actual concentra <b>${indAcumTot ? (indSe.length / indAcumTot * 100).toFixed(1) : '0.0'}%</b> del acumulado anual.</p></div>` +
+        tabla(['DIAGNÓSTICO', 'ACUM. ' + anio, '% ACUM.'], dxLeyenda.map((d, i) => `<tr><td>${esc(d)}</td><td>${fmt(indSeries[i].vals.reduce((a, v) => a + v, 0))}</td><td>${indAcumTot ? (indSeries[i].vals.reduce((a, v) => a + v, 0) / indAcumTot * 100).toFixed(1) : '0.0'}%</td></tr>`)))}` +
+    nota(lecturaIndividual)) });
+
+  /* --- 14. INDIVIDUALES COMPARATIVO --- */
+  paginas.push({ n: 14, html: pag(14, 'Casos individuales — comparativo semanal', 'S.E. ' + (seAnt == null ? '—' : seAnt) + ' vs S.E. ' + se,
+    bloque('Comparativo por diagnóstico',
+      (universoTop.length ? tabla(['DIAGNÓSTICO', 'S.E. ' + (seAnt == null ? '—' : seAnt), 'S.E. ' + se, 'VARIACIÓN', '% VAR.', 'ACUM. ' + anio],
+        universoTop.map(x => {
+          const vv = x.actual - x.previo, pp = variacion(x.actual, x.previo);
+          return `<tr><td><b>${esc(x.nombre)}</b></td><td>${fmt(x.previo)}</td><td>${fmt(x.actual)}</td><td class="${cls(vv)}">${arrow(vv)} ${fmt(Math.abs(vv))}</td><td class="${cls(pp || 0)}">${pctTxt(pp)}</td><td>${fmt(x.acum)}</td></tr>`;
+        }).concat([`<tr class="trTotal"><td><b>TOTAL GENERAL</b></td><td><b>${fmt(indAnt.length)}</b></td><td><b>${fmt(indSe.length)}</b></td><td class="${cls(varInd)}"><b>${arrow(varInd)} ${fmt(Math.abs(varInd))}</b></td><td class="${cls(pctInd || 0)}"><b>${pctTxt(pctInd)}</b></td><td><b>${fmt(indAcumTot)}</b></td></tr>`])) : '<div class="txt">Sin casos individuales registrados.</div>')) +
+    `${bloque('Comparativo gráfico — S.E. anterior vs actual',
+      svgBarras([
+        { nombre: 'Anterior', color: '#94a3b8', vals: universoTop.map(x => x.previo) },
+        { nombre: 'Actual', color: '#0d4c9d', vals: universoTop.map(x => x.actual) }
+      ], universoTop.map(x => x.nombre.length > 18 ? x.nombre.slice(0, 16) + '…' : x.nombre), { h: 260, xTitle: 'DIAGNÓSTICO' })) +
+      bloque('Resumen del comparativo',
+        `<div class="txt cols2"><p>${esc(analisisComparativo)}</p><p>Casos individuales: de <b>${fmt(indAnt.length)}</b> a <b>${fmt(indSe.length)}</b> (${arrow(varInd)} ${fmt(Math.abs(varInd))} · ${pctTxt(pctInd)}).</p><p>Diagnóstico con mayor aumento: <b>${esc((([...universoTop].sort((a, b) => (b.actual - b.previo) - (a.actual - a.previo)))[0] || { nombre: '—' }).nombre)}</b>.</p></div>`)}` +
+    nota(lecturaIndividual)) });
+
+  /* --- 15. INDIVIDUALES PERFIL --- */
+  paginas.push({ n: 15, html: pag(15, 'Casos individuales — perfil de casos', 'Sexo, edad y servicio · S.E. ' + se,
+    `<div class="tresCol">
+      ${bloque('Distribución por sexo', sexoOrden.length ? barrasH(sexoOrden.map(([k, vv]) => ({ label: esc(k), valor: vv, color: k === 'Masculino' ? '#1455c0' : k === 'Femenino' ? '#e32636' : '#94a3b8' })), '#1455c0') : '<div class="txt">Sin datos.</div>')}
+      ${bloque('Distribución por edad', edadOrden.length ? barrasH(edadOrden.map(([k, vv]) => ({ label: esc(k), valor: vv, color: '#0d4c9d' })), '#0d4c9d') : '<div class="txt">Sin datos.</div>')}
+      ${bloque('Distribución por servicio', servOrden.length ? barrasH(servOrden.slice(0, 8).map(([k, vv]) => ({ label: k, valor: vv, color: '#0d4c9d' })), '#0d4c9d') : '<div class="txt">Sin datos.</div>')}
+    </div>` +
+    `${bloque('Cuadro por sexo',
+      tabla(['SEXO', 'CASOS', '%'], sexoOrden.map(([k, vv]) => `<tr><td>${esc(k)}</td><td>${fmt(vv)}</td><td>${indSe.length ? (vv / indSe.length * 100).toFixed(1) : '0.0'}%</td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(indSe.length)}</b></td><td><b>100.0%</b></td></tr>`]))) +
+      bloque('Cuadro por grupo etario',
+        tabla(['GRUPO ETARIO', 'CASOS', '%'], edadOrden.map(([k, vv]) => `<tr><td>${esc(k)}</td><td>${fmt(vv)}</td><td>${indSe.length ? (vv / indSe.length * 100).toFixed(1) : '0.0'}%</td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(indSe.length)}</b></td><td><b>100.0%</b></td></tr>`])))}` +
+    nota(`Perfil de los ${fmt(indSe.length)} caso(s) individual(es) de la S.E. ${se}. Sexo predominante: ${(sexoOrden[0] || ['—'])[0]}. Grupo etario predominante: ${(edadOrden[0] || ['—'])[0]}. Servicio con mayor registro: ${(servOrden[0] || ['—'])[0]}.`)) });
+
+  /* --- 16. SERIE MENSUAL TOTAL --- */
+  const aniosCol = aniosComparados;
+  const coloresAnio = ['#0d4c9d', '#0aa5bf', '#94a3b8'];
+  paginas.push({ n: 16, html: pag(16, 'Serie mensual — total de eventos', aniosComparados.join(' · '),
+    bloque('Comparativo mensual entre años',
+      leyenda(aniosCol.map((y, i) => ({ nombre: String(y), color: coloresAnio[i % coloresAnio.length] }))) +
+      svgBarras(aniosCol.map((y, i) => ({ nombre: String(y), color: coloresAnio[i % coloresAnio.length], vals: mensualPorAnio[y] })), MESES3, { h: 320 })) +
+    bloque('Tabla mensual por año',
+      tabla(['MES'].concat(aniosCol.map(y => String(y))).concat(['DIF. ÚLTIMO vs ' + aniosCol[0]]),
+        MESES3.map((m, i) => {
+          const vAct = mensualPorAnio[aniosCol[aniosCol.length - 1]][i];
+          const vBase = mensualPorAnio[aniosCol[0]][i];
+          const d = vAct - vBase;
+          return `<tr><td><b>${m}</b></td>${aniosCol.map(y => `<td>${fmt(mensualPorAnio[y][i])}</td>`).join('')}<td class="${cls(d)}">${arrow(d)} ${fmt(Math.abs(d))}</td></tr>`;
+        }).concat([`<tr class="trTotal"><td><b>TOTAL</b></td>${aniosCol.map(y => `<td><b>${fmt(mensualPorAnio[y].reduce((a, v) => a + v, 0))}</b></td>`).join('')}<td><b>${arrow(mensualPorAnio[aniosCol[aniosCol.length - 1]].reduce((a, v) => a + v, 0) - mensualPorAnio[aniosCol[0]].reduce((a, v) => a + v, 0))} ${fmt(Math.abs(mensualPorAnio[aniosCol[aniosCol.length - 1]].reduce((a, v) => a + v, 0) - mensualPorAnio[aniosCol[0]].reduce((a, v) => a + v, 0)))}</b></td></tr>`]))) +
+    nota(`La serie mensual permite comparar el comportamiento de ${aniosCol[0]} a ${aniosCol[aniosCol.length - 1]}. El año activo (${anio}) acumula ${fmt(totalAcum)} casos en los eventos vigilados.`)) });
+
+  /* --- 17. SERIE MENSUAL POR EVENTO --- */
+  paginas.push({ n: 17, html: pag(17, 'Serie mensual — detalle por evento', 'Año ' + anio,
+    bloque('Distribución mensual por evento (' + anio + ')',
+      tabla(['EVENTO'].concat(MESES3).concat(['TOTAL']),
+        agg.map(x => `<tr><td><span class="dot" style="background:${x.color}"></span><b>${esc(x.nombre)}</b></td>${x.porMes.map(v => `<td>${fmt(v)}</td>`).join('')}<td><b>${fmt(x.porMes.reduce((a, v) => a + v, 0))}</b></td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td>${MESES3.map((m, i) => `<td><b>${fmt(agg.reduce((a, x) => a + x.porMes[i], 0))}</b></td>`).join('')}<td><b>${fmt(totalAcum)}</b></td></tr>`]))) +
+    `${bloque('Evento predominante por mes',
+      tabla(['MES', 'EVENTO PREDOMINANTE', 'CASOS', 'TOTAL MES'],
+        MESES3.map((m, i) => {
+          const top = [...agg].sort((a, b) => b.porMes[i] - a.porMes[i])[0];
+          const val = top ? top.porMes[i] : 0;
+          return `<tr><td><b>${m}</b></td><td>${top ? esc(top.nombre) : '—'}</td><td>${fmt(val)}</td><td>${fmt(agg.reduce((a, x) => a + x.porMes[i], 0))}</td></tr>`;
+        }))) +
+      bloque('Tendencia del evento predominante',
+        leyenda([{ nombre: dominante.nombre, color: dominante.color }]) +
+        svgBarras([{ nombre: dominante.nombre, color: dominante.color, vals: dominante.porMes }], MESES3, { h: 230, xTitle: 'MES' }))}` +
+    nota(`${dominante.nombre} es el evento con mayor volumen acumulado en ${anio} (${fmt(dominante.acum)} casos) y también domina la S.E. ${se} con ${fmt(dominante.casos)} caso(s).`)) });
+
+  /* --- 18. SERIE MENSUAL HOSP + IND --- */
+  paginas.push({ n: 18, html: pag(18, 'Serie mensual — hospitalizados e individuales', 'Año ' + anio,
+    `<div class="tbDense">${bloque('Hospitalizados por mes (' + anio + ')',
+      svgBarras([{ nombre: 'Hospitalizados', color: '#0d4c9d', vals: hospMens }], MESES3, { h: 140, yTitle: 'HOSPITALIZADOS', xTitle: 'MES' }) +
+      tabla(['MES', 'HOSPITALIZADOS'], MESES3.map((m, i) => `<tr><td>${m}</td><td>${fmt(hospMens[i])}</td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(hospMens.reduce((a, v) => a + v, 0))}</b></td></tr>`]))) +
+      bloque('Casos individuales por mes (' + anio + ')',
+        svgBarras([{ nombre: 'Casos individuales', color: '#6d45ad', vals: indMens }], MESES3, { h: 140, yTitle: 'CASOS', xTitle: 'MES' }) +
+        tabla(['MES', 'CASOS INDIVIDUALES'], MESES3.map((m, i) => `<tr><td>${m}</td><td>${fmt(indMens[i])}</td></tr>`).concat([`<tr class="trTotal"><td><b>TOTAL</b></td><td><b>${fmt(indMens.reduce((a, v) => a + v, 0))}</b></td></tr>`])))}</div>` +
+    nota(`Durante ${anio} se registraron ${fmt(hospMens.reduce((a, v) => a + v, 0))} hospitalización(es) y ${fmt(indMens.reduce((a, v) => a + v, 0))} caso(s) individual(es).`)) });
+
+  /* --- 19. RESUMEN ANUAL --- */
+  paginas.push({ n: 19, html: pag(19, 'Resumen anual comparado', aniosComparados.join(' · '),
+    bloque('Totales anuales por evento',
+      tabla(['EVENTO'].concat(aniosComparados.map(y => String(y))).concat(['VAR. ÚLTIMO vs ' + aniosComparados[0]]),
+        EVENTOS.map((e, i) => {
+          const base = resumenAnual[0].porEvento[i], act = resumenAnual[resumenAnual.length - 1].porEvento[i];
+          const d = act - base;
+          return `<tr><td><span class="dot" style="background:${e.color}"></span><b>${esc(e.nombre)}</b></td>${resumenAnual.map(r => `<td>${fmt(r.porEvento[i])}</td>`).join('')}<td class="${cls(d)}">${arrow(d)} ${fmt(Math.abs(d))}</td></tr>`;
+        }).concat([`<tr class="trTotal"><td><b>TOTAL EVENTOS</b></td>${resumenAnual.map(r => `<td><b>${fmt(r.total)}</b></td>`).join('')}<td><b>${arrow(resumenAnual[resumenAnual.length - 1].total - resumenAnual[0].total)} ${fmt(Math.abs(resumenAnual[resumenAnual.length - 1].total - resumenAnual[0].total))}</b></td></tr>`]))) +
+    `${bloque('Hospitalizados y casos individuales por año',
+      tabla(['INDICADOR'].concat(aniosComparados.map(y => String(y))), [
+        `<tr><td><b>Hospitalizados</b></td>${resumenAnual.map(r => `<td>${fmt(r.hosp)}</td>`).join('')}</tr>`,
+        `<tr><td><b>Casos individuales</b></td>${resumenAnual.map(r => `<td>${fmt(r.inds)}</td>`).join('')}</tr>`,
+        `<tr class="trTotal"><td><b>TOTAL GENERAL</b></td>${resumenAnual.map(r => `<td><b>${fmt(r.total + r.hosp + r.inds)}</b></td>`).join('')}</tr>`
+      ])) +
+      bloque('Evolución del total de eventos',
+        svgLinea([{ nombre: 'Total eventos', color: '#0d4c9d', vals: resumenAnual.map(r => r.total) }],
+          { xTicks: resumenAnual.map((r, i) => i + 1), h: 240, xTitle: 'AÑO', yTitle: 'CASOS' }) +
+        tabla(['AÑO', 'TOTAL EVENTOS', 'HOSP.', 'INDIVIDUALES'], resumenAnual.map(r => `<tr><td><b>${r.anio}</b></td><td>${fmt(r.total)}</td><td>${fmt(r.hosp)}</td><td>${fmt(r.inds)}</td></tr>`)))}` +
+    nota(`Comparativo anual: ${aniosComparados[0]} registró ${fmt(resumenAnual[0].total)} casos de eventos vigilados y ${aniosComparados[aniosComparados.length - 1]} ${fmt(resumenAnual[resumenAnual.length - 1].total)}.`)) });
+
+  /* --- 20. ACUMULACIÓN POR SEMANA --- */
+  const colsSem = ['S.E.'].concat(agg.map(x => x.nombre)).concat(['TOTAL']);
+  const filasSem = Array.from({ length: se }, (_, i) => {
+    const s = i + 1;
+    const vals = agg.map(x => x.serie[i] || 0);
+    const t = vals.reduce((a, v) => a + v, 0);
+    return { s, vals, t, destacada: s === se };
+  });
+  const mitad = Math.ceil(filasSem.length / 2);
+  const tablaSem = lista => tabla(colsSem, lista.map(f =>
+    `<tr class="${f.destacada ? 'trTotal' : ''}"><td><b>${f.s}</b></td>${f.vals.map(v => `<td>${fmt(v)}</td>`).join('')}<td><b>${fmt(f.t)}</b></td></tr>`));
+  paginas.push({ n: 20, html: pag(20, 'Acumulación por semana epidemiológica', 'S.E. 1 – ' + se + ' · ' + anio,
+    `<div class="tbDense">${bloque('S.E. 1 – ' + mitad, tablaSem(filasSem.slice(0, mitad)))}${bloque('S.E. ' + (mitad + 1) + ' – ' + se, tablaSem(filasSem.slice(mitad)))}</div>` +
+    bloque('Resumen del acumulado',
+      tabla(['INDICADOR', 'VALOR'], [
+        `<tr><td>Semanas acumuladas</td><td><b>${se}</b></td></tr>`,
+        `<tr><td>Total de casos (S.E. 1 – ${se})</td><td><b>${fmt(totalAcum)}</b></td></tr>`,
+        `<tr><td>Promedio semanal</td><td><b>${fmt(se ? Math.round(totalAcum / se * 10) / 10 : 0)}</b></td></tr>`,
+        `<tr><td>Semana con mayor volumen</td><td><b>S.E. ${filasSem.reduce((a, b) => b.t > a.t ? b : a, filasSem[0] || { s: 0, t: 0 }).s} (${fmt(filasSem.reduce((a, b) => b.t > a.t ? b : a, filasSem[0] || { s: 0, t: 0 }).t)} casos)</b></td></tr>`,
+        `<tr><td>Casos en la S.E. ${se}</td><td><b>${fmt(totalCasos)}</b></td></tr>`
+      ]))) });
+
+  /* --- 21. ANÁLISIS GENERAL --- */
+  paginas.push({ n: 21, html: pag(21, 'Análisis general', 'S.E. ' + se + ' · ' + rangoSE,
+    bloque('Interpretación de la semana',
+      `<div class="txt grande"><p>En la S.E. ${se} (${esc(rangoSE)}) el Hospital de Ventanilla notificó <b>${fmt(totalCasos)} casos</b> en los cinco eventos vigilados (EDAs acuosas, EDAs disentéricas, IRAs, SOBA y enfermedades febriles), con un total de <b>${fmt(totalHosp)} hospitalización(es)</b> y <b>${fmt(indSe.length)} caso(s) individual(es)</b>.</p>
+       <p>El evento con mayor volumen fue <b>${esc(dominante.nombre)}</b>, con <b>${fmt(dominante.casos)} casos</b> (${totalCasos ? (dominante.casos / totalCasos * 100).toFixed(1) : '0.0'}% del total semanal). El diagnóstico individual predominante fue <b>${esc(indPred[0])}</b>, con ${fmt(indPred[1])} registro(s).</p>
+       <p>Frente a la S.E. ${seAnt == null ? 'anterior' : seAnt}, el total de eventos ${varTotal === 0 ? 'se mantuvo estable' : (varTotal > 0 ? 'aumentó' : 'disminuyó')} en <b>${fmt(Math.abs(varTotal))} caso(s)</b>${pctTotal != null ? ` (${pctTxt(pctTotal)})` : ''}, lo que representa una <b>${direccion}</b> de la actividad epidemiológica.</p>
+       <p>El acumulado del año ${anio} alcanza <b>${fmt(totalAcum)} casos</b> en los eventos vigilados, con un promedio semanal de <b>${fmt(se ? Math.round(totalAcum / se * 10) / 10 : 0)} casos</b>.</p></div>`) +
+    `${bloque('Fortalezas de la vigilancia',
+      `<div class="checks"><div><span>✓</span>Cobertura completa de los 5 eventos vigilados en la semana.</div><div><span>✓</span>Integración de vigilancia de eventos, hospitalizados y casos individuales en un mismo documento.</div><div><span>✓</span>Trazabilidad de la fuente (NOTIWEB — CDC Perú / MINSA) y de la Semana Epidemiológica.</div><div><span>✓</span>Comparación sistemática con la S.E. anterior y con los años ${aniosComparados.join(', ')}.</div></div>`) +
+      bloque('Áreas de atención',
+        `<div class="checks"><div><span>!</span>Volumen concentrado en ${esc(dominante.nombre)}: requiere refuerzo de medidas de prevención.</div><div><span>!</span>${totalHosp ? `Se mantienen ${fmt(totalHosp)} hospitalización(es) en la semana.` : 'Sin hospitalizaciones en la semana; mantener vigilancia.'}</div><div><span>!</span>Casos individuales: ${fmt(indSe.length)} notificado(s) frente a ${fmt(indAnt.length)} en la S.E. anterior.</div><div><span>!</span>Validación epidemiológica pendiente antes de la difusión oficial.</div></div>`)}`) });
+
+  /* --- 22. HALLAZGOS --- */
+  const topVariacion = [...agg].sort((a, b) => Math.abs(variacion(b.casos, b.prev) || 0) - Math.abs(variacion(a.casos, a.prev) || 0));
+  const hallazgos = [
+    `La S.E. ${se} acumula <b>${fmt(totalCasos)} casos</b> de eventos vigilados (${arrow(varTotal)} ${fmt(Math.abs(varTotal))} vs S.E. ${seAnt == null ? 'anterior' : seAnt}).`,
+    `<b>${esc(dominante.nombre)}</b> lidera la semana con ${fmt(dominante.casos)} caso(s) y ${dominante.acum ? ((dominante.casos / dominante.acum) * 100).toFixed(1) : '0.0'}% del acumulado anual de ese evento.`,
+    `Los eventos con mayor variación porcentual fueron: ${topVariacion.slice(0, 2).map(x => `<b>${esc(x.nombre)}</b> (${pctTxt(variacion(x.casos, x.prev))})`).join(' y ')}.`,
+    `Hospitalizaciones: <b>${fmt(totalHosp)}</b> en la semana, ${totalHospPrev ? `frente a ${fmt(totalHospPrev)} en la S.E. anterior` : 'sin hospitalizaciones en la S.E. anterior'}.`,
+    `Casos individuales: <b>${fmt(indSe.length)}</b> notificados; predominio de <b>${esc(indPred[0])}</b> (${fmt(indPred[1])}).`,
+    `Distribución etaria: el grupo predominante en casos individuales es <b>${esc((edadOrden[0] || ['—'])[0])}</b> (${fmt((edadOrden[0] || [, 0])[1])} caso(s)).`,
+    `Acumulado ${anio}: <b>${fmt(totalAcum)}</b> casos de eventos vigilados y <b>${fmt(indAcumTot)}</b> casos individuales.`
+  ];
+  paginas.push({ n: 22, html: pag(22, 'Hallazgos de la semana', 'S.E. ' + se + ' · criterios de vigilancia',
+    bloque('Hallazgos relevantes', `<div class="checks grande">${hallazgos.map(h => `<div><span>●</span>${h}</div>`).join('')}</div>`) +
+    `${bloque('Hallazgos por evento',
+      tabla(['EVENTO', 'CASOS', 'S.E. ANTERIOR', 'TENDENCIA'], agg.map(x => {
+        const v = x.casos - x.prev;
+        return `<tr><td><span class="dot" style="background:${x.color}"></span>${esc(x.nombre)}</td><td>${fmt(x.casos)}</td><td>${fmt(x.prev)}</td><td class="${cls(v)}">${arrow(v)} ${v === 0 ? 'estable' : (v > 0 ? 'al alza' : 'a la baja')}</td></tr>`;
+      }))) +
+      bloque('Señales de alerta',
+        `<div class="checks">${(function () {
+          const alertas = [];
+          agg.forEach(x => { const p = variacion(x.casos, x.prev); if (p !== null && p >= 50 && x.casos > 0) alertas.push(`<b>${esc(x.nombre)}</b>: incremento de ${pctTxt(p)} frente a la S.E. anterior.`); });
+          agg.forEach(x => { if (x.hos > 0 && x.hosPrev === 0 && seAnt) alertas.push(`<b>${esc(x.nombre)}</b>: reaparece hospitalización en la semana (${fmt(x.hos)}).`); });
+          if (pctInd !== null && pctInd >= 50 && indSe.length) alertas.push(`Casos individuales: incremento de ${pctTxt(pctInd)}.`);
+          return alertas.length ? alertas.map(a => `<div><span>!</span>${a}</div>`).join('') : '<div><span>✓</span>Sin señales de alerta que superen los umbrales configurados.</div>';
+        })()}</div>`)}`) });
+
+  /* --- 23. CONCLUSIONES --- */
+  paginas.push({ n: 23, html: pag(23, 'Conclusiones y recomendaciones', 'S.E. ' + se + ' · ' + anio,
+    bloque('Conclusiones',
+      `<div class="checks grande">
+        <div><span>✓</span>La situación epidemiológica de la S.E. ${se} muestra <b>${direccion}</b> respecto de la S.E. ${seAnt == null ? 'anterior' : seAnt}, con ${fmt(totalCasos)} casos de eventos vigilados.</div>
+        <div><span>✓</span><b>${esc(dominante.nombre)}</b> es el evento predominante (${fmt(dominante.casos)} casos; ${totalCasos ? (dominante.casos / totalCasos * 100).toFixed(1) : '0.0'}% del total).</div>
+        <div><span>✓</span>Se registraron <b>${fmt(totalHosp)} hospitalización(es)</b> y <b>${fmt(indSe.length)} caso(s) individual(es)</b> en la semana.</div>
+        <div><span>✓</span>El acumulado ${anio} alcanza <b>${fmt(totalAcum)} casos</b> en los eventos vigilados.</div>
+        <div><span>✓</span>La información proviene de NOTIWEB — CDC Perú / MINSA y está sujeta a validación epidemiológica.</div>
+      </div>`) +
+    bloque('Recomendaciones',
+      `<div class="checks grande">
+        <div><span>→</span>Mantener vigilancia activa y refuerzo de medidas de prevención en ${esc(dominante.nombre)}.</div>
+        <div><span>→</span>Verificar oportunamente los registros con variación positiva y notificar a la instancia correspondiente.</div>
+        <div><span>→</span>Revisar la oportunidad de notificación y el flujo asistencial de los casos hospitalizados.</div>
+        <div><span>→</span>Validar epidemiológicamente los casos individuales antes de la difusión oficial del boletín.</div>
+        <div><span>→</span>Actualizar el repositorio VEA con la información de la S.E. ${se} y socializar el boletín con los equipos asistenciales.</div>
+      </div>`) +
+    `${bloque('Priorización de la semana',
+      tabla(['PRIORIDAD', 'EVENTO', 'MOTIVO'], [
+        `<tr><td><b>1</b></td><td>${esc(dominante.nombre)}</td><td>Mayor volumen de casos de la semana</td></tr>`,
+        `<tr><td><b>2</b></td><td>${esc((topVariacion[0] || { nombre: '—' }).nombre)}</td><td>Mayor variación porcentual vs S.E. anterior</td></tr>`,
+        `<tr><td><b>3</b></td><td>Hospitalizados</td><td>${fmt(totalHosp)} caso(s) en la semana</td></tr>`
+      ])) +
+      bloque('Compromisos de gestión',
+        `<div class="checks"><div><span>✓</span>Emisión oportuna del boletín (S.E. ${se}).</div><div><span>✓</span>Registro trazable en el repositorio VEA.</div><div><span>✓</span>Retroalimentación con la Unidad de Epidemiología y Salud Ambiental.</div></div>`)}`) });
+
+  /* --- 24. RECOMENDACIONES POR EVENTO --- */
+  const recomendaciones = {
+    'EDAs Acuosas': 'Promover el lavado de manos con agua y jabón, asegurar la potabilización del agua de consumo y reforzar la educación alimentaria en los establecimientos.',
+    'EDAs Disentéricas': 'Vigilar los brotes por agua contaminada, reforzar la desinfección de alimentos y dar seguimiento clínico a los casos hospitalizados por diarrea disentérica.',
+    'IRAs': 'Mantener las medidas de higiene respiratoria, reforzar la vacunación en grupos de riesgo y vigilar la circulación de virus respiratorios estacionales.',
+    'SOBA': 'Asegurar la captación oportuna de casos graves con seguimiento domiciliario y control de factores de riesgo en menores de 5 años.',
+    'Fiebre/Febriles': 'Descartar oportunamente etiologías de interés público, verificar el manejo de casos febriles y mantener la vigilancia de arbovirosis y otras enfermedades febriles.'
+  };
+  paginas.push({ n: 24, html: pag(24, 'Recomendaciones por evento', 'S.E. ' + se + ' · medidas específicas',
+    `<div class="grid2">${agg.map(x => bloque(`<span class="dot" style="background:${x.color}"></span> ${esc(x.nombre)}`,
+      `<div class="txt cols2"><p><b>Casos S.E. ${se}:</b> ${fmt(x.casos)} · <b>variación:</b> ${arrow(x.casos - x.prev)} ${fmt(Math.abs(x.casos - x.prev))} (${pctTxt(variacion(x.casos, x.prev))}) · <b>hospitalizados:</b> ${fmt(x.hos)} · <b>acumulado ${anio}:</b> ${fmt(x.acum)}.</p>
+       <p><b>Recomendación:</b> ${esc(recomendaciones[x.nombre] || 'Mantener la vigilancia y validar los registros de la semana.')}</p></div>`)).join('')}</div>` +
+    bloque('Medidas transversales',
+      `<div class="checks"><div><span>✓</span>Refuerzo de la comunicación para la comunidad sobre medidas de prevención individuales.</div><div><span>✓</span>Verificación de la oportunidad de notificación y de la calidad de los datos registrados.</div><div><span>✓</span>Articulación con la Red Asistencial y las unidades de salud ambiental del distrito de Ventanilla.</div></div>`)) });
+
+  /* --- 25. METODOLOGÍA --- */
+  paginas.push({ n: 25, html: pag(25, 'Metodología y fuentes', 'Técnica de obtención de resultados',
+    `${bloque('Metodología',
+      `<div class="txt cols2"><p><b>1. Fuente de datos.</b> Información del repositorio VEA (Excel maestro) sincronizado con la base activa del módulo; origen original NOTIWEB — CDC Perú / MINSA.</p>
+       <p><b>2. Unidad de análisis.</b> Casos notificados por evento vigilado, agrupados por Año y Semana Epidemiológica (domingo a sábado, criterio CDC MINSA).</p>
+       <p><b>3. Eventos vigilados.</b> EDAs acuosas, EDAs disentéricas, IRAs, SOBA y enfermedades febriles; además hospitalizados y casos individuales.</p>
+       <p><b>4. Indicadores.</b> Casos, hospitalizados, variación absoluta y porcentual frente a la S.E. anterior, acumulado anual y distribución por grupo etario.</p>
+       <p><b>5. Comparación temporal.</b> Series semanales de la S.E. 1 a la S.E. ${se} del año ${anio} y series mensuales de ${aniosComparados.join(', ')}.</p></div>`) +
+      bloque('Fuentes y referencias',
+        `<div class="txt cols2"><p><b>Fuente primaria:</b> NOTIWEB — CDC Perú / MINSA.</p>
+         <p><b>Repositorio:</b> Excel maestro VEA, hojas EDAs, IRAs, FEBRILES e INDIVIDUAL.</p>
+         <p><b>Módulo:</b> Vigilancia Epidemiológica Aplicada (VEA) — Hospital de Ventanilla.</p>
+         <p><b>Unidad responsable:</b> UESA — Unidad de Epidemiología y Salud Ambiental.</p>
+         <p><b>Periodo:</b> S.E. ${se} · ${anio} (${esc(rangoSE)}).</p>
+         <p><b>Fecha de emisión:</b> ${fechaEmision}.</p></div>` + `
+         <div class="firma"><img src="${asset('CDC PERU LOGO.jpg')}" alt="CDC Perú"></div>`)}`) });
+
+  /* --- 26. GLOSARIO --- */
+  const glosario = [
+    ['S.E. — Semana Epidemiológica', 'Agrupación de días de domingo a sábado utilizada por epidemiología para ordenar la notificación de casos.'],
+    ['VEA', 'Vigilancia Epidemiológica Aplicada: repositorio y módulo de trabajo que integra eventos, hospitalizados y casos individuales.'],
+    ['EDAs', 'Enfermedades Diarreicas Agudas; se separan en acuosas y disentéricas según el tipo de presentación.'],
+    ['IRAs', 'Infecciones Respiratorias Agudas; incluye neumonías y otros cuadros respiratorios vigilados.'],
+    ['SOBA', 'Síndrome bruto de aguda: forma grave que requiere captación y seguimiento prioritario.'],
+    ['Casos individuales', 'Registros nominativos de personas con diagnóstico, edad, sexo y servicio de atención.'],
+    ['Hospitalizados', 'Casos de los eventos vigilados que requirieron internación en la semana.'],
+    ['Variación', 'Diferencia entre la semana en análisis y la semana epidemiológica anterior, en valores absolutos y porcentuales.'],
+    ['Acumulado', 'Suma de casos desde la S.E. 1 hasta la S.E. en análisis dentro del año seleccionado.'],
+    ['NOTIWEB', 'Sistema de notificación de enfermedades de vigilancia nacional (CDC Perú / MINSA).']
+  ];
+  paginas.push({ n: 26, html: pag(26, 'Glosario', 'Conceptos y siglas utilizadas',
+    bloque('Definiciones', tabla(['TÉRMINO', 'DEFINICIÓN'], glosario.map(([t, d]) => `<tr><td><b>${esc(t)}</b></td><td>${esc(d)}</td></tr>`))) +
+    bloque('Siglas institucionales',
+      tabla(['SIGLA', 'SIGNIFICADO'], [
+        ['UESA', 'Unidad de Epidemiología y Salud Ambiental'],
+        ['HV', 'Hospital de Ventanilla'],
+        ['GRC', 'Gobierno Regional del Callao'],
+        ['CDC', 'Centros para el Control y la Prevención de Enfermedades'],
+        ['MINSA', 'Ministerio de Salud del Perú']
+      ].map(([t, d]) => `<tr><td><b>${esc(t)}</b></td><td>${esc(d)}</td></tr>`)))) });
+
+  /* --- 27. FICHA TÉCNICA --- */
+  paginas.push({ n: 27, html: pag(27, 'Ficha técnica', 'Datos de identificación del documento',
+    `${bloque('Identificación',
+      tabla(['CAMPO', 'DESCRIPCIÓN'], [
+        ['Título', 'Boletín Epidemiológico — Situación epidemiológica comparativa'],
+        ['Volumen', 'Volumen 01'],
+        ['Semana Epidemiológica', 'S.E. ' + se + ' — ' + anio],
+        ['Periodo de referencia', rangoSE],
+        ['Fecha de emisión', fechaEmision],
+        ['Institución', 'Hospital de Ventanilla — Callao'],
+        ['Unidad responsable', 'UESA — Unidad de Epidemiología y Salud Ambiental'],
+        ['Distrito de cobertura', 'Ventanilla'],
+        ['Formato', 'A4 · ' + totalPaginas + ' páginas · impresible / PDF']
+      ].map(([t, d]) => `<tr><td><b>${esc(t)}</b></td><td>${esc(d)}</td></tr>`))) +
+      bloque('Cobertura de datos',
+        tabla(['DATO', 'VOLUMEN'], [
+          ['Casos de eventos (S.E.)', fmt(totalCasos)],
+          ['Casos de eventos (acumulado ' + anio + ')', fmt(totalAcum)],
+          ['Hospitalizados (S.E.)', fmt(totalHosp)],
+          ['Hospitalizados (acumulado ' + anio + ')', fmt(totalAcumHosp)],
+          ['Casos individuales (S.E.)', fmt(indSe.length)],
+          ['Casos individuales (acumulado ' + anio + ')', fmt(indAcumTot)],
+          ['Años comparados', aniosComparados.join(', ')],
+          ['Registros base del año', fmt(agg.reduce((a, x) => a + x.rows.length, 0))]
+        ].map(([t, d]) => `<tr><td><b>${esc(t)}</b></td><td>${esc(d)}</td></tr>`)))}` +
+    bloque('Control de calidad',
+      `<div class="checks"><div><span>✓</span>Los totales por evento provienen de la suma directa de los registros del repositorio VEA.</div><div><span>✓</span>La S.E. ${se} corresponde al rango ${esc(rangoSE)} calculado con criterio CDC.</div><div><span>✓</span>La información está sujeta a validación epidemiológica antes de su difusión oficial.</div></div>`)) });
+
+  /* --- 28. CIERRE --- */
+  paginas.push({ n: 28, html: `<section class="pg cierre"><div class="pgF cierreF">
+    <div class="cierreTop"><img src="${asset('hv1.png')}" alt="Hospital de Ventanilla"><div class="cierreTxt"><b>HOSPITAL DE VENTANILLA</b><span>UNIDAD DE EPIDEMIOLOGÍA Y SALUD PÚBLICA</span></div></div>
+    <div class="cierreMid">
+      <div class="cierreTitle">GRACIAS</div>
+      <div class="cierreSub">Vigilancia · Análisis · Prevención · Decisiones en salud</div>
+      <div class="cierreSe">S.E. ${se} · ${anio}<small>${esc(rangoSE)}</small></div>
+      <div class="cierreBox">Este boletín fue generado automáticamente por el módulo VEA a partir del repositorio epidemiológico del Hospital de Ventanilla, con filtro <b>Año ${anio}</b> + <b>S.E. ${se}</b>.</div>
+    </div>
+    <div class="cierreBot"><span>📅 ${fechaEmision}</span><span>🗄 Fuente: NOTIWEB — CDC Perú / MINSA</span><span>📄 Volumen 01 · ${totalPaginas} páginas</span></div>
+  </div></section>` });
+
+  /* ---------- Ensamblado final ---------- */
+  const seccionPortada = portada;
+  const secciones = seccionPortada + paginas.sort((a, b) => a.n - b.n).map(p => p.html).join('');
+  const totalSecciones = 1 + paginas.length;
+
+  const css = `
+@page{size:A4 portrait;margin:0}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#e9eff7;font-family:"Segoe UI",system-ui,Arial,Helvetica,sans-serif;color:#1f2f45;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pg{width:210mm;height:297mm;margin:10mm auto;background:#fff;box-shadow:0 10px 30px rgba(11,47,91,.18);overflow:hidden;position:relative;page-break-after:always;break-after:page}
+.pg:last-of-type{page-break-after:auto;break-after:auto}
+.pgF{height:100%;display:flex;flex-direction:column}
+.band{background:#0b2f5b;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:6px 10mm;font-size:9.4px;font-weight:900;letter-spacing:.9px;text-transform:uppercase}
+.band span{opacity:.9;font-weight:700;letter-spacing:1.1px}
+.phWrap{padding:7px 10mm 0}
+.ph{display:flex;justify-content:space-between;align-items:center;font-size:9px;margin-bottom:6px}
+.phCrumb{color:#1266b3;font-weight:900;letter-spacing:1.2px;text-transform:uppercase}
+.phMeta{color:#7b8a9e;font-weight:700}
+.secPill{background:#1266b3;color:#fff;text-align:center;font-weight:900;font-size:11.4px;letter-spacing:.7px;text-transform:uppercase;padding:7px 12px;border-radius:7px;box-shadow:0 2px 7px rgba(18,102,179,.28)}
+.phH2{position:relative;margin:11px 0 0;padding-bottom:8px;font-size:19px;font-weight:900;color:#0e3a6b;letter-spacing:.2px;line-height:1.15}
+.phH2:after{content:"";position:absolute;left:0;bottom:0;width:56px;height:4px;border-radius:3px;background:#12a9c4}
+.pgC{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:10px 10mm 0}
+.pgC > *{flex-shrink:0}
+.pf{border-top:1px solid #dfe8f2;margin:10px 10mm 0;padding-top:6px;display:flex;justify-content:space-between;align-items:center;font-size:8.6px;color:#7b8a9e}
+.pfNum{font-weight:900;color:#0e3a6b;font-size:9.6px}
+.card{border:1px solid #dde7f3;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column;min-height:0;box-shadow:0 1px 3px rgba(14,58,107,.06)}
+.cardT{background:#eef6fd;color:#0f4c81;font-weight:900;font-size:12px;padding:7px 12px;border-bottom:1px solid #dde7f3;border-left:3px solid #1266b3;letter-spacing:.2px}
+.cardB{padding:7px 12px;flex:1;min-height:0}
+.dosCol{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dosCol>.card{min-height:0}
+.tresCol{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tb{width:100%;border-collapse:collapse;font-size:10.6px}
+.tb th{background:#e9f3fb;color:#0e4d86;text-align:left;font-weight:900;border:1px solid #e2ebf6;padding:5px 7px;font-size:9.8px;letter-spacing:.4px;text-transform:uppercase}
+.tb td{border:1px solid #edf2f8;padding:5px 7px;vertical-align:middle}
+.tb tr:nth-child(even) td{background:#f8fbfe}
+.tbDense .tb th{padding:2px 6px;font-size:9.2px}
+.tbDense .tb td{padding:1px 6px;font-size:9.4px;line-height:1.3}
+.trTotal td{background:#e9f3fb !important;border-top:1.6px solid #9dbcd9;font-weight:800}
+.up{color:#dc2638;font-weight:800}.down{color:#0f9d58;font-weight:800}.flat{color:#59677a;font-weight:700}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.kpi{position:relative;border:1px solid #dde7f3;border-top:4px solid #1266b3;border-radius:9px;padding:9px 10px;min-height:84px;background:#f7fbff}
+.kpi:nth-child(2){border-top-color:#12a9c4}
+.kpi:nth-child(3){border-top-color:#0b2f5b}
+.kpi:nth-child(4){border-top-color:#2f80ed}
+.kpi:nth-child(5){border-top-color:#0f9d58}
+.kpi:nth-child(6){border-top-color:#7048b6}
+.kpiIco{display:none}
+.kpi label{display:block;font-size:8px;font-weight:900;color:#5b7086;letter-spacing:.7px;text-transform:uppercase;min-height:17px;line-height:1.12}
+.kpi strong{display:block;font-size:23px;color:#0e3a6b;line-height:1.05;margin-top:2px;overflow:hidden}
+.kpi strong.pred{font-size:9.8px;line-height:1.15;color:#1266b3;margin-top:4px}
+.kpi small{display:block;font-size:7.6px;color:#7b8a9e;margin-top:2px}
+.kpi em{display:block;font-size:7.6px;color:#41526b;font-style:normal;font-weight:800;margin-top:4px;border-top:1px solid #e6edf5;padding-top:3px}
+.ley{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;margin-bottom:4px;justify-content:center}
+.ley span{display:flex;align-items:center;gap:4px}
+.ley i{width:14px;height:4px;border-radius:2px;display:inline-block}
+.chart{width:100%;height:auto;display:block}
+.nota{background:#eaf4fb;border:1px solid #d8e8f7;border-radius:9px;padding:9px 12px;font-size:10.3px;line-height:1.45;color:#28405f}
+.nota b{color:#1266b3;letter-spacing:.4px}
+.bars{display:flex;flex-direction:column;gap:4px}
+.barRow{display:grid;grid-template-columns:78px 1fr 88px;align-items:center;gap:6px}
+.barLbl{font-size:9.8px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barTrack{background:#eef2f8;border-radius:4px;height:12px;overflow:hidden}
+.barFill{display:block;height:100%;border-radius:4px}
+.barVal{font-size:9.6px;font-weight:800;color:#334155;text-align:right}
+.txt{font-size:10.8px;line-height:1.5;color:#28405f}
+.txt.cols2{column-count:2;column-gap:20px}
+.txt.cols2 p{break-inside:avoid;margin-bottom:7px}
+.txt p{margin:0 0 6px}
+.txt.grande p{font-size:12px;line-height:1.6;margin-bottom:9px}
+.checks{display:flex;flex-direction:column;gap:5px;font-size:10.8px;line-height:1.45}
+.checks>div{display:flex;gap:7px;align-items:flex-start}
+.checks span{font-weight:900;color:#12a9c4;flex:0 0 auto}
+.checks.grande{gap:7px}
+.checks.grande>div{font-size:11px}
+.predBox{display:flex;flex-direction:column;gap:6px}
+.predItem{border:1px solid #e2ebf6;border-radius:8px;padding:7px 9px;background:#f7fbff}
+.predItem span{display:block;font-size:7.8px;font-weight:900;color:#7b8a9e;letter-spacing:.6px;text-transform:uppercase}
+.predItem b{display:block;font-size:12.5px;color:#0e3a6b;margin-top:2px}
+.predItem em{display:block;font-size:9.2px;font-style:normal;color:#41526b;margin-top:2px}
+.pieWrap{display:flex;align-items:center;gap:20px}
+.pieSvg{flex:0 0 auto}
+.pieTot{font-size:23px;font-weight:900;fill:#0e3a6b;letter-spacing:.5px}
+.pieLbl{font-size:9px;fill:#7b8a9e;font-weight:700}
+.pieBars{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}
+.pb{display:flex;align-items:center;gap:8px;font-size:10.4px}
+.pbN{display:flex;align-items:center;gap:6px;width:155px;font-weight:800;color:#123a63;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pbN i{width:9px;height:9px;border-radius:3px;flex:0 0 auto}
+.pbT{flex:1;height:14px;background:#eef4fb;border-radius:7px;overflow:hidden}
+.pbT i{display:block;height:100%;border-radius:7px}
+.pb b{width:46px;text-align:right;color:#0e3a6b}
+.pb em{width:52px;text-align:right;font-style:normal;color:#7b8a9e;font-weight:700}
+.triCol{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.idx{display:flex;flex-direction:column;gap:4px}.idxG{display:flex;align-items:center;gap:8px;margin-top:6px;padding:0 2px;font-size:9.6px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:var(--ga,#0e3a6b)}.idxG:first-child{margin-top:0}.idxG::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--ga,#0e3a6b),transparent)}.idxG em{font-style:normal;background:var(--ga,#0e3a6b);color:#fff;border-radius:999px;padding:1px 8px;font-size:8.8px;letter-spacing:.4px}
+.idxRow{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #e6eef8;border-left:4px solid var(--ga,#1266b3);border-radius:7px;padding:1px 9px;min-height:24px;box-shadow:0 1px 3px rgba(14,58,107,.05)}
+.idxN{background:linear-gradient(135deg,#0e3a6b,#1266b3);color:#fff;font-weight:900;font-size:9px;border-radius:50%;width:19px;height:19px;display:flex;align-items:center;justify-content:center;min-width:19px;text-align:center}
+.idxT{font-size:10.7px;color:#123a63;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idxL{flex:1;min-width:18px;border-bottom:2px dotted #b9cfe4;margin-bottom:3px}.idxF{background:#e5f3fd;color:#0e3a6b;font-weight:900;font-size:9.2px;border:1px solid #cfe5f5;border-radius:999px;padding:2px 7px;min-width:33px;text-align:center}
+.idxNota{margin-top:8px;background:#e5f3fd;border:1px solid #d3e7f6;border-left:4px solid #02a3c4;padding:8px 11px;font-size:10.3px;line-height:1.5;border-radius:9px}
+.firma{display:flex;justify-content:flex-end;margin-top:8px}
+.firma img{height:44px;border-radius:4px}
+.grid2 .card{break-inside:avoid}
+/* PORTADA */
+.portada .pgF{padding:0}
+.portadaF{display:flex;flex-direction:column;height:100%}
+.covTop{position:relative;display:grid;grid-template-columns:auto 1fr;align-items:end;gap:10.5mm;padding:7mm 6mm 6mm 7mm}
+.covBrand{display:flex;align-items:flex-start}
+.covGov{display:none}
+.covBrand img{height:26mm;display:block}
+.covOrg{border-left:1.6px solid #dfe8f2;padding-left:36px;display:flex;flex-direction:column;line-height:1.32}
+.covOrg b{font-size:16.5px;color:#10365f;font-weight:900;letter-spacing:.2px;text-transform:uppercase}
+.covOrg i{display:block;width:247px;height:1.6px;background:#10365f;margin:9px 0 7px}
+.covOrg span{font-size:11.4px;color:#10365f;font-weight:800;letter-spacing:1.3px;text-transform:uppercase}
+.covSlogan{position:absolute;top:0;right:0;width:21.5%;height:100%;z-index:3;background:#ddeefa;border-radius:0 0 0 18px;padding:5mm 5mm 4mm 12px;text-align:right;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.covSlogan span{font-size:10.6px;color:#5b7a99;font-weight:800;letter-spacing:.3px}
+.covBanner{position:relative;height:100mm;margin:0 6mm;overflow:hidden;border-radius:16px;background:#0b2f5b}
+.covBanner img{width:100%;height:100%;object-fit:cover;object-position:center 62%}
+.covBannerBox{position:absolute;right:7mm;top:7mm;background:#eaf5fb;border-radius:10px;padding:10px 15px;text-align:right;font-size:12.5px;font-weight:900;line-height:1.3;color:#10365f;text-transform:uppercase;letter-spacing:.4px;box-shadow:0 6px 16px rgba(11,47,91,.18)}
+.covTitle{position:relative;padding:3.5mm 6mm 0 9.5mm;overflow:hidden}
+.covChart{position:absolute;right:6mm;top:3mm}
+.covRule{width:96px;height:9px;border-radius:5px;background:#02a3c4;margin-bottom:12px}
+.covT1,.covT2{font-size:53px;font-weight:900;color:#012459;letter-spacing:3.4px;line-height:1.02}
+.covT2{color:#0053bc}
+.covT1{font-size:60px;letter-spacing:3.4px;line-height:1.08;display:inline-block;transform:scaleX(1.27);transform-origin:left center}
+.covSub{font-size:24px;color:#001d5b;font-weight:800;margin-top:0}
+.covPanel{flex:1;min-height:0;margin:5mm 6mm 0;background:rgb(229,243,253);border-radius:16px;padding:2px 13px 2px 14px;display:grid;grid-template-columns:1.05fr 1fr;gap:8px}
+.covMap{position:relative;display:flex;flex-direction:column;min-height:0}.covMap::after{content:"";position:absolute;top:0;bottom:0;right:-8px;width:8px;background:#fff}
+.covMapHead{font-size:17px;font-weight:900;color:#051f57;letter-spacing:.3px;text-transform:uppercase;line-height:1.12;margin:9px 0 0 6px}
+.covMapHead i{display:inline-block;width:32px;height:15px;background:#02a3c4;border-radius:3px;margin-left:15px;vertical-align:middle}
+.covMapCard{position:relative;flex:1;min-height:0;margin-top:6px;background:transparent}
+.covMapCard img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
+.covN{position:absolute;left:-3px;bottom:-3px;width:30px;height:30px;background:#fff;border:1.6px solid #10365f;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:9.5px;color:#10365f;line-height:1;z-index:2}
+.covN svg{width:9px;height:9px;fill:#10365f;margin-top:1px}
+.covSide{display:flex;flex-direction:column;gap:0;min-height:0}.covSide::after{content:"";order:1;height:8px;width:calc(100% + 13px);background:#fff;flex:0 0 8px}.covCard:last-child{order:2}
+.covCard{background:transparent;border-radius:12px;overflow:hidden;flex:1;min-height:0;display:flex;box-shadow:none}
+.covCard>img{width:55%;object-fit:cover;object-position:center 58%}
+.covCard>img.contain{object-fit:contain;background:#fff;border-right:1px solid #eef2f8;padding:6px}
+.covCardBody{flex:1;display:flex;align-items:center;gap:6px;padding:6px 7px;min-width:0}
+.covIco{width:30px;height:30px;border-radius:50%;background:#2f80ed;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 3px 8px rgba(47,128,237,.35)}
+.covIco svg{width:15px;height:15px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.covCardTxt{display:flex;flex-direction:column;gap:3px;min-width:0}
+.covCardTxt b{font-size:11.5px;color:#1a6fd4;letter-spacing:.2px;text-transform:uppercase;line-height:1.15}
+.covCardTxt span{font-size:9.8px;color:#5b7a99;line-height:1.3}
+.covBottom{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin:1.6mm 6mm 0;padding:10px 6px;background:rgb(229,243,253);border-radius:10px}
+.covBottom span{display:flex;align-items:center;gap:7px;padding:2px 8px;border-left:1px solid #fff;min-width:0}
+.covBottom span:first-child{border-left:0;padding-left:2px}
+.covBi{width:26px;height:26px;border-radius:50%;background:#0d3b66;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.covBi.alt{background:#2f80ed}
+.covBi svg{width:13px;height:13px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.covBottom em{font-style:normal;display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.covBottom em b{font-size:11px;color:#10365f}
+.covBottom em small{font-size:8.6px;color:#6b7b91;font-weight:700;line-height:1.2;white-space:normal}
+.covBars{display:flex;height:22px;margin-top:10px}
+.covBars i{display:block;height:100%}
+.covBars .nb{flex:1;background:rgb(10,69,134)}
+.covBars .tb{width:78.5mm;background:rgb(1,161,196)}
+/* CIERRE */
+.cierre .pgF{padding:0}
+.cierreF{display:flex;flex-direction:column;background:linear-gradient(160deg,#07306f,#0d4c9d 60%,#0aa5bf);color:#fff;justify-content:space-between}
+.cierreTop{display:flex;align-items:center;gap:12px;padding:12mm 14mm 0}
+.cierreTop img{height:56px;background:#fff;border-radius:6px;padding:4px}
+.cierreTxt{display:flex;flex-direction:column}
+.cierreTxt b{font-size:19px;letter-spacing:.6px}
+.cierreTxt span{font-size:12px;opacity:.9;letter-spacing:1.4px}
+.cierreMid{padding:0 18mm;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.cierreTitle{font-size:74px;font-weight:900;letter-spacing:8px}
+.cierreSub{font-size:15px;letter-spacing:2.4px;opacity:.92}
+.cierreSe{background:rgba(255,255,255,.14);border:1.6px solid rgba(255,255,255,.55);border-radius:10px;padding:10px 26px;font-size:26px;font-weight:900}
+.cierreSe small{display:block;font-size:12px;font-weight:700;opacity:.9;margin-top:4px}
+.cierreBox{background:rgba(255,255,255,.10);border-left:5px solid #7ee3ff;padding:12px 16px;border-radius:6px;font-size:13px;line-height:1.6;max-width:150mm;text-align:left}
+.cierreBot{display:grid;grid-template-columns:repeat(3,1fr);background:rgba(0,0,0,.24);padding:11px 14mm;font-size:11.5px;font-weight:800;gap:10px}
+.cierreBot span{border-left:1px solid rgba(255,255,255,.3);padding-left:10px}
+.cierreBot span:first-child{border-left:0;padding-left:0}
+/* BARRA DE ACCIONES */
+.actions{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;padding:5px;border:1px solid rgba(148,163,184,.55);border-radius:12px;background:rgba(248,250,252,.97);box-shadow:0 10px 30px rgba(15,23,42,.24)}
+.actionItems{display:flex;gap:4px;align-items:center;white-space:nowrap}
+.actions button{border:0;border-radius:7px;height:32px;padding:0 10px;font-size:11px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.zoomBtn{background:#334155;color:#fff;min-width:32px}
+.zoomValue{display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:32px;padding:0 6px;border-radius:7px;background:#fff;border:1px solid #cbd5e1;color:#172033;font-size:11px;font-weight:900}
+.fit{background:#475569;color:#fff}
+.print{background:#07306f;color:#fff}
+.filters{background:#047857;color:#fff}
+.legacy{background:#0f766e;color:#fff}
+.close{background:#e8edf4;color:#172033}
+@media print{
+  body{background:#fff}
+  .pg{margin:0;box-shadow:none;width:210mm;height:297mm}
+  .actions{display:none!important}
+  .pgC{overflow:hidden}
+}`;
+
+  const acciones = `<div class="actions" id="barraAccionesBoletinV17"><div class="actionItems">
+    <button class="zoomBtn" onclick="(function(b){var c=document.getElementById('contenidoBoletinV17');var z=Number(c.dataset.zoom||1);z=Math.max(.75,Math.min(1.5,z-.1));c.dataset.zoom=z;c.style.zoom=z;document.getElementById('zoomValorBoletinV17').textContent=Math.round(z*100)+'%';})(this)" title="Reducir zoom">−</button>
+    <span id="zoomValorBoletinV17" class="zoomValue">100%</span>
+    <button class="zoomBtn" onclick="(function(b){var c=document.getElementById('contenidoBoletinV17');var z=Number(c.dataset.zoom||1);z=Math.max(.75,Math.min(1.5,z+.1));c.dataset.zoom=z;c.style.zoom=z;document.getElementById('zoomValorBoletinV17').textContent=Math.round(z*100)+'%';})(this)" title="Aumentar zoom">+</button>
+    <button class="fit" onclick="(function(){var c=document.getElementById('contenidoBoletinV17');c.dataset.zoom=1;c.style.zoom=1;document.getElementById('zoomValorBoletinV17').textContent='100%';})()" title="Ajustar al ancho">⛶ AJUSTAR</button>
+    <button class="print" onclick="window.print()" title="Imprimir boletín">🖨 IMPRIMIR</button>
+    <button class="print" onclick="window.print()" title="Guardar como PDF">PDF</button>
+    <button class="filters" onclick="if(window.opener&&!window.opener.closed&&typeof window.opener.abrirSelectorBoletinVea==='function'){window.opener.abrirSelectorBoletinVea();window.opener.focus();}else{history.back()}" title="Volver al selector Año + S.E.">↩ FILTROS</button>
+    <button class="legacy" onclick="if(window.opener&&!window.opener.closed&&typeof window.opener.abrirAvisoBoletinSEVea==='function'){window.opener.abrirAvisoBoletinSEVea();}else{alert('Disponible desde el módulo VEA.');}" title="Ver boletín de una página">▣ 1 PÁGINA</button>
+    <button class="close" onclick="window.close()" title="Cerrar boletín">✕ CERRAR</button>
+  </div></div>`;
+
+  const nombreArchivo = `Hosp_Ventanilla_BOLETIN_V17_SE_${se}_${anio}`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${nombreArchivo}</title><style>${css}</style></head><body>
+${acciones}
+<div id="contenidoBoletinV17" style="zoom:1">
+${secciones}
+</div>
+</body></html>`;
+  return html;
+}
+
+function abrirBoletinV17DinamicoVea(anio, se) {
+  let html = null;
+  try {
+    const base = (typeof document !== 'undefined' && document.baseURI) ? document.baseURI : '';
+    html = construirHTMLBoletinV17(anio, se, base);
+  } catch (e) {
+    console.error('Boletín V17:', e);
+    if (typeof abrirAvisoBoletinSEVea === 'function') { abrirAvisoBoletinSEVea(); return; }
+    alert('No se pudo generar el Boletín V17: ' + (e && e.message ? e.message : e));
+    return;
+  }
+  const w = window.open('', '_blank');
+  if (!w) { alert('El navegador bloqueó la ventana del boletín. Habilite ventanas emergentes para este sitio.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
 </script>
 </body>
 </html>
