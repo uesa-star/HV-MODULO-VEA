@@ -3531,7 +3531,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
             id: 'veaValoresBarrasF503',
             afterDatasetsDraw(chart) {
                 const tipoF503 = chart.config?.type;
-        if (tipoF503 !== 'bar' && tipoF503 !== 'line') return;
+        if (tipoF503 !== 'bar') return;
                 const cantidad = Number(chart.data?.labels?.length || 0);
                 // No rotular la serie semanal de 53 posiciones: los totales
                 // anuales permanecen en la cabecera del gráfico.
@@ -3542,9 +3542,13 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 ctx.fillStyle = document.documentElement.dataset.veaTheme === 'light' ? '#0f172a' : '#f8fafc';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                const ordenF503 = (tipoF503 === 'line')
-                    ? chart.data.datasets.map((_, i) => i).reverse()
-                    : chart.data.datasets.map((_, i) => i);
+                const ordenF503 = (() => {
+                    if (tipoF503 !== 'line') return chart.data.datasets.map((_, i) => i);
+                    const aniosDs = chart.data.datasets.map(ds => Number(String(ds.label || '').replace(/\D/g, '')));
+                    const anioMax = Math.max(...aniosDs.filter(a => Number.isFinite(a)));
+                    const idxActivo = aniosDs.indexOf(anioMax);
+                    return idxActivo >= 0 ? [idxActivo] : chart.data.datasets.map((_, i) => i);
+                })();
                 const puestosF503 = [];
                 ordenF503.forEach((datasetIndex) => {
                     const dataset = chart.data.datasets[datasetIndex];
@@ -3627,24 +3631,40 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 // Preferir el mes calendario actual si ya tiene dato; si aún no,
                 // usar el último mes observado real (p. ej., septiembre 2026).
                 const mesCalendario = new Date().getMonth();
-                const datoCalendario = dataset2026.data?.[mesCalendario];
-                if (datoCalendario !== null && datoCalendario !== undefined && Number.isFinite(Number(datoCalendario))) {
-                    indiceActual = mesCalendario;
+                let indiceSeleccionMes = -1;
+                try {
+                    const selMesActivo = document.getElementById('selectMes');
+                    const vSelMes = selMesActivo ? String(selMesActivo.value || '') : '';
+                    if (vSelMes && vSelMes !== 'Todos') {
+                        const normSel = vSelMes.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
+                        const idxSel = mesesEsperados.indexOf(normSel);
+                        if (idxSel >= 0) indiceSeleccionMes = idxSel;
+                    }
+                } catch (eErr) { indiceSeleccionMes = -1; }
+                if (indiceSeleccionMes >= 0) {
+                    indiceActual = indiceSeleccionMes;
                 } else {
-                    for (let i = dataset2026.data.length - 1; i >= 0; i--) {
-                        const vDato = dataset2026.data[i];
-                        if (vDato !== null && vDato !== undefined && Number.isFinite(Number(vDato))) { indiceActual = i; break; }
+                    const datoCalendario = dataset2026.data?.[mesCalendario];
+                    if (datoCalendario !== null && datoCalendario !== undefined && Number.isFinite(Number(datoCalendario))) {
+                        indiceActual = mesCalendario;
+                    } else {
+                        for (let i = dataset2026.data.length - 1; i >= 0; i--) {
+                            const vDato = dataset2026.data[i];
+                            if (vDato !== null && vDato !== undefined && Number.isFinite(Number(vDato))) { indiceActual = i; break; }
+                        }
                     }
                 }
                 if (indiceActual < 0) return;
                 const x = escalaX.getPixelForValue(indiceActual);
-                const totalActual = Number(dataset2026.data[indiceActual]);
+                const rawActual = dataset2026.data[indiceActual];
+                const totalActual = (rawActual === null || rawActual === undefined) ? NaN : Number(rawActual);
+                const txtActual = Number.isFinite(totalActual) ? totalActual.toLocaleString('es-PE') : '—';
                 const meta2026 = chart.getDatasetMeta(datasets.indexOf(dataset2026));
                 const puntoActual = meta2026?.data?.[indiceActual];
                 const posicionPunto = puntoActual
                     ? { x: Number.isFinite(puntoActual.x) ? puntoActual.x : x, y: Number.isFinite(puntoActual.y) ? puntoActual.y : chart.scales?.y?.getPixelForValue(totalActual) }
                     : { x, y: chart.scales?.y?.getPixelForValue(totalActual) };
-                if (!Number.isFinite(posicionPunto.y)) return;
+                if (!Number.isFinite(posicionPunto.y)) posicionPunto.y = area.bottom - 2;
                 const ctx = chart.ctx;
                 ctx.save();
                 ctx.lineWidth = 1.4;
@@ -3661,7 +3681,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 ctx.font = '800 10px Plus Jakarta Sans, sans-serif';
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText(totalActual.toLocaleString('es-PE'), x + 7, posicionPunto.y - 7);
+                ctx.fillText(txtActual, x + 7, posicionPunto.y - 7);
                 ctx.restore();
             }
         };
