@@ -3530,7 +3530,8 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         const VEA_PLUGIN_VALORES_BARRAS_F503 = {
             id: 'veaValoresBarrasF503',
             afterDatasetsDraw(chart) {
-                if (chart.config?.type !== 'bar') return;
+                const tipoF503 = chart.config?.type;
+        if (tipoF503 !== 'bar' && tipoF503 !== 'line') return;
                 const cantidad = Number(chart.data?.labels?.length || 0);
                 // No rotular la serie semanal de 53 posiciones: los totales
                 // anuales permanecen en la cabecera del gráfico.
@@ -3541,7 +3542,12 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 ctx.fillStyle = document.documentElement.dataset.veaTheme === 'light' ? '#0f172a' : '#f8fafc';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                const ordenF503 = (tipoF503 === 'line')
+                    ? chart.data.datasets.map((_, i) => i).reverse()
+                    : chart.data.datasets.map((_, i) => i);
+                const puestosF503 = [];
+                ordenF503.forEach((datasetIndex) => {
+                    const dataset = chart.data.datasets[datasetIndex];
                     const meta = chart.getDatasetMeta(datasetIndex);
                     if (meta.hidden) return;
                     meta.data.forEach((element, index) => {
@@ -3549,15 +3555,18 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                         if (!Number.isFinite(valor) || valor === 0) return;
                         const pos = element.tooltipPosition();
                         const horizontal = chart.options?.indexAxis === 'y';
+                        const txF503 = horizontal ? pos.x + 7 : pos.x;
+                        const tyF503 = horizontal ? pos.y : Math.max(12, pos.y - 10);
+                        if (puestosF503.some(p => Math.abs(p.x - txF503) < 17 && Math.abs(p.y - tyF503) < 10)) return;
+                        puestosF503.push({ x: txF503, y: tyF503 });
                         if (horizontal) {
                             ctx.textAlign = 'left';
                             ctx.textBaseline = 'middle';
-                            ctx.fillText(valor.toLocaleString('es-PE'), pos.x + 7, pos.y);
+                            ctx.fillText(valor.toLocaleString('es-PE'), txF503, tyF503);
                         } else {
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'bottom';
-                            const yEtiqueta = Math.max(12, pos.y - 10);
-                            ctx.fillText(valor.toLocaleString('es-PE'), pos.x, yEtiqueta);
+                            ctx.fillText(valor.toLocaleString('es-PE'), txF503, tyF503);
                         }
                     });
                 });
@@ -3572,7 +3581,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 const claro = document.documentElement.dataset.veaTheme === 'light';
                 const colorLeyenda = claro ? '#334155' : '#e2e8f0';
                 const colorEje = claro ? '#475569' : '#cbd5e1';
-                const colorGrid = claro ? 'rgba(71,85,105,.16)' : 'rgba(148,163,184,.16)';
+                const colorGrid = claro ? 'rgba(71,85,105,.30)' : 'rgba(148,163,184,.28)';
                 const op = chart.options || {};
                 if (op.plugins?.legend?.labels) {
                     op.plugins.legend.labels.color = colorLeyenda;
@@ -3618,11 +3627,13 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                 // Preferir el mes calendario actual si ya tiene dato; si aún no,
                 // usar el último mes observado real (p. ej., septiembre 2026).
                 const mesCalendario = new Date().getMonth();
-                if (Number.isFinite(Number(dataset2026.data?.[mesCalendario]))) {
+                const datoCalendario = dataset2026.data?.[mesCalendario];
+                if (datoCalendario !== null && datoCalendario !== undefined && Number.isFinite(Number(datoCalendario))) {
                     indiceActual = mesCalendario;
                 } else {
                     for (let i = dataset2026.data.length - 1; i >= 0; i--) {
-                        if (Number.isFinite(Number(dataset2026.data[i]))) { indiceActual = i; break; }
+                        const vDato = dataset2026.data[i];
+                        if (vDato !== null && vDato !== undefined && Number.isFinite(Number(vDato))) { indiceActual = i; break; }
                     }
                 }
                 if (indiceActual < 0) return;
