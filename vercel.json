@@ -4,7 +4,7 @@
     { "source": "/", "destination": "/api/app" }
   ],
   "functions": {
-    "api/app.js": { "includeFiles": "._vea/**" }
+    "api/app.js": { "includeFiles": "node_modules/modulo-vea/**" }
   },
   "headers": [
     {
