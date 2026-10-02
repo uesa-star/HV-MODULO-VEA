@@ -8,6 +8,12 @@ const { firmar, leerCookie, cookie, ipDe, userAgentDe } = require('./_session');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
+function redirigir(res, destino) {
+  res.setHeader('Location', destino);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(302).end();
+}
+
 function clavesSupabase() {
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (service) return { apikey: service, authorization: `Bearer ${service}` };
@@ -43,16 +49,16 @@ module.exports = async function handler(req, res) {
   const error = String(req.query.error || '');
 
   if (error) {
-    return res.redirect(302, `/login.html?e=${encodeURIComponent(error)}`);
+    return redirigir(res, `/login.html?e=${encodeURIComponent(error)}`);
   }
   if (!code || !state || !estadoEsperado || state !== estadoEsperado) {
-    return res.redirect(302, '/login.html?e=state');
+    return redirigir(res, '/login.html?e=state');
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret || !process.env.VEA_AUTH_SECRET) {
-    return res.redirect(302, '/login.html?e=config');
+    return redirigir(res, '/login.html?e=config');
   }
 
   try {
@@ -70,7 +76,7 @@ module.exports = async function handler(req, res) {
       cache: 'no-store'
     });
     if (!intercambio.ok) {
-      return res.redirect(302, '/login.html?e=token');
+      return redirigir(res, '/login.html?e=token');
     }
     const tokens = await intercambio.json();
 
@@ -79,12 +85,12 @@ module.exports = async function handler(req, res) {
       cache: 'no-store'
     });
     if (!userinfo.ok) {
-      return res.redirect(302, '/login.html?e=userinfo');
+      return redirigir(res, '/login.html?e=userinfo');
     }
     const perfil = await userinfo.json();
 
     if (!perfil.email || perfil.email_verified !== true) {
-      return res.redirect(302, '/login.html?e=verificado');
+      return redirigir(res, '/login.html?e=verificado');
     }
 
     registrarAcceso({
@@ -111,9 +117,9 @@ module.exports = async function handler(req, res) {
       cookie('vea_session', sesion, 12),
       cookie('vea_oauth_state', '', 0)
     ]);
-    return res.redirect(302, '/');
+    return redirigir(res, '/');
   } catch (err) {
     console.error('[VEA AUTH callback]', err);
-    return res.redirect(302, '/login.html?e=interno');
+    return redirigir(res, '/login.html?e=interno');
   }
 };
