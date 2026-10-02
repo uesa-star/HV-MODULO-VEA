@@ -93,7 +93,7 @@ module.exports = async function handler(req, res) {
       return redirigir(res, '/login.html?e=verificado');
     }
 
-    registrarAcceso({
+    await registrarAcceso({
       email: String(perfil.email).toLowerCase(),
       nombre: String(perfil.name || '').slice(0, 200),
       proveedor: 'google',

@@ -70,7 +70,7 @@ module.exports = async function handler(req, res) {
     iguales(usuario, usuarioEsperado) && iguales(clave, claveEsperada);
 
   if (!valido) {
-    registrarAcceso({
+    await registrarAcceso({
       email: `adm:${usuario.slice(0, 60) || '(vacío)'}`,
       nombre: 'Intento de acceso ADM',
       proveedor: 'adm',
@@ -81,7 +81,7 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
   }
 
-  registrarAcceso({
+  await registrarAcceso({
     email: `adm:${usuarioEsperado}`,
     nombre: 'Administrador',
     proveedor: 'adm',
