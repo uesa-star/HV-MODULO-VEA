@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Ingreso · Módulo VEA</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #1e293b 0%, #020617 55%), #020617;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.25rem;
+    color: #e2e8f0;
+  }
+  .tarjeta {
+    width: 100%; max-width: 26rem; background: rgba(2,6,23,.92);
+    border: 1px solid #1e293b; border-radius: 1.25rem; padding: 2.25rem 2rem;
+    box-shadow: 0 25px 60px rgba(0,0,0,.55);
+  }
+  .marca { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
+  .logo {
+    width: 2.75rem; height: 2.75rem; border-radius: .9rem; flex-shrink: 0;
+    background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3);
+    display: grid; place-items: center; color: #f87171; font-weight: 900; font-size: 1.1rem;
+  }
+  .marca h1 { font-size: .95rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: #fff; }
+  .marca p { font-size: .68rem; font-weight: 700; color: #64748b; letter-spacing: .12em; text-transform: uppercase; }
+  .intro { font-size: .8rem; line-height: 1.55; color: #94a3b8; margin-bottom: 1.5rem; }
+  .btnGoogle {
+    display: flex; align-items: center; justify-content: center; gap: .75rem;
+    width: 100%; padding: .85rem 1rem; background: #fff; color: #1f2937;
+    border: none; border-radius: .8rem; font-size: .9rem; font-weight: 800;
+    cursor: pointer; transition: transform .15s, box-shadow .15s;
+    text-decoration: none;
+  }
+  .btnGoogle:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,255,255,.12); }
+  .btnGoogle:active { transform: translateY(0); }
+  .btnGoogle[aria-disabled="true"] { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+  .aviso {
+    display: none; margin-top: 1rem; padding: .7rem .85rem; border-radius: .7rem;
+    background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3);
+    color: #fbbf24; font-size: .72rem; font-weight: 700; line-height: 1.5;
+  }
+  .pie { margin-top: 1.75rem; padding-top: 1.1rem; border-top: 1px solid #1e293b; font-size: .65rem; color: #475569; line-height: 1.6; }
+  .verificando { display: none; text-align: center; padding: 1rem; font-size: .8rem; color: #64748b; font-weight: 700; }
+  .errorBox {
+    display: none; margin-top: 1rem; padding: .7rem .85rem; border-radius: .7rem;
+    background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.35);
+    color: #fca5a5; font-size: .75rem; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+  <main class="tarjeta">
+    <div class="marca">
+      <div class="logo">VEA</div>
+      <div>
+        <h1>Módulo de Vigilancia</h1>
+        <p>Vigilancia Epidemiológica Activa</p>
+      </div>
+    </div>
+
+    <p class="intro">
+      Acceso restringido. Ingrese con su cuenta de Google para utilizar el módulo.
+      Cada ingreso queda registrado con su correo electrónico.
+    </p>
+
+    <a id="btnGoogle" class="btnGoogle" href="#" aria-disabled="true">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continuar con Google
+    </a>
+
+    <div id="verificando" class="verificando">Verificando configuración…</div>
+    <div id="avisoConfig" class="aviso"></div>
+    <div id="errorBox" class="errorBox"></div>
+
+    <p class="pie">
+      Sistema de vigilancia epidemiológica · Información sujeta a validación oficial.<br>
+      Los accesos se registran con fecha, hora y correo electrónico para trazabilidad.
+    </p>
+  </main>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var errores = {
+    state: 'La sesión de seguridad expiró. Intente nuevamente.',
+    token: 'Google no aceptó el intercambio de credenciales. Intente nuevamente.',
+    userinfo: 'No se pudo verificar su cuenta con Google.',
+    verificado: 'Su correo de Google no está verificado. Use una cuenta Google verificada.',
+    config: 'El acceso no está configurado en el servidor. Contacte al administrador.',
+    interno: 'Error interno durante el ingreso. Intente nuevamente.',
+    access_denied: 'Autorización cancelada.'
+  };
+  var codigo = params.get('e');
+  if (codigo) {
+    var caja = document.getElementById('errorBox');
+    caja.textContent = errores[codigo] || ('No se pudo completar el ingreso (' + codigo + ').');
+    caja.style.display = 'block';
+  }
+
+  var btn = document.getElementById('btnGoogle');
+  var verificando = document.getElementById('verificando');
+  var aviso = document.getElementById('avisoConfig');
+
+  fetch('/api/auth/config', { cache: 'no-store' })
+    .then(function (r) { return r.json(); })
+    .then(function (cfg) {
+      verificando.style.display = 'none';
+      if (cfg && cfg.google && cfg.secret) {
+        btn.setAttribute('href', '/api/auth/google');
+        btn.removeAttribute('aria-disabled');
+      } else {
+        aviso.textContent = 'El ingreso con Google aún no está configurado en el servidor. ' +
+          'El administrador debe definir GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y VEA_AUTH_SECRET en Vercel.';
+        aviso.style.display = 'block';
+        btn.setAttribute('aria-disabled', 'true');
+      }
+      if (cfg && cfg.secret === false && !cfg.google) {
+        /* ya cubierto por el aviso anterior */
+      }
+    })
+    .catch(function () {
+      verificando.style.display = 'none';
+      aviso.textContent = 'No se pudo verificar la configuración del acceso. Intente recargar la página.';
+      aviso.style.display = 'block';
+    });
+
+  btn.addEventListener('click', function (ev) {
+    if (btn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
+  });
+})();
+</script>
+</body>
+</html>

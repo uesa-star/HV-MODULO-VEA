@@ -1824,6 +1824,16 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 </style>
 
     <!-- VEA_AUDITORIA_RESPONSIVE_DATOS_20260916 -->
+        <style>
+            @font-face {
+                font-family: 'Montserrat';
+                src: url('assets/fonts/Montserrat.ttf') format('truetype');
+                font-weight: 100 900;
+                font-style: normal;
+                font-display: block;
+            }
+        </style>
+
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col relative">
 
@@ -1968,6 +1978,9 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
                     <button onclick="cambiarTab('datos')" id="btnTabDatos" data-vea-tab="datos" class="vea-menu-item vea-menu-item-inactive w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left text-xs font-bold transition-all">
                         <span class="w-6 h-6 flex items-center justify-center shrink-0 text-emerald-300" aria-hidden="true"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8V5m4 11v-7"/></svg></span><span class="vea-menu-label truncate">Datos Acumulados</span>
                     </button>
+                    <button onclick="cambiarTab('adm');admAlAbrir()" id="btnTabAdm" data-vea-tab="adm" class="vea-menu-item vea-menu-item-inactive w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left text-xs font-bold transition-all">
+                        <span class="w-6 h-6 flex items-center justify-center shrink-0 text-amber-300" aria-hidden="true"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg></span><span class="vea-menu-label truncate">Administración</span>
+                    </button>
                             <!-- Ingesta de Datos (ETL) -->
             <div id="veaRepoSidebar" class="vea-repo-sidebar mt-4 pt-4 border-t border-slate-800 flex flex-col gap-2">
                 <button onclick="document.getElementById('excelFileInput').click()" class="w-full bg-indigo-650 hover:bg-indigo-500 text-white font-bold py-2.5 px-3 rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 vea-repo-button" title="Ingesta masiva y validación del repositorio epidemiológico">
@@ -1986,7 +1999,12 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
                 </nav>
 
-                <div class="mt-auto pt-3 border-t border-slate-800">
+                <div class="mt-auto pt-3 border-t border-slate-800 space-y-2">
+                    <div id="veaSesionBox" class="hidden px-3 py-2 rounded-xl bg-slate-900/70 border border-slate-800">
+                        <div class="text-[9px] font-black uppercase tracking-widest text-slate-500">Sesión activa</div>
+                        <div id="veaSesionCorreo" class="text-[11px] font-bold text-cyan-300 truncate">—</div>
+                        <button onclick="veaSalirVea()" class="mt-1.5 w-full rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 py-1 text-[10px] font-black transition-all">Cerrar sesión</button>
+                    </div>
                     <button onclick="toggleVeaSidebar()" class="vea-menu-item w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-500 hover:text-slate-200 hover:bg-slate-900 transition-all text-xs font-bold">
                         <span class="w-6 text-center shrink-0">⇔</span><span class="vea-menu-footer-text truncate">Expandir / colapsar</span>
                     </button>
@@ -3191,6 +3209,59 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
         <div id="contentConfiguracion" class="hidden bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm">
             <h3 class="text-lg font-bold text-slate-100">Configuración</h3>
             <p class="text-xs text-slate-400 mt-2">Contenedor de configuración preparado para futuras opciones del módulo VEA.</p>
+        </div>
+
+        <div id="contentAdm" class="hidden space-y-6">
+            <div id="admLoginPanel" class="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-sm max-w-md">
+                <div class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400">Módulo ADM · Acceso restringido</div>
+                <h3 class="mt-2 text-lg font-bold text-slate-100">Panel de administración</h3>
+                <p class="mt-2 text-xs text-slate-400 leading-relaxed">Ingrese con el usuario y contraseña de administración para consultar el registro de accesos al módulo (correo, fecha y hora de cada ingreso).</p>
+                <form id="admLoginForm" class="mt-5 space-y-3" onsubmit="admIngresar(event)">
+                    <div>
+                        <label for="admUsuario" class="block text-[10px] font-black text-slate-400 mb-1">USUARIO</label>
+                        <input id="admUsuario" name="usuario" type="text" autocomplete="username" required class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50">
+                    </div>
+                    <div>
+                        <label for="admClave" class="block text-[10px] font-black text-slate-400 mb-1">CONTRASEÑA</label>
+                        <input id="admClave" name="clave" type="password" autocomplete="current-password" required class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50">
+                    </div>
+                    <div id="admError" class="hidden rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs font-bold text-red-300"></div>
+                    <button type="submit" class="w-full rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs py-2.5 transition-all">Entrar al panel ADM</button>
+                </form>
+            </div>
+            <div id="admPanel" class="hidden space-y-4">
+                <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <div class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400">Registro de accesos</div>
+                        <h3 class="mt-1 text-lg font-bold text-slate-100">Quién ingresó al módulo</h3>
+                        <p class="mt-1 text-xs text-slate-400">Últimos 200 accesos registrados con su correo electrónico.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="admCargarLog()" class="rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 px-4 py-2 text-xs font-black transition-all">Actualizar</button>
+                        <button type="button" onclick="admSalir()" class="rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-300 px-4 py-2 text-xs font-black transition-all">Cerrar sesión ADM</button>
+                    </div>
+                </div>
+                <div id="admResumen" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+                <div class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-slate-900 text-slate-400 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-3 py-2.5 text-left font-black">Fecha y hora</th>
+                                    <th class="px-3 py-2.5 text-left font-black">Correo</th>
+                                    <th class="px-3 py-2.5 text-left font-black">Nombre</th>
+                                    <th class="px-3 py-2.5 text-left font-black">Método</th>
+                                    <th class="px-3 py-2.5 text-left font-black">IP</th>
+                                    <th class="px-3 py-2.5 text-left font-black">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admLogCuerpo">
+                                <tr><td colspan="6" class="px-3 py-8 text-center text-slate-500 font-bold">Cargando registro…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </main>
@@ -7746,7 +7817,7 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
                 });
             }
             tabActiva = tab;
-            const tabsMenuVea = ['dashboard', 'datos', 'casos', 'canal', 'tabla', 'hospitalizados', 'configuracion'];
+            const tabsMenuVea = ['dashboard', 'datos', 'casos', 'canal', 'tabla', 'hospitalizados', 'configuracion', 'adm'];
 
             tabsMenuVea.forEach(t => {
                 const btn = document.querySelector(`[data-vea-tab="${t}"]`);
@@ -11949,18 +12020,32 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             const puntos = [];
             series.forEach(serie => (serie.data || []).forEach((valor, indice) => {
                 const numero = Number(typeof valor === 'object' ? valor?.y : valor);
-                if (Number.isFinite(numero)) puntos.push({ numero, indice, serie:serie.label || 'Serie' });
+                if (Number.isFinite(numero)) puntos.push({ numero, indice, serie: serie.label || 'Serie' });
             }));
             if (!puntos.length) return {
-                analisis:'El gráfico no presenta valores cuantificables para los filtros activos.',
-                recomendacion:'Verificar la disponibilidad y consistencia de los registros antes de su interpretación.'
+                analisis: ['El gráfico no presenta valores cuantificables para los filtros activos.'],
+                conclusion: ['Verificar la disponibilidad y consistencia de los registros antes de su interpretación.', 'Es importante reforzar la vigilancia, la atención oportuna y las medidas de control para reducir la morbilidad asociada a este evento.']
             };
-            const total = puntos.reduce((s,p) => s + p.numero, 0);
-            const maximo = puntos.reduce((a,b) => b.numero > a.numero ? b : a, puntos[0]);
+            const total = puntos.reduce((s, p) => s + p.numero, 0);
+            const maximo = puntos.reduce((a, b) => b.numero > a.numero ? b : a, puntos[0]);
             const etiqueta = etiquetas[maximo.indice] ?? 'periodo observado';
-            const analisis = `Se visualizan ${total.toLocaleString('es-PE')} registros acumulados en las series presentadas. El valor más alto corresponde a ${etiqueta}, con ${maximo.numero.toLocaleString('es-PE')} casos (${maximo.serie}).`;
-            const recomendacion = 'Mantener el seguimiento epidemiológico del periodo de mayor concentración y validar los registros antes de su difusión oficial.';
-            return { analisis, recomendacion };
+            const porSerie = series.map(s => ({
+                label: s.label || 'Serie',
+                total: (s.data || []).reduce((x, v) => { const n = Number(typeof v === 'object' ? v?.y : v); return x + (Number.isFinite(n) ? n : 0); }, 0)
+            })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
+            const lider = porSerie[0] || null;
+            const aniosG = [...new Set([...etiquetas, ...series.map(s => s.label)].map(v => String(v || '').match(/\b20\d\d\b/)?.[0]).filter(Boolean))].sort();
+            const periodo = aniosG.length ? (aniosG.length === 1 ? aniosG[0] : aniosG[0] + '\u2013' + aniosG[aniosG.length - 1]) : 'los periodos analizados';
+            const refPeriodo = periodo === 'los periodos analizados' ? 'de los periodos analizados' : 'del periodo ' + periodo;
+            const b1 = lider
+                ? 'Se observa una mayor concentración de casos en ' + lider.label + ', con ' + Math.round(lider.total).toLocaleString('es-PE') + ' casos acumulados, de un total de ' + Math.round(total).toLocaleString('es-PE') + ' registros ' + refPeriodo + '.'
+                : 'Se visualizan ' + Math.round(total).toLocaleString('es-PE') + ' registros acumulados en las series presentadas.';
+            const b2 = `El valor más alto corresponde a ${etiqueta}, con ${maximo.numero.toLocaleString('es-PE')} casos (${maximo.serie}), comportamiento que debe mantenerse bajo seguimiento epidemiológico.`;
+            const conclusion = [
+                `Las condiciones vigiladas presentan variaciones durante ${periodo}, resaltando la necesidad de mantener una vigilancia epidemiológica continua.`,
+                'Es importante reforzar la vigilancia, la atención oportuna y las medidas de control para reducir la morbilidad asociada a este evento.'
+            ];
+            return { analisis: [b1, b2], conclusion };
         }
 
         function veaTextoEnLineasF469(ctx, texto, x, y, ancho, altoLinea) {
@@ -11975,40 +12060,263 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             return cursorY + altoLinea;
         }
 
-        function veaCrearLaminaGraficoF469(canvas, modulo, filtros) {
-            const claro = true;
-            const salida = document.createElement('canvas'); salida.width = 1600; salida.height = 1120;
+﻿        const veaLaminaAssetsF469 = {};
+        function veaImgLaminaF469(nombre) {
+            if (!veaLaminaAssetsF469[nombre]) {
+                const img = new Image();
+                img.src = 'assets/laminas/' + nombre;
+                veaLaminaAssetsF469[nombre] = img;
+            }
+            return veaLaminaAssetsF469[nombre];
+        }
+        async function veaPrecargarLaminaF469() {
+            try {
+                if (document.fonts && document.fonts.load) {
+                    await Promise.all(['900 47px Montserrat', '800 60px Montserrat', '700 47px Montserrat', '400 60px Montserrat', '700 40px Montserrat', '700 34px Montserrat', '400 34px Montserrat'].map(f => document.fonts.load(f)));
+                }
+            } catch (_) {}
+            const nombres = ['fondo_portada.jpg', 'fondo_lamina.jpg'];
+            await Promise.all(nombres.map(nombre => new Promise(res => {
+                const img = veaImgLaminaF469(nombre);
+                if (img.complete && img.naturalWidth) return res();
+                img.addEventListener('load', res, { once: true });
+                img.addEventListener('error', res, { once: true });
+                setTimeout(res, 8000);
+            })));
+        }
+        function veaDibujarImgF469(ctx, img, x, y, w, h) {
+            if (img && img.complete && img.naturalWidth) ctx.drawImage(img, x, y, w, h);
+        }
+
+        function veaDatosPeriodoF469(canvas) {
+            const g = (typeof Chart !== 'undefined' && Chart.getChart && canvas) ? Chart.getChart(canvas) : null;
+            let anios = [...new Set((g?.data?.datasets || []).map(d => String(d.label || '').match(/20\d\d/)?.[0]).filter(Boolean))].sort();
+            if (!anios.length && typeof aniosSeleccionadosComparativa !== 'undefined' && Array.isArray(aniosSeleccionadosComparativa)) {
+                anios = [...new Set(aniosSeleccionadosComparativa.map(a => String(a)))].sort();
+            }
+            if (!anios.length) anios = ['2024', '2026'];
+            let se = '1-52';
+            try {
+                const sel = document.getElementById('selectSemana');
+                const v = sel ? String(sel.value || 'Todas') : 'Todas';
+                if (v && v !== 'Todas') {
+                    const nums = v.match(/\d+/g);
+                    if (nums && nums.length >= 2) se = nums[0] + '-' + nums[1];
+                    else if (nums && nums.length === 1) se = nums[0];
+                } else {
+                    const vals = (g?.data?.labels || []).map(l => parseInt(String(l).replace(/\D/g, ''), 10)).filter(n => Number.isFinite(n) && n > 0 && n < 400);
+                    if (vals.length) se = Math.min(...vals) + '-' + Math.max(...vals);
+                }
+            } catch (_) {}
+            return { se, anios };
+        }
+        function veaPeriodoLaminaF469(canvas) {
+            const d = veaDatosPeriodoF469(canvas);
+            const sep = canvas ? '-' : ' - ';
+            const txtAnios = d.anios.length === 1 ? d.anios[0] : d.anios[0] + sep + d.anios[d.anios.length - 1];
+            return 'SE. ' + d.se + ' | Años ' + txtAnios;
+        }
+        function veaCrearPortadaLaminaF469(modulo, filtros) {
+            const salida = document.createElement('canvas'); salida.width = 1600; salida.height = 900;
             const ctx = salida.getContext('2d');
-            const fondo = claro ? '#ffffff' : '#020817'; const texto = claro ? '#0f172a' : '#f8fafc';
-            ctx.fillStyle = fondo; ctx.fillRect(0,0,salida.width,salida.height);
-            // Cabecera institucional de alto contraste para informes y PowerPoint.
-            ctx.fillStyle = '#16324f'; ctx.fillRect(0,0,salida.width,34);
-            ctx.fillStyle = claro ? '#e2e8f0' : '#172036'; ctx.fillRect(55,55,1490,1010);
-            ctx.fillStyle = fondo; ctx.fillRect(65,65,1470,990);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 1600, 900);
+            veaDibujarImgF469(ctx, veaImgLaminaF469('fondo_portada.jpg'), 0, 0, 1600, 900);
+            const nombres = { EDAs: 'Enfermedades Diarreicas Agudas (EDAs Acuosa)', IRAs: 'Infecciones Respiratorias Agudas', SOBA: 'Síndrome Obstructivo Bronquial / Asma', Febriles: 'Vigilancia de Pacientes Febriles' };
+            const evento = (typeof selectedEvent !== 'undefined' && nombres[selectedEvent]) ? nombres[selectedEvent] : modulo;
+            ctx.textAlign = 'center';
+            const mont = function (w, s) { ctx.font = w + ' ' + s + 'px Montserrat'; };
+            ctx.fillStyle = '#4472c4';
+            mont(900, 46.7);
+            const tituloPortada = 'SALA SITUACIONAL DE VIGILANCIA EPIDEMIOLOGICA';
+            while (ctx.measureText(tituloPortada).width > 1348) {
+                const n = parseFloat(ctx.font.match(/([\d.]+)px/)[1]);
+                if (n <= 30) break;
+                mont(900, n - 1);
+            }
+            ctx.fillText(tituloPortada, 792, 94.4);
+            const mm = String(evento).match(/\(([^)]+)\)/);
+            const nombre1 = mm ? String(evento).replace(/\s*\([^)]+\)\s*$/, '').trim() : String(evento).trim();
+            ctx.fillStyle = '#4472c4';
+            mont(400, 60);
+            while (ctx.measureText(nombre1).width > 1010) {
+                const n = parseFloat(ctx.font.match(/([\d.]+)px/)[1]);
+                if (n <= 34) break;
+                mont(400, n - 1);
+            }
+            ctx.fillText(nombre1, 879.6, 434.2);
+            if (mm) {
+                const corto = '(' + mm[1] + ')';
+                mont(800, 60);
+                while (ctx.measureText(corto).width > 490) {
+                    const n = parseFloat(ctx.font.match(/([\d.]+)px/)[1]);
+                    if (n <= 34) break;
+                    mont(800, n - 1);
+                }
+                ctx.fillText(corto, 888.6, 506.2);
+            }
+            const periodo = veaPeriodoLaminaF469(null).replace(/(\d+)-(\d+)/, '$1 \u2013 $2');
+            mont(700, 46.7);
+            ctx.fillText(periodo, 874.3, 575.9);
+            const iBar = periodo.indexOf('|');
+            if (iBar >= 0) {
+                const wAll = ctx.measureText(periodo).width;
+                const wPre = ctx.measureText(periodo.slice(0, iBar)).width;
+                const wBar = ctx.measureText('|').width;
+                ctx.fillStyle = '#0070c0';
+                ctx.fillText('|', 874.3 - wAll / 2 + wPre + wBar / 2, 575.9);
+                ctx.fillStyle = '#4472c4';
+            }
+            mont(700, 26.7);
+            ctx.fillText('UNIDAD DE EPIDEMIOLOGIA  Y SALUD AMBIENTAL', 853.15, 630.2);
+            mont(900, 46.7);
+            ctx.fillText('(UESA)', 856.8, 681.1);
+            ctx.textAlign = 'left';
+            return salida;
+        }
+
+        const veaLaminaCfgF469 = {
+            Anual: {
+                tituloX: 13.1, tituloBase: 44, tituloMax: 787, perBase: 85.6,
+                zona: { x: 404, y: 124, w: 981, h: 458 },
+                ana: { bx: 37.8, bw: 290.5, btx: 49.8, tx: 72.4, head: 263.4, body: 311.5, headTxt: 'Análisis Técnico' },
+                con: { bx: 37.8, bw: 1445.2, btx: 49.8, tx: 72.4, head: 707.4, body: 755.4, headTxt: 'Conclusión Técnica' },
+                cap: { x: 607.7, base: 617.9 }, fue: { x: 338.4, base: 676.6 }
+            },
+            Mes: {
+                tituloX: 12, tituloBase: 44, tituloMax: 788, perBase: 85.6,
+                zona: { x: 434, y: 134, w: 930, h: 448 },
+                ana: { bx: 26.5, bw: 373.5, btx: 38.5, tx: 61.1, head: 228.6, body: 276.6, headTxt: 'Análisis Técnico' },
+                con: { bx: 61.8, bw: 1538.2, btx: 73.8, tx: 96.4, head: 702, body: 750, headTxt: 'Conclusión Técnica' },
+                cap: { x: 575.9, base: 625.8 }, fue: { x: 343.9, base: 679.8 }
+            },
+            Semana: {
+                tituloX: 12, tituloBase: 46.2, tituloMax: 1213, perBase: 87.8,
+                zona: { x: 429, y: 137, w: 883, h: 425 },
+                ana: { bx: 33.8, bw: 307.2, btx: 45.9, tx: 68.5, head: 249.8, body: 297.8, headTxt: 'Análisis Técnico.' },
+                con: { bx: 55.5, bw: 1438.3, btx: 67.6, tx: 90.2, head: 707.1, body: 755.1, headTxt: 'Conclusión Técnica' },
+                cap: { x: 618.7, base: 604 }, fue: { x: 340.6, base: 658.2 }
+            }
+        };
+
+        function veaLineasLaminaF469(ctx, texto, ancho) {
+            const palabras = String(texto || '').split(/\s+/).filter(Boolean);
+            const lineas = []; let linea = '';
+            palabras.forEach(p => {
+                const prueba = linea ? linea + ' ' + p : p;
+                if (linea && ctx.measureText(prueba).width > ancho) { lineas.push(linea); linea = p; }
+                else linea = prueba;
+            });
+            if (linea) lineas.push(linea);
+            return lineas;
+        }
+
+        function veaDibujarBloqueLaminaF469(ctx, cfg, parrafos, limite) {
+            const ancho = cfg.bx + cfg.bw - 12 - cfg.tx;
+            const paras = (parrafos || []).filter(Boolean);
+            let f = 20, lh = 24, grupos = [];
+            for (let intento = 20; intento >= 14; intento--) {
+                ctx.font = intento + 'px Arial';
+                lh = Math.round(intento * 1.2 * 10) / 10;
+                grupos = paras.map(p => veaLineasLaminaF469(ctx, p, ancho));
+                let y = cfg.body, ultima = cfg.body;
+                grupos.forEach(g => { if (!g.length) return; ultima = y + (g.length - 1) * lh; y = y + g.length * lh + lh; });
+                f = intento;
+                if (ultima <= limite) break;
+            }
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#4472c4'; ctx.font = 'bold 20px Arial';
+            ctx.fillText('\u2022', cfg.btx, cfg.head);
+            ctx.fillText(cfg.headTxt, cfg.tx, cfg.head);
+            ctx.fillStyle = '#000000'; ctx.font = f + 'px Arial';
+            let y = cfg.body;
+            grupos.forEach(g => {
+                if (!g.length) return;
+                ctx.fillText('\u2022', cfg.btx, y);
+                g.forEach(l => { ctx.fillText(l, cfg.tx, y); y += lh; });
+                y += lh;
+            });
+        }
+        function veaDibujarPeriodoLaminaF469(ctx, cfg, canvas) {
+            const d = veaDatosPeriodoF469(canvas);
+            const nums = (String(d.se).match(/\d+/g) || ['1']);
+            const anios = d.anios.length ? d.anios : ['2024', '2026'];
+            ctx.textAlign = 'left'; ctx.fillStyle = '#000000';
+            let x = cfg.tituloX;
+            const put = (t, bold) => {
+                ctx.font = (bold ? '700 ' : '400 ') + '33.4px Montserrat';
+                ctx.fillText(t, x, cfg.perBase);
+                x += ctx.measureText(t).width;
+            };
+            put('SE. ', true);
+            put(nums[0], false);
+            if (nums[1]) put(' \u2013 ' + nums[1], true);
+            put(' | Años ', true);
+            if (anios.length > 1) { put(anios[0] + '\u2013', false); put(anios[anios.length - 1], true); }
+            else put(anios[0], false);
+        }
+
+        function veaCrearLaminaGraficoF469(canvas, modulo, filtros, indice) {
+            const num = Number.isFinite(Number(indice)) ? Number(indice) : 0;
+            const salida = document.createElement('canvas'); salida.width = 1600; salida.height = 900;
+            const ctx = salida.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 1600, 900);
+            veaDibujarImgF469(ctx, veaImgLaminaF469('fondo_lamina.jpg'), 0, 0, 1600, 900);
+            ctx.textAlign = 'left';
             const tarjeta = veaTarjetaParaGraficoF468(canvas);
             const titulo = tarjeta?.querySelector('h3,h4')?.textContent?.trim() || canvas.id;
-            const colorModulo = modulo === 'SOAT' ? '#c62828' : (modulo === 'Casos Individuales' ? '#0057b8' : '#2563eb');
-            ctx.fillStyle = colorModulo; ctx.font = '700 24px Arial'; ctx.fillText('HOSPITAL DE VENTANILLA — UNIDAD DE EPIDEMIOLOGÍA',90,110);
-            ctx.fillStyle = texto; ctx.font = '800 40px Arial'; ctx.fillText(titulo,90,165);
-            ctx.fillStyle = claro ? '#475569' : '#94a3b8'; ctx.font = '20px Arial';
-            veaTextoEnLineasF469(ctx, `${modulo} · ${filtros}`,90,205,1420,28);
-            const maxW = 1420, maxH = 560;
-            const escala = Math.min(maxW / Math.max(canvas.width,1), maxH / Math.max(canvas.height,1));
-            const w = canvas.width * escala, h = canvas.height * escala;
-            ctx.drawImage(canvas,90 + (maxW-w)/2,245,w,h);
+            const tipo = /semana/i.test(titulo) ? 'Semana' : /\bmes/i.test(titulo) ? 'Mes' : /edad/i.test(titulo) ? 'Edad' : 'Anual';
+            const cfg = veaLaminaCfgF469[tipo] || veaLaminaCfgF469.Anual;
+            ctx.fillStyle = '#0054a4'; ctx.font = '700 40px Montserrat';
+            while (ctx.measureText(titulo).width > cfg.tituloMax) {
+                const n = parseFloat(ctx.font.match(/([\d.]+)px/)[1]);
+                if (n <= 26) break;
+                ctx.font = '700 ' + (n - 1) + 'px Montserrat';
+            }
+            ctx.fillText(titulo, cfg.tituloX, cfg.tituloBase);
+            veaDibujarPeriodoLaminaF469(ctx, cfg, canvas);
             const lectura = veaAnalizarGraficoF469(canvas);
-            let y = 840; ctx.fillStyle = claro ? '#0f766e' : '#2dd4bf'; ctx.font = '800 22px Arial'; ctx.fillText('ANÁLISIS',90,y);
-            ctx.fillStyle = texto; ctx.font = '20px Arial'; y = veaTextoEnLineasF469(ctx,lectura.analisis,90,y+34,1420,28);
-            ctx.fillStyle = claro ? '#b45309' : '#fbbf24'; ctx.font = '800 22px Arial'; ctx.fillText('RECOMENDACIÓN',90,y+15);
-            ctx.fillStyle = texto; ctx.font = '20px Arial'; veaTextoEnLineasF469(ctx,lectura.recomendacion,90,y+49,1420,28);
-            const pie = tarjeta?.querySelector('.vea-chart-meta');
-            ctx.fillStyle = claro ? '#64748b' : '#94a3b8'; ctx.font = '16px Arial';
-            ctx.fillText(pie?.querySelector('.vea-chart-meta-fuente')?.textContent || `Fuente: ${veaFuenteParaGraficoF468(canvas)}`,90,1030);
-            ctx.textAlign='right'; ctx.fillText(pie?.querySelector('.vea-chart-meta-actualizacion')?.textContent || '',1510,1030); ctx.textAlign='left';
+            const zona = cfg.zona;
+            const escala = Math.min(zona.w / Math.max(canvas.width, 1), zona.h / Math.max(canvas.height, 1));
+            const wD = canvas.width * escala, hD = canvas.height * escala;
+            ctx.drawImage(canvas, zona.x + (zona.w - wD) / 2, zona.y + (zona.h - hD) / 2, wD, hD);
+            veaDibujarBloqueLaminaF469(ctx, cfg.ana, lectura.analisis, cfg.con.head - 14);
+            veaDibujarBloqueLaminaF469(ctx, cfg.con, lectura.conclusion, 806);
+            const evs = { EDAs: 'EDAs Acuosas', IRAs: 'IRAs', SOBA: 'SOBA', Febriles: 'Febriles' };
+            let evCap = (typeof selectedEvent !== 'undefined' && evs[selectedEvent]) ? evs[selectedEvent] : 'Eventos';
+            if (tipo !== 'Anual') evCap = evCap.charAt(0).toUpperCase() + evCap.slice(1);
+            const tipoCap = tipo === 'Semana' ? 'Semanal' : tipo;
+            const d = veaDatosPeriodoF469(canvas);
+            const anios = d.anios.length ? d.anios : ['2024', '2026'];
+            ctx.textAlign = 'left'; ctx.fillStyle = '#000000';
+            let cx = cfg.cap.x;
+            const putC = (t, bold) => {
+                ctx.font = bold ? 'bold 20px Arial' : '20px Arial';
+                ctx.fillText(t, cx, cfg.cap.base);
+                cx += ctx.measureText(t).width;
+            };
+            putC('Gráfico N.º ' + (num + 1) + '. ', true);
+            putC('Tendencia ', false);
+            putC(tipoCap, true);
+            putC(tipo === 'Anual' ? ' de ' : ' De ', false);
+            putC(evCap, true);
+            putC(', ' + anios[0] + (anios.length > 1 ? ' ' : ''), false);
+            if (anios.length > 1) putC('\u2013 ' + anios[anios.length - 1], true);
+            let fx = cfg.fue.x;
+            const putF = (t, bold, size) => {
+                ctx.font = (bold ? 'bold ' : '') + size + 'px Arial';
+                ctx.fillText(t, fx, cfg.fue.base);
+                fx += ctx.measureText(t).width;
+            };
+            putF('Fuente', true, 20);
+            putF(':', true, 18.4);
+            putF(' MINSA \u2013 CDC Perú. Sistema Notiweb ', false, 18.4);
+            putF('| Elaboración:', true, 18.4);
+            putF(' UESA, ' + new Date().getFullYear(), false, 18.4);
+            ctx.textAlign = 'left';
             return { salida, titulo };
         }
 
-        function descargarGraficosModuloVeaF469() {
+        async function descargarGraficosModuloVeaF469() {
             const contenedor = veaContenedorModuloActivoF469();
             const canvases = [...(contenedor?.querySelectorAll('canvas[id]') || [])].filter(canvas => canvas.width > 0 && canvas.height > 0 && veaTarjetaParaGraficoF468(canvas));
             if (!canvases.length) { alert('Este módulo no tiene gráficos disponibles para descargar con los filtros actuales.'); return; }
@@ -12016,9 +12324,17 @@ const veaMetricasPrimerIngresoF402 = window.veaMetricasPrimerIngresoF402 || {};
             const modulo = nombres[tabActiva] || 'VEA'; const filtros = veaResumenFiltrosDescargaF469(contenedor);
             const temaPantalla = document.documentElement.dataset.veaTheme === 'light' ? 'light' : 'dark';
             veaAplicarTemaGraficosF469('light');
+            await veaPrecargarLaminaF469();
+            try {
+                const laminaPortada = veaCrearPortadaLaminaF469(modulo, filtros);
+                const enlacePortada = document.createElement('a');
+                enlacePortada.download = '00_PORTADA.png';
+                enlacePortada.href = laminaPortada.toDataURL('image/png', 1);
+                enlacePortada.click();
+            } catch (_) {}
             try {
                 canvases.forEach((canvas, indice) => {
-                    const { salida, titulo } = veaCrearLaminaGraficoF469(canvas, modulo, filtros);
+                    const { salida, titulo } = veaCrearLaminaGraficoF469(canvas, modulo, filtros, indice);
                     const enlace = document.createElement('a');
                     enlace.download = `${String(indice+1).padStart(2,'0')}_${titulo.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'_').replace(/^_|_$/g,'')}.png`;
                     enlace.href = salida.toDataURL('image/png',1); enlace.click();
@@ -15625,6 +15941,143 @@ function abrirBoletinV17DinamicoVea(anio, se) {
   if (!w) { alert('El navegador bloqueó la ventana del boletín. Habilite ventanas emergentes para este sitio.'); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
+</script>
+<script>
+/* ===== VEA · Sesión (Google) y panel ADM ===== */
+async function veaConsultarSesion() {
+    try {
+        const r = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (r.status === 401) return { autenticado: false };
+        return await r.json();
+    } catch (e) { return { autenticado: null }; }
+}
+
+async function veaActualizarSesionUI() {
+    const sesion = await veaConsultarSesion();
+    const caja = document.getElementById('veaSesionBox');
+    if (caja) {
+        if (sesion.autenticado && sesion.email) {
+            document.getElementById('veaSesionCorreo').textContent = sesion.email;
+            caja.classList.remove('hidden');
+        } else if (sesion.autenticado === false) {
+            location.replace('/login.html');
+        }
+    }
+    return sesion;
+}
+
+async function veaSalirVea() {
+    try { await fetch('/api/auth/logout', { cache: 'no-store' }); } catch (e) {}
+    location.href = '/login.html';
+}
+
+async function admAlAbrir() {
+    const sesion = await veaConsultarSesion();
+    const login = document.getElementById('admLoginPanel');
+    const panel = document.getElementById('admPanel');
+    if (!login || !panel) return;
+    if (sesion.adm) {
+        login.classList.add('hidden');
+        panel.classList.remove('hidden');
+        admCargarLog();
+    } else {
+        login.classList.remove('hidden');
+        panel.classList.add('hidden');
+    }
+}
+
+async function admIngresar(ev) {
+    ev.preventDefault();
+    const caja = document.getElementById('admError');
+    caja.classList.add('hidden');
+    try {
+        const r = await fetch('/api/auth/adm', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                usuario: document.getElementById('admUsuario').value.trim(),
+                clave: document.getElementById('admClave').value
+            })
+        });
+        if (!r.ok) {
+            const d = await r.json().catch(function () { return {}; });
+            caja.textContent = d.error || 'Usuario o contraseña incorrectos.';
+            caja.classList.remove('hidden');
+            return;
+        }
+        document.getElementById('admClave').value = '';
+        document.getElementById('admUsuario').value = '';
+        admAlAbrir();
+    } catch (e) {
+        caja.textContent = 'Sin conexión con el servidor.';
+        caja.classList.remove('hidden');
+    }
+}
+
+async function admSalir() {
+    try { await fetch('/api/auth/adm', { method: 'DELETE' }); } catch (e) {}
+    admAlAbrir();
+}
+
+function admFechaCorta(iso) {
+    try {
+        const d = new Date(iso);
+        return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return iso || '—'; }
+}
+
+async function admCargarLog() {
+    const cuerpo = document.getElementById('admLogCuerpo');
+    const resumen = document.getElementById('admResumen');
+    if (!cuerpo) return;
+    cuerpo.innerHTML = '<tr><td colspan="6" class="px-3 py-8 text-center text-slate-500 font-bold">Cargando registro…</td></tr>';
+    try {
+        const r = await fetch('/api/auth/log', { cache: 'no-store' });
+        if (r.status === 401) { admAlAbrir(); return; }
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Error');
+        const filas = Array.isArray(d.accesos) ? d.accesos : [];
+        if (!filas.length) {
+            cuerpo.innerHTML = '<tr><td colspan="6" class="px-3 py-8 text-center text-slate-500 font-bold">Sin accesos registrados todavía.</td></tr>';
+            resumen.innerHTML = '';
+            return;
+        }
+        let hoy = 0, google = 0, fallos = 0;
+        const hoyStr = new Date().toISOString().slice(0, 10);
+        const vistos = new Set();
+        filas.forEach(function (f) {
+            if (String(f.creado_en || '').slice(0, 10) === hoyStr) hoy++;
+            if (f.proveedor === 'google') { google++; vistos.add(f.email); }
+            if (f.exito === false) fallos++;
+        });
+        resumen.innerHTML =
+            '<div class="bg-slate-950 border border-slate-800 rounded-xl p-4"><div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Accesos hoy</div><div class="mt-1 text-2xl font-black text-white">' + hoy + '</div></div>' +
+            '<div class="bg-slate-950 border border-slate-800 rounded-xl p-4"><div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Usuarios Google únicos</div><div class="mt-1 text-2xl font-black text-cyan-300">' + vistos.size + '</div></div>' +
+            '<div class="bg-slate-950 border border-slate-800 rounded-xl p-4"><div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Ingresos Google (200)</div><div class="mt-1 text-2xl font-black text-emerald-300">' + google + '</div></div>' +
+            '<div class="bg-slate-950 border border-slate-800 rounded-xl p-4"><div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Intentos fallidos</div><div class="mt-1 text-2xl font-black text-red-300">' + fallos + '</div></div>';
+        cuerpo.innerHTML = filas.map(function (f) {
+            const exito = f.exito === false
+                ? '<span class="rounded-lg bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-black text-red-300">FALLIDO</span>'
+                : '<span class="rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-black text-emerald-300">OK</span>';
+            return '<tr class="border-t border-slate-800 hover:bg-slate-900/60">' +
+                '<td class="px-3 py-2 text-slate-300 whitespace-nowrap">' + admFechaCorta(f.creado_en) + '</td>' +
+                '<td class="px-3 py-2 text-cyan-300 font-bold">' + (f.email || '—') + '</td>' +
+                '<td class="px-3 py-2 text-slate-400">' + (f.nombre || '—') + '</td>' +
+                '<td class="px-3 py-2 text-slate-400 uppercase text-[10px] font-black">' + (f.proveedor || '—') + '</td>' +
+                '<td class="px-3 py-2 text-slate-500">' + (f.ip || '—') + '</td>' +
+                '<td class="px-3 py-2">' + exito + '</td>' +
+                '</tr>';
+        }).join('');
+    } catch (e) {
+        cuerpo.innerHTML = '<tr><td colspan="6" class="px-3 py-8 text-center text-red-300 font-bold">No se pudo cargar el registro: ' + (e && e.message ? e.message : e) + '</td></tr>';
+    }
+}
+
+/* Guardia: sin sesión Google no se usa el módulo (refuerzo del Edge Middleware). */
+(async function () {
+    const sesion = await veaActualizarSesionUI();
+    if (sesion && sesion.autenticado === false) location.replace('/login.html');
+})();
 </script>
 </body>
 </html>

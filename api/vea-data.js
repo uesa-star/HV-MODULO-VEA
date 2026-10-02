@@ -4,6 +4,11 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  const { sesion } = require('./auth/_session');
+  if (!sesion(req)) {
+    return res.status(401).json({ error: 'No autenticado', detalle: 'Ingrese con su cuenta de Google en /login.html' });
+  }
+
   const allowed = new Set(['edas', 'iras', 'febriles', 'individual']);
   const table = String(req.query.table || '').toLowerCase();
   if (!allowed.has(table)) return res.status(400).json({ error: 'Tabla no permitida' });
