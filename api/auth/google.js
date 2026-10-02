@@ -37,5 +37,10 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Set-Cookie', cookie('vea_oauth_state', state, 0.2));
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json({ url: url.toString(), redirect_uri: redirectUri });
+  // El botón del login navega directo: se redirige a Google (no se devuelve JSON).
+  if (String(req.query.format || '') === 'json') {
+    return res.status(200).json({ url: url.toString(), redirect_uri: redirectUri });
+  }
+  res.setHeader('Location', url.toString());
+  return res.status(302).end();
 };
