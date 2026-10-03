@@ -3,7 +3,7 @@
  * GET /api/auth/logout → borra la cookie de sesión VEA.
  * GET /api/auth/logout?adm=1 → borra también la sesión ADM.
  */
-const { cookie, sesionAdm } = require('./_session');
+const { cookie, sesionAdm } = require('../../lib/session');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {

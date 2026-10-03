@@ -7,7 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { sesion } = require('./auth/_session');
+const { sesion } = require('../lib/session');
 
 let htmlCache = null;
 

@@ -5,7 +5,7 @@
  * Credenciales: VEA_ADM_USER / VEA_ADM_PASS (variables de Vercel).
  */
 const crypto = require('crypto');
-const { firmar, sesionAdm, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('./_session');
+const { firmar, sesionAdm, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('../../lib/session');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 

@@ -4,7 +4,7 @@
  * Requiere GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en Vercel.
  */
 const crypto = require('crypto');
-const { cookie } = require('./_session');
+const { cookie } = require('../../lib/session');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {

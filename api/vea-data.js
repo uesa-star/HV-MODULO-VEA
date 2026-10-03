@@ -4,7 +4,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { sesion } = require('./auth/_session');
+  const { sesion } = require('../lib/session');
   if (!sesion(req)) {
     return res.status(401).json({ error: 'No autenticado', detalle: 'Ingrese con su cuenta de Google en /login.html' });
   }

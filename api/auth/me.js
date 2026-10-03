@@ -2,7 +2,7 @@
  * VEA — Estado de la sesión actual.
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
-const { sesion, sesionAdm } = require('./_session');
+const { sesion, sesionAdm } = require('../../lib/session');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {

@@ -3,7 +3,7 @@
  * GET /api/auth/log → { accesos: [...] } últimas 200 filas de vea_login_log.
  * Requiere cookie vea_adm válida (usuario + contraseña de administración).
  */
-const { sesionAdm } = require('./_session');
+const { sesionAdm } = require('../../lib/session');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 

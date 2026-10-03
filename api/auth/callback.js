@@ -4,7 +4,7 @@
  * Intercambia el código, verifica la identidad (userinfo), registra el
  * acceso en vea_login_log y crea la cookie de sesión firmada.
  */
-const { firmar, leerCookie, cookie, ipDe, userAgentDe } = require('./_session');
+const { firmar, leerCookie, cookie, ipDe, userAgentDe } = require('../../lib/session');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 

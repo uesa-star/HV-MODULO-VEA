@@ -247,7 +247,7 @@
     var usuario = document.getElementById('lgUsuario').value.trim();
     var clave = document.getElementById('lgClave').value;
     if (!usuario || !clave) return error('Escriba su usuario y su contraseña.');
-    enviar('/api/auth/login', { usuario: usuario, clave: clave },
+    enviar('/api/auth/cuentas', { accion: 'ingreso', usuario: usuario, clave: clave },
       document.getElementById('btnIngresar'),
       function () { location.href = '/'; });
   });
@@ -262,7 +262,7 @@
     if (!/^[a-z0-9._-]{4,30}$/i.test(usuario)) return error('Usuario inválido: use 4 a 30 caracteres (letras, números, punto, guion o guion bajo).');
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
-    enviar('/api/auth/register', { nombre: nombre, usuario: usuario, clave: clave, confirm: confirm },
+    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, usuario: usuario, clave: clave, confirm: confirm },
       document.getElementById('btnCrear'),
       function () {
         msgForm.style.display = 'none';
