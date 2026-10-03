@@ -5,37 +5,14 @@
  *        en public.vea_usuarios (hash scrypt) y devuelve sesión vea_session (12 h).
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  */
-const crypto = require('crypto');
 const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION, sesionAdm } = require('../../lib/session');
+const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
 function clavesSupabase() {
   const k = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
   return k ? { apikey: k, Authorization: `Bearer ${k}` } : null;
-}
-
-function hashearClave(clave) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(clave, salt, 64).toString('hex');
-  return `scrypt:${salt}:${hash}`;
-}
-
-function verificarClave(clave, almacenado) {
-  try {
-    const partes = String(almacenado || '').split(':');
-    if (partes.length !== 3 || partes[0] !== 'scrypt') return false;
-    const hash = Buffer.from(partes[2], 'hex');
-    const candidato = crypto.scryptSync(clave, partes[1], 64);
-    if (candidato.length !== hash.length) return false;
-    return crypto.timingSafeEqual(candidato, hash);
-  } catch (_) {
-    return false;
-  }
-}
-
-function claveFalsa() {
-  try { crypto.scryptSync('x', 'sal_falsa_00000000', 64); } catch (_) { /* noop */ }
 }
 
 async function registrarAcceso(fila) {

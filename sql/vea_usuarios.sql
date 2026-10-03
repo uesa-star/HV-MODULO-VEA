@@ -17,3 +17,12 @@ grant select, insert, update, delete on public.vea_usuarios to service_role;
 
 -- Registro de accesos: permitir limpiar filas de prueba desde la API (service key)
 grant update, delete on public.vea_login_log to service_role;
+
+-- VEA — Configuración (clave/valor): contraseña y correo propios del administrador.
+create table if not exists public.vea_config (
+  k text primary key,               -- p.ej. adm_password_hash, adm_email
+  v text not null default ''
+);
+alter table public.vea_config enable row level security;
+revoke all on public.vea_config from anon, authenticated;
+grant select, insert, update, delete on public.vea_config to service_role;
