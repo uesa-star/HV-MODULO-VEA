@@ -59,13 +59,17 @@ function errorTabla(texto) {
 
 async function registrar(req, res, cuerpo, claves) {
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 80);
-  const usuario = String(cuerpo.usuario || '').toLowerCase().trim();
+  const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
+  const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
   const clave = String(cuerpo.clave || '');
   const confirm = String(cuerpo.confirm || cuerpo.clave || '');
 
   if (nombre.length < 2) return res.status(400).json({ error: 'Escriba su nombre completo (mínimo 2 letras).' });
-  if (!/^[a-z0-9._-]{4,30}$/.test(usuario)) {
-    return res.status(400).json({ error: 'Usuario inválido: use 4 a 30 caracteres (letras minúsculas, números, punto, guion o guion bajo).' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Escriba un correo electrónico válido (ej: juan.perez@hospitaldeventanilla.gob.pe).' });
+  }
+  if (celular && !/^\+?[0-9]{7,15}$/.test(celular)) {
+    return res.status(400).json({ error: 'El celular debe tener solo dígitos (7 a 15 números, puede empezar con +).' });
   }
   if (clave.length < 8 || clave.length > 72) {
     return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
@@ -77,7 +81,7 @@ async function registrar(req, res, cuerpo, claves) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
       method: 'POST',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ usuario, nombre, password_hash: hashearClave(clave) }),
+      body: JSON.stringify({ usuario: email, nombre, celular, password_hash: hashearClave(clave) }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -87,16 +91,19 @@ async function registrar(req, res, cuerpo, claves) {
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
     if (r.status === 409 || texto.includes('23505')) {
-      return res.status(409).json({ error: 'Ese usuario ya está registrado. Elija otro o inicie sesión.' });
+      return res.status(409).json({ error: 'Ese correo ya está registrado. Inicie sesión o use otro correo.' });
     }
     if (r.status === 404 || errorTabla(texto)) {
       return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+    }
+    if (r.status === 400 && texto.includes('celular')) {
+      return res.status(400).json({ error: 'La tabla vea_usuarios no tiene la columna celular. Ejecute el SQL actualizado en Supabase.' });
     }
     return res.status(500).json({ error: 'No se pudo crear la cuenta. Intente nuevamente.' });
   }
 
   await registrarAcceso({
-    email: usuario,
+    email,
     nombre,
     proveedor: 'registro',
     ip: ipDe(req),
@@ -104,15 +111,15 @@ async function registrar(req, res, cuerpo, claves) {
     exito: true
   });
 
-  const token = firmar({ email: usuario, nombre, proveedor: 'registro' }, 12);
+  const token = firmar({ email, nombre, proveedor: 'registro' }, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true });
 }
 
 async function ingresar(req, res, cuerpo, claves) {
-  const usuario = String(cuerpo.usuario || '').toLowerCase().trim();
+  const usuario = String(cuerpo.usuario || cuerpo.email || '').toLowerCase().trim();
   const clave = String(cuerpo.clave || '');
-  if (!usuario || !clave) return res.status(400).json({ error: 'Escriba su usuario y su contraseña.' });
+  if (!usuario || !clave) return res.status(400).json({ error: 'Escriba su correo y su contraseña.' });
 
   let r;
   try {

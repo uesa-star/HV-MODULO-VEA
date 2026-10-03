@@ -23,12 +23,31 @@
   }
   h1 { font-size: 1.5rem; font-weight: 600; text-align: center; color: #1f2328; letter-spacing: -.01em; }
   .sub { margin-top: .45rem; text-align: center; font-size: .8rem; color: #636c76; }
-  .intro { margin-top: 1.1rem; font-size: .8rem; line-height: 1.55; color: #57606a; }
+  .intro { margin-top: 1rem; font-size: .78rem; line-height: 1.55; color: #57606a; text-align: center; }
+  .campo { display: block; margin-top: .75rem; }
+  .campo span { display: block; font-size: .78rem; font-weight: 600; color: #1f2328; margin-bottom: .3rem; }
+  .campo input {
+    width: 100%; padding: .62rem .7rem; font-size: .9rem; font-family: inherit;
+    background: #ffffff; color: #1f2328;
+    border: 1px solid #d0d7de; border-radius: .45rem; outline: none;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .campo input:focus { border-color: #0969da; box-shadow: 0 0 0 3px #0969da26; }
+  .btnPrimario {
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    width: 100%; padding: .68rem .75rem; margin-top: 1rem;
+    background: #d01b2b; color: #ffffff;
+    border: 1px solid #b01622; border-radius: .45rem;
+    font-size: .9rem; font-weight: 700; font-family: inherit;
+    cursor: pointer; transition: background .12s;
+  }
+  .btnPrimario:hover { background: #b01622; }
+  .btnPrimario[disabled] { opacity: .6; cursor: not-allowed; }
   .btn {
     display: flex; align-items: center; justify-content: center; gap: .7rem;
-    width: 100%; padding: .6rem .75rem; margin-top: .9rem;
+    width: 100%; padding: .62rem .75rem; margin-top: .8rem;
     background: #f6f8fa; color: #24292f;
-    border: 1px solid #d0d7de; border-radius: .4rem;
+    border: 1px solid #d0d7de; border-radius: .45rem;
     font-size: .875rem; font-weight: 600; font-family: inherit;
     cursor: pointer; text-decoration: none;
     transition: background .12s, border-color .12s;
@@ -37,29 +56,11 @@
   .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
   .btn[aria-disabled="true"]:hover { background: #f6f8fa; border-color: #d0d7de; }
   .btn svg { flex-shrink: 0; }
-  .divider { display: flex; align-items: center; gap: .9rem; margin: 1rem 0 .1rem; color: #57606a; font-size: .8rem; }
+  .btnProx { font-size: .6rem; font-weight: 700; color: #8b949e; border: 1px solid #d0d7de; border-radius: 999px; padding: .1rem .45rem; margin-left: .35rem; }
+  .divider { display: flex; align-items: center; gap: .9rem; margin: 1.1rem 0 .1rem; color: #57606a; font-size: .8rem; font-weight: 600; }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #d8dee4; }
-  .formulario { display: none; margin-top: .9rem; }
+  .formulario { display: none; }
   .formulario.activo { display: block; }
-  .campo { display: block; margin-bottom: .8rem; }
-  .campo span { display: block; font-size: .78rem; font-weight: 600; color: #1f2328; margin-bottom: .3rem; }
-  .campo input {
-    width: 100%; padding: .55rem .7rem; font-size: .875rem; font-family: inherit;
-    background: #ffffff; color: #1f2328;
-    border: 1px solid #d0d7de; border-radius: .4rem; outline: none;
-    transition: border-color .12s, box-shadow .12s;
-  }
-  .campo input:focus { border-color: #0969da; box-shadow: 0 0 0 3px #0969da26; }
-  .btnPrimario {
-    display: flex; align-items: center; justify-content: center; gap: .5rem;
-    width: 100%; padding: .6rem .75rem; margin-top: .2rem;
-    background: #1f883d; color: #ffffff;
-    border: 1px solid #1a7f37; border-radius: .4rem;
-    font-size: .875rem; font-weight: 600; font-family: inherit;
-    cursor: pointer; transition: background .12s;
-  }
-  .btnPrimario:hover { background: #1a7f37; }
-  .btnPrimario[disabled] { opacity: .6; cursor: not-allowed; }
   .enlaces { margin-top: .9rem; text-align: center; font-size: .78rem; color: #57606a; }
   .enlaces a { color: #0969da; font-weight: 600; text-decoration: none; cursor: pointer; }
   .enlaces a:hover { text-decoration: underline; }
@@ -71,7 +72,7 @@
   .errorBox { background: #ffebe9; border: 1px solid #ff8182; color: #a40e26; }
   .okBox { background: #dafbe1; border: 1px solid #4ac26b66; color: #116329; }
   .verificando { display: none; text-align: center; padding: .9rem 0 0; font-size: .78rem; color: #636c76; font-weight: 600; }
-  .pie { margin-top: 1.6rem; text-align: center; font-size: .68rem; color: #8b949e; line-height: 1.6; }
+  .pie { margin-top: 1.5rem; text-align: center; font-size: .68rem; color: #8b949e; line-height: 1.6; }
   .pie strong { color: #57606a; }
 </style>
 </head>
@@ -80,11 +81,40 @@
     <div class="logo">VEA</div>
     <h1>Iniciar sesión</h1>
     <p class="sub">Módulo de Vigilancia Epidemiológica Activa · Hospital de Ventanilla</p>
+    <p class="intro">Acceso restringido. Cada ingreso queda registrado con fecha y hora.</p>
 
-    <p class="intro">
-      Acceso restringido. Ingrese con su cuenta de Google o con el usuario
-      que creó en el registro. Cada ingreso queda registrado.
-    </p>
+    <form id="formLogin" class="formulario activo" autocomplete="on">
+      <label class="campo"><span>Correo electrónico</span>
+        <input id="lgUsuario" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
+      </label>
+      <label class="campo"><span>Contraseña</span>
+        <input id="lgClave" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" id="btnIngresar" class="btnPrimario">Continuar</button>
+      <p class="enlaces">¿No tiene cuenta? <a id="lnkRegistro">Regístrese aquí</a></p>
+    </form>
+
+    <form id="formRegistro" class="formulario" autocomplete="on">
+      <label class="campo"><span>Nombre completo</span>
+        <input id="rgNombre" type="text" autocomplete="name" required>
+      </label>
+      <label class="campo"><span>Correo electrónico</span>
+        <input id="rgEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
+      </label>
+      <label class="campo"><span>Celular (opcional, para avisos y recuperación)</span>
+        <input id="rgCelular" type="tel" autocomplete="tel" inputmode="tel" placeholder="ej: 987654321">
+      </label>
+      <label class="campo"><span>Crear contraseña (mínimo 8 caracteres)</span>
+        <input id="rgClave" type="password" autocomplete="new-password" required>
+      </label>
+      <label class="campo"><span>Repetir contraseña</span>
+        <input id="rgConfirm" type="password" autocomplete="new-password" required>
+      </label>
+      <button type="submit" id="btnCrear" class="btnPrimario">Crear cuenta</button>
+      <p class="enlaces">¿Ya tiene cuenta? <a id="lnkLogin">Inicie sesión</a></p>
+    </form>
+
+    <div class="divider">o</div>
 
     <a id="btnGoogle" class="btn" href="#" aria-disabled="true">
       <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
@@ -96,40 +126,11 @@
       Continuar con Google
     </a>
 
-    <div class="divider">o</div>
-
-    <button type="button" id="btnAbrirUsuario" class="btn">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-      Continuar con usuario y contraseña
+    <button type="button" class="btn" aria-disabled="true" disabled title="Próximamente">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.96h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
+      Continuar con Facebook
+      <span class="btnProx">PRÓXIMAMENTE</span>
     </button>
-
-    <form id="formLogin" class="formulario" autocomplete="on">
-      <label class="campo"><span>Usuario</span>
-        <input id="lgUsuario" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-      </label>
-      <label class="campo"><span>Contraseña</span>
-        <input id="lgClave" name="password" type="password" autocomplete="current-password" required>
-      </label>
-      <button type="submit" id="btnIngresar" class="btnPrimario">Ingresar</button>
-      <p class="enlaces">¿No tiene cuenta? <a id="lnkRegistro">Regístrese aquí</a></p>
-    </form>
-
-    <form id="formRegistro" class="formulario" autocomplete="on">
-      <label class="campo"><span>Nombre completo</span>
-        <input id="rgNombre" type="text" autocomplete="name" required>
-      </label>
-      <label class="campo"><span>Usuario</span>
-        <input id="rgUsuario" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez" required>
-      </label>
-      <label class="campo"><span>Contraseña (mínimo 8 caracteres)</span>
-        <input id="rgClave" type="password" autocomplete="new-password" required>
-      </label>
-      <label class="campo"><span>Repetir contraseña</span>
-        <input id="rgConfirm" type="password" autocomplete="new-password" required>
-      </label>
-      <button type="submit" id="btnCrear" class="btnPrimario">Crear cuenta</button>
-      <p class="enlaces">¿Ya tiene cuenta? <a id="lnkLogin">Inicie sesión</a></p>
-    </form>
 
     <div id="verificando" class="verificando">Verificando configuración…</div>
     <div id="avisoConfig" class="aviso"></div>
@@ -139,7 +140,7 @@
 
     <p class="pie">
       Sistema de vigilancia epidemiológica · Información sujeta a validación oficial.<br>
-      <strong>Los accesos se registran con fecha, hora y usuario</strong> electrónico para trazabilidad.
+      <strong>Los accesos se registran con fecha, hora y correo</strong> electrónico para trazabilidad.
     </p>
   </main>
 
@@ -175,7 +176,7 @@
         btn.removeAttribute('aria-disabled');
       } else {
         aviso.textContent = 'El ingreso con Google aún no está configurado en el servidor. ' +
-          'Puede usar el usuario y contraseña si ya tiene cuenta.';
+          'Puede usar el correo y la contraseña si ya tiene cuenta.';
         aviso.style.display = 'block';
         btn.setAttribute('aria-disabled', 'true');
       }
@@ -190,10 +191,9 @@
     if (btn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
   });
 
-  /* ===== Registro e ingreso con usuario/contraseña ===== */
+  /* ===== Ingreso y registro con correo/contraseña ===== */
   var formLogin = document.getElementById('formLogin');
   var formRegistro = document.getElementById('formRegistro');
-  var btnAbrir = document.getElementById('btnAbrirUsuario');
   var msgForm = document.getElementById('msgForm');
   var msgOk = document.getElementById('msgOk');
 
@@ -202,14 +202,9 @@
     msgOk.style.display = 'none';
     formLogin.classList.remove('activo');
     formRegistro.classList.remove('activo');
-    if (form) {
-      form.classList.add('activo');
-      btnAbrir.style.display = 'none';
-      var primero = form.querySelector('input');
-      if (primero) primero.focus();
-    } else {
-      btnAbrir.style.display = '';
-    }
+    form.classList.add('activo');
+    var primero = form.querySelector('input');
+    if (primero) primero.focus();
   }
 
   function error(msg) {
@@ -218,7 +213,6 @@
     msgForm.style.display = 'block';
   }
 
-  btnAbrir.addEventListener('click', function () { mostrar(formLogin); });
   document.getElementById('lnkRegistro').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formRegistro); });
   document.getElementById('lnkLogin').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formLogin); });
 
@@ -244,10 +238,10 @@
 
   formLogin.addEventListener('submit', function (ev) {
     ev.preventDefault();
-    var usuario = document.getElementById('lgUsuario').value.trim();
+    var email = document.getElementById('lgUsuario').value.trim().toLowerCase();
     var clave = document.getElementById('lgClave').value;
-    if (!usuario || !clave) return error('Escriba su usuario y su contraseña.');
-    enviar('/api/auth/cuentas', { accion: 'ingreso', usuario: usuario, clave: clave },
+    if (!email || !clave) return error('Escriba su correo y su contraseña.');
+    enviar('/api/auth/cuentas', { accion: 'ingreso', usuario: email, clave: clave },
       document.getElementById('btnIngresar'),
       function () { location.href = '/'; });
   });
@@ -255,14 +249,16 @@
   formRegistro.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var nombre = document.getElementById('rgNombre').value.trim();
-    var usuario = document.getElementById('rgUsuario').value.trim();
+    var email = document.getElementById('rgEmail').value.trim().toLowerCase();
+    var celular = document.getElementById('rgCelular').value.trim();
     var clave = document.getElementById('rgClave').value;
     var confirm = document.getElementById('rgConfirm').value;
     if (nombre.length < 2) return error('Escriba su nombre completo.');
-    if (!/^[a-z0-9._-]{4,30}$/i.test(usuario)) return error('Usuario inválido: use 4 a 30 caracteres (letras, números, punto, guion o guion bajo).');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
+    if (celular && !/^\+?[0-9\s()-]{7,18}$/.test(celular)) return error('El celular debe contener solo dígitos (7 a 15 números).');
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
-    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, usuario: usuario, clave: clave, confirm: confirm },
+    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, email: email, celular: celular, clave: clave, confirm: confirm },
       document.getElementById('btnCrear'),
       function () {
         msgForm.style.display = 'none';
