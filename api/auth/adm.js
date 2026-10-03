@@ -16,6 +16,7 @@
 const crypto = require('crypto');
 const { firmar, sesion, sesionAdm, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('../../lib/session');
 const { hashearClave, verificarClave } = require('../../lib/clave');
+const { asegurarTablas } = require('../../lib/tablas');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -53,22 +54,26 @@ function errorTabla(texto) {
 async function leerConfig(req, res) {
   const claves = clavesSupabase();
   if (!claves) return { error: 'Sin credenciales de base de datos en Vercel.' };
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/vea_config?k=in.(adm_password_hash,adm_email)`, {
-      headers: claves,
-      cache: 'no-store'
-    });
-    if (r.status === 404) {
-      return { error: 'La tabla vea_config no existe. Ejecute el SQL de creación en Supabase.' };
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/vea_config?k=in.(adm_password_hash,adm_email)`, {
+        headers: claves,
+        cache: 'no-store'
+      });
+      if (r.status === 404 || (r.status === 400 && intento === 0)) {
+        if (intento === 0 && await asegurarTablas()) continue;
+        return { error: 'La tabla vea_config no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' };
+      }
+      if (!r.ok) return { error: 'No se pudo leer la configuración. Intente nuevamente.' };
+      const filas = await r.json().catch(() => []);
+      const cfg = {};
+      (Array.isArray(filas) ? filas : []).forEach(function (f) { cfg[String(f.k)] = String(f.v || ''); });
+      return { cfg };
+    } catch (_) {
+      return { error: 'No se pudo contactar con la base de datos. Intente nuevamente.' };
     }
-    if (!r.ok) return { error: 'No se pudo leer la configuración. Intente nuevamente.' };
-    const filas = await r.json().catch(() => []);
-    const cfg = {};
-    (Array.isArray(filas) ? filas : []).forEach(function (f) { cfg[String(f.k)] = String(f.v || ''); });
-    return { cfg };
-  } catch (_) {
-    return { error: 'No se pudo contactar con la base de datos. Intente nuevamente.' };
   }
+  return { error: 'No se pudo leer la configuración. Intente nuevamente.' };
 }
 
 async function guardarConfig(pares) {

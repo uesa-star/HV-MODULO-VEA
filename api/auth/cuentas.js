@@ -7,6 +7,7 @@
  */
 const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION, sesionAdm } = require('../../lib/session');
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
+const { asegurarTablas } = require('../../lib/tablas');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -34,7 +35,8 @@ function errorTabla(texto) {
   return texto.includes('PGRST205') || texto.includes('42P01');
 }
 
-async function listarUsuarios(req, res, claves) {
+async function listarUsuarios(req, res, claves, intento) {
+  intento = intento || 0;
   if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
   let r;
@@ -50,7 +52,8 @@ async function listarUsuarios(req, res, claves) {
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
     if (r.status === 404 || errorTabla(texto)) {
-      return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+      if (intento === 0 && await asegurarTablas()) return listarUsuarios(req, res, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
     }
     return res.status(500).json({ error: 'No se pudo listar los usuarios. Intente nuevamente.' });
   }
@@ -59,7 +62,8 @@ async function listarUsuarios(req, res, claves) {
   return res.status(200).json({ usuarios: Array.isArray(filas) ? filas : [] });
 }
 
-async function restaurarClave(req, res, cuerpo, claves) {
+async function restaurarClave(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
   if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
   const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
@@ -86,7 +90,8 @@ async function restaurarClave(req, res, cuerpo, claves) {
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
     if (r.status === 404 || errorTabla(texto)) {
-      return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+      if (intento === 0 && await asegurarTablas()) return restaurarClave(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
     }
     return res.status(500).json({ error: 'No se pudo restablecer la contraseña. Intente nuevamente.' });
   }
@@ -109,7 +114,8 @@ async function restaurarClave(req, res, cuerpo, claves) {
   return res.status(200).json({ ok: true, usuario: email });
 }
 
-async function registrar(req, res, cuerpo, claves) {
+async function registrar(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 80);
   const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
   const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
@@ -146,9 +152,11 @@ async function registrar(req, res, cuerpo, claves) {
       return res.status(409).json({ error: 'Ese correo ya está registrado. Inicie sesión o use otro correo.' });
     }
     if (r.status === 404 || errorTabla(texto)) {
-      return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+      if (intento === 0 && await asegurarTablas()) return registrar(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
     }
     if (r.status === 400 && texto.includes('celular')) {
+      if (intento === 0 && await asegurarTablas()) return registrar(req, res, cuerpo, claves, 1);
       return res.status(400).json({ error: 'La tabla vea_usuarios no tiene la columna celular. Ejecute el SQL actualizado en Supabase.' });
     }
     return res.status(500).json({ error: 'No se pudo crear la cuenta. Intente nuevamente.' });
@@ -168,7 +176,8 @@ async function registrar(req, res, cuerpo, claves) {
   return res.status(200).json({ ok: true });
 }
 
-async function ingresar(req, res, cuerpo, claves) {
+async function ingresar(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
   const usuario = String(cuerpo.usuario || cuerpo.email || '').toLowerCase().trim();
   const clave = String(cuerpo.clave || '');
   if (!usuario || !clave) return res.status(400).json({ error: 'Escriba su correo y su contraseña.' });
@@ -186,7 +195,8 @@ async function ingresar(req, res, cuerpo, claves) {
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
     if (r.status === 404 || errorTabla(texto)) {
-      return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+      if (intento === 0 && await asegurarTablas()) return ingresar(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
     }
     return res.status(500).json({ error: 'No se pudo verificar la cuenta. Intente nuevamente.' });
   }
