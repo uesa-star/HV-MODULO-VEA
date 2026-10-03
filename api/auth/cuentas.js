@@ -6,7 +6,7 @@
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  */
 const crypto = require('crypto');
-const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION } = require('../../lib/session');
+const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION, sesionAdm } = require('../../lib/session');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -55,6 +55,81 @@ async function registrarAcceso(fila) {
 
 function errorTabla(texto) {
   return texto.includes('PGRST205') || texto.includes('42P01');
+}
+
+async function listarUsuarios(req, res, claves) {
+  if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,celular,activo,creado_en&order=creado_en.desc&limit=500`, {
+      headers: claves,
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo listar los usuarios. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  return res.status(200).json({ usuarios: Array.isArray(filas) ? filas : [] });
+}
+
+async function restaurarClave(req, res, cuerpo, claves) {
+  if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  const clave = String(cuerpo.clave || '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  if (clave.length < 8 || clave.length > 72) {
+    return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
+  }
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ password_hash: hashearClave(clave) }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe. Ejecute el SQL de creación en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo restablecer la contraseña. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  if (!Array.isArray(filas) || !filas.length) {
+    return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
+  const adm = sesionAdm(req) || {};
+  await registrarAcceso({
+    email: `adm:restauró clave → ${email}`,
+    nombre: String(adm.email || 'ADM'),
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true, usuario: email });
 }
 
 async function registrar(req, res, cuerpo, claves) {
@@ -197,5 +272,7 @@ module.exports = async function handler(req, res) {
   const accion = String(cuerpo.accion || '');
   if (accion === 'registro') return registrar(req, res, cuerpo, claves);
   if (accion === 'ingreso') return ingresar(req, res, cuerpo, claves);
-  return res.status(400).json({ error: 'Acción inválida (use "registro" o "ingreso").' });
+  if (accion === 'usuarios') return listarUsuarios(req, res, claves);
+  if (accion === 'restaurar') return restaurarClave(req, res, cuerpo, claves);
+  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios" o "restaurar").' });
 };
