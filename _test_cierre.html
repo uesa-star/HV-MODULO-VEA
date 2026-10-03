@@ -1,0 +1,121 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; overflow: hidden; }
+iframe { width: 1600px; height: 900px; border: 0; display: block; }
+#pdf { display: none; }
+canvas { display: block; width: 1600px; }
+</style>
+</head>
+<body>
+<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=9"></iframe>
+<pre id="pdf"></pre>
+<script>
+function W() { return document.getElementById('fr').contentWindow; }
+function tieneDatos(c) {
+  try {
+    var w = W();
+    var g = (w.Chart && w.Chart.getChart) ? w.Chart.getChart(c) : null;
+    return !!(g && g.data && g.data.datasets && g.data.datasets.some(function (s) { return s.data && s.data.length; }));
+  } catch (_) { return false; }
+}
+function intento(n) {
+  try {
+    var w = W(), d = w.document;
+    var canvases = Array.prototype.slice.call(d.querySelectorAll('canvas[id]')).filter(function (c) {
+      return c.width > 0 && c.height > 0 && w.veaTarjetaParaGraficoF468(c);
+    });
+    if (!canvases.length) { if (n < 40) { setTimeout(function () { intento(n + 1); }, 1000); return; } document.title = 'ERR NO_CANVASES'; return; }
+    var ok = canvases.some(tieneDatos);
+    if (!ok && n < 40) { setTimeout(function () { intento(n + 1); }, 1000); return; }
+    if (!ok) { document.title = 'ERR NO_DATOS'; return; }
+    setTimeout(function () { prueba(w, d, canvases); }, 1500);
+  } catch (e) { document.title = 'ERR ' + e.message; }
+}
+async function prueba(w, d, canvases) {
+  try {
+    var sel = d.getElementById('selectSemana');
+    var tiene38 = Array.prototype.slice.call(sel.options).some(function (o) { return o.value === '38'; });
+    if (!tiene38) { var op = d.createElement('option'); op.value = '38'; op.textContent = 'S.E. 38'; sel.appendChild(op); }
+    var tiene40 = Array.prototype.slice.call(sel.options).some(function (o) { return o.value === '40'; });
+    if (!tiene40) { var op2 = d.createElement('option'); op2.value = '40'; op2.textContent = 'S.E. 40'; sel.appendChild(op2); }
+
+    if (w.veaAplicarTemaGraficosF469) w.veaAplicarTemaGraficosF469('light');
+    if (w.veaPrecargarLaminaF469) await w.veaPrecargarLaminaF469();
+
+    sel.value = '38';
+    var c38 = w.veaCrearCierreLaminaF469();
+    var d38 = w.veaDatosPeriodoF469(null);
+
+    sel.value = '40';
+    var c40 = w.veaCrearCierreLaminaF469();
+    var d40 = w.veaDatosPeriodoF469(null);
+
+    // --- FASE CASOS INDIVIDUALES ---
+    var faseCasos = '';
+    try {
+      var selTipo = d.getElementById('ciSelectTipo');
+      faseCasos += '|TIPO_SELECT=' + (selTipo ? 'si' : 'no');
+      var tabPrev = w.eval('tabActiva');
+      w.eval("tabActiva = 'casos'; estadoCasosIndividualesV21.anios = [2026]; estadoCasosIndividualesV21.mes = 'Todos'; estadoCasosIndividualesV21.semana = 'Todas'; estadoCasosIndividualesV21.tipo = 'Todos'; ciV21SincronizarControles();");
+      faseCasos += '|OPC=' + selTipo.options.length;
+      var tipoReal = selTipo.options.length > 1 ? selTipo.options[1].value : 'NO_TIPO';
+      var nFiltrados = 0, nTodos = 0;
+      w.eval("window.__nTodos = ciV21Filtrados().length;");
+      nTodos = w.__nTodos;
+      w.eval("estadoCasosIndividualesV21.tipo = " + JSON.stringify(tipoReal) + "; ciV21SincronizarControles(); window.__nTipo = ciV21Filtrados().length;");
+      nFiltrados = w.__nTipo;
+      faseCasos += '|TIPO=' + tipoReal + '|F_TODOS=' + nTodos + '|F_TIPO=' + nFiltrados + '|SEL=' + selTipo.value;
+      w.eval("estadoCasosIndividualesV21.anios = [2026]; estadoCasosIndividualesV21.semana = '38';");
+      var dCi = w.eval('veaDatosPeriodoF469(null)');
+      faseCasos += '|CI_SE=' + dCi.se + '|CI_ANIOS=' + dCi.anios.join(',');
+      var portCi = w.veaCrearPortadaLaminaF469('Casos Individuales', '');
+      var cerrCi = w.veaCrearCierreLaminaF469();
+      faseCasos += '|PORT_CI=' + (portCi.width === 1600 && portCi.height === 900 ? 'ok' : 'mal');
+      w.eval("estadoCasosIndividualesV21.semana = 'Todas'; estadoCasosIndividualesV21.tipo = 'Todos';");
+      var dCiTodas = w.eval('veaDatosPeriodoF469(null)');
+      faseCasos += '|CI_TODAS_SE=' + dCiTodas.se;
+      var cerrCi2 = w.veaCrearCierreLaminaF469();
+      w.eval("tabActiva = " + JSON.stringify(tabPrev) + "; estadoCasosIndividualesV21.anios = []; estadoCasosIndividualesV21.mes = 'Todos'; estadoCasosIndividualesV21.semana = 'Todas'; estadoCasosIndividualesV21.tipo = 'Todos';");
+      window.__ciPaginas = [portCi, cerrCi, cerrCi2];
+      window.__ciOk = true;
+    } catch (e) { window.__ciOk = false; faseCasos += '|ERR=' + e.message; }
+
+    var modulo = 'Vigilancia Epidemiologica Activa';
+    var port = w.veaCrearPortadaLaminaF469(modulo, '');
+    var paginas = [port];
+    var cMes = d.getElementById('chartComparativoMensualMinsa');
+    var cSem = d.getElementById('chartSemanalMultianualMinsa');
+    var cEdad = d.getElementById('chartDistribucionEdadesVea');
+    if (cMes) paginas.push((await w.veaCrearLaminaGraficoF469(cMes, modulo, '', 2)).salida);
+    if (cSem) paginas.push((await w.veaCrearLaminaGraficoF469(cSem, modulo, '', 1)).salida);
+    if (cEdad) paginas.push((await w.veaCrearLaminaGraficoF469(cEdad, modulo, '', 3)).salida);
+    paginas.push(c38);
+    if (window.__ciPaginas) paginas = paginas.concat(window.__ciPaginas);
+    var bytes = w.veaConstruirPdfF469(paginas);
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    var b64 = btoa(bin);
+
+    sel.value = '38';
+    document.body.innerHTML = '';
+    document.body.style.margin = '0';
+    document.body.style.background = '#ffffff';
+    document.body.appendChild(c38);
+    document.body.appendChild(c40);
+    var pre = document.createElement('pre');
+    pre.id = 'pdf';
+    pre.textContent = b64;
+    document.body.appendChild(pre);
+    document.title = 'OK PAG=' + paginas.length + ' PDF=' + bytes.length + ' SE38=' + d38.se + ' R38=' + w.veaRangoSemanasCierreF469('2026', '38') + ' R40=' + w.veaRangoSemanasCierreF469('2026', '40') + (window.__ciOk ? '' : ' CI_FAIL') + faseCasos;
+  } catch (e) { document.title = 'ERR ' + e.message; }
+}
+setTimeout(function () { intento(0); }, 16000);
+</script>
+</body>
+</html>
+
+
+
