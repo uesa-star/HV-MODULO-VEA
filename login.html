@@ -255,6 +255,14 @@
     mostrar(formRecupera);
   });
 
+  /* Enlace desde el correo (?recuperar=correo): abre el formulario listo para pegar el código. */
+  var recuperar = params.get('recuperar');
+  if (!params.get('cambiar') && recuperar && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recuperar.toLowerCase())) {
+    document.getElementById('rcEmail').value = recuperar.toLowerCase();
+    document.getElementById('rcPaso2').style.display = 'block';
+    mostrar(formRecupera);
+  }
+
   function enviar(ruta, datos, boton, alOk) {
     boton.disabled = true;
     msgForm.style.display = 'none';

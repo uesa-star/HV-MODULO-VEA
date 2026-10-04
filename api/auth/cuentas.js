@@ -431,6 +431,8 @@ async function enviarCodigoUsuario(req, res, cuerpo, claves, intento) {
     '<p style="font-size:12px;letter-spacing:2px;color:#f59e0b;font-weight:800;margin:0 0 12px">MÓDULO VEA — RECUPERACIÓN DE CONTRASEÑA</p>' +
     '<p style="font-size:14px;margin:0 0 16px">Use el siguiente código para restablecer su contraseña. Vence en <b>10 minutos</b>.</p>' +
     '<p style="font-size:40px;font-weight:800;letter-spacing:12px;color:#fbbf24;margin:0;text-align:center;background:#1e293b;border-radius:10px;padding:16px">' + codigo + '</p>' +
+    '<p style="text-align:center;margin:20px 0 4px"><a href="https://vigilancia-epidemiologica-ecru.vercel.app/login.html?recuperar=' + encodeURIComponent(email) + '" style="display:inline-block;background:#f59e0b;color:#0f172a;font-weight:800;font-size:14px;text-decoration:none;border-radius:10px;padding:12px 24px">Poner el codigo y mi contrasena nueva</a></p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:14px 0 0;text-align:center">O abra el login, pulse «Recupérela aquí», escriba su correo y pegue ahí el código.</p>' +
     '<p style="font-size:12px;color:#94a3b8;margin:16px 0 0">Si usted no solicitó este código, ignore este correo: no cambió nada.</p>' +
     '</div>';
 
