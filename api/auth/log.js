@@ -29,7 +29,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_login_log?select=creado_en,email,nombre,proveedor,ip,exito&order=creado_en.desc&limit=200`,
+      `${SUPABASE_URL}/rest/v1/vea_login_log?select=creado_en,email,nombre,proveedor,ip,exito,user_agent,sesion_id,salida,ultimo_visto&order=creado_en.desc&limit=200`,
       { headers: { apikey: service, Authorization: `Bearer ${service}` }, cache: 'no-store' }
     );
     const texto = await r.text();

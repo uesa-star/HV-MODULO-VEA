@@ -3,7 +3,7 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesion, sesionAdm } = require('../../lib/session');
-const { admActivo } = require('../../lib/control');
+const { admActivo, marcarVisto } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -17,7 +17,14 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ autenticado: false, adm: false });
   }
   let adm = false;
-  if (sesionAdm(req)) adm = Boolean(await admActivo(req));
+  const vistas = [];
+  if (datos.sid) vistas.push(datos.sid);
+  if (sesionAdm(req)) {
+    const a = await admActivo(req);
+    adm = Boolean(a);
+    if (a && a.sid && a.sid !== datos.sid) vistas.push(a.sid);
+  }
+  await Promise.all(vistas.map(marcarVisto));
   return res.status(200).json({
     autenticado: true,
     email: datos.email || '',

@@ -4,7 +4,7 @@
  * Intercambia el código, verifica la identidad (userinfo), registra el
  * acceso en vea_login_log y crea la cookie de sesión firmada.
  */
-const { firmar, leerCookie, cookie, ipDe, userAgentDe } = require('../../lib/session');
+const { firmar, leerCookie, cookie, ipDe, userAgentDe, nuevoSid } = require('../../lib/session');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -93,13 +93,15 @@ module.exports = async function handler(req, res) {
       return redirigir(res, '/login.html?e=verificado');
     }
 
+    const sid = nuevoSid();
     await registrarAcceso({
       email: String(perfil.email).toLowerCase(),
       nombre: String(perfil.name || '').slice(0, 200),
       proveedor: 'google',
       ip: ipDe(req),
       user_agent: userAgentDe(req),
-      exito: true
+      exito: true,
+      sesion_id: sid
     });
 
     const sesion = firmar(
@@ -108,7 +110,8 @@ module.exports = async function handler(req, res) {
         email: String(perfil.email).toLowerCase(),
         nombre: String(perfil.name || perfil.email).slice(0, 200),
         foto: String(perfil.picture || '').slice(0, 400),
-        proveedor: 'google'
+        proveedor: 'google',
+        sid: sid
       },
       12
     );

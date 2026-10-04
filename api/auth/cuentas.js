@@ -5,7 +5,7 @@
  *        en public.vea_usuarios (hash scrypt) y devuelve sesión vea_session (12 h).
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  */
-const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION } = require('../../lib/session');
+const { firmar, cookie, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = require('../../lib/session');
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { asegurarTablas } = require('../../lib/tablas');
 const { admActivo, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
@@ -164,16 +164,18 @@ async function registrar(req, res, cuerpo, claves, intento) {
     return res.status(500).json({ error: 'No se pudo crear la cuenta. Intente nuevamente.' });
   }
 
+  const sidReg = nuevoSid();
   await registrarAcceso({
     email,
     nombre,
     proveedor: 'registro',
     ip: ipDe(req),
     user_agent: userAgentDe(req),
-    exito: true
+    exito: true,
+    sesion_id: sidReg
   });
 
-  const token = firmar({ email, nombre, proveedor: 'registro' }, 12);
+  const token = firmar({ email, nombre, proveedor: 'registro', sid: sidReg }, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true });
 }
@@ -238,16 +240,18 @@ async function ingresar(req, res, cuerpo, claves, intento) {
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
   }
 
+  const sidIng = nuevoSid();
   await registrarAcceso({
     email: usuario,
     nombre: fila.nombre || usuario,
     proveedor: 'registro',
     ip: ipDe(req),
     user_agent: userAgentDe(req),
-    exito: true
+    exito: true,
+    sesion_id: sidIng
   });
 
-  const token = firmar({ email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro' }, 12);
+  const token = firmar({ email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng }, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true });
 }

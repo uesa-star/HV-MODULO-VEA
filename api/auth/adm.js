@@ -23,11 +23,11 @@
  *  · Código por correo: hash scrypt en vea_config, nunca se guarda ni registra en claro.
  */
 const crypto = require('crypto');
-const { firmar, sesion, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('../../lib/session');
+const { firmar, sesion, sesionAdm, nuevoSid, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('../../lib/session');
 const { hashearClave, verificarClave } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const {
-  clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion,
+  clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion, marcarSalida,
   FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes
 } = require('../../lib/control');
 
@@ -289,6 +289,8 @@ async function restaurarConCodigoAdm(req, res, cuerpo) {
 
 module.exports = async function handler(req, res) {
   if (req.method === 'DELETE') {
+    const sa = sesionAdm(req);
+    if (sa && sa.sid) await marcarSalida(sa.sid);
     res.setHeader('Set-Cookie', cookie(NOMBRE_ADM, '', 0));
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ok: true });
@@ -372,20 +374,23 @@ module.exports = async function handler(req, res) {
     await guardarConfig({ adm_fallos: '0', adm_bloqueo_hasta: '0' });
   }
 
+  const sid = nuevoSid();
   await registrarAcceso({
     email: `adm:${usuarioEsperado}`,
     nombre: 'Administrador',
     proveedor: 'adm',
     ip: ipDe(req),
     user_agent: userAgentDe(req),
-    exito: true
+    exito: true,
+    sesion_id: sid
   });
 
   const token = firmar({
     email: `adm:${usuarioEsperado}`,
     nombre: 'Administrador',
     proveedor: 'adm',
-    v: cfg.adm_ses || ''             // versión de sesión (C)
+    v: cfg.adm_ses || '',            // versión de sesión (C)
+    sid: sid                         // id de sesión (permanencia en el log)
   }, 8);
   res.setHeader('Set-Cookie', cookie(NOMBRE_ADM, token, 8));
   res.setHeader('Cache-Control', 'no-store');
