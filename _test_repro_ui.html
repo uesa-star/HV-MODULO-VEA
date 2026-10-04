@@ -1,0 +1,140 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 0; background: #fff; overflow: hidden; }
+iframe { width: 1600px; height: 900px; border: 0; display: block; }
+</style>
+</head>
+<body>
+<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=101"></iframe>
+<script>
+function W() { return document.getElementById('fr').contentWindow; }
+
+function leer(w) {
+  return w.eval(`(function(){
+    var g3 = null, g1 = null;
+    try {
+      var c3 = Chart.getChart(document.getElementById('ciChartG3Diagnostico'));
+      g3 = c3 ? { labels: c3.data.labels.slice(), tot: c3.data.datasets.map(function(d){ return d.data.reduce(function(a,b){return a+(Number(b)||0)},0); }) } : null;
+    } catch(e){ g3 = 'ERR:'+e.message; }
+    try {
+      var c1 = Chart.getChart(document.getElementById('ciChartG1Anual'));
+      g1 = c1 ? { labels: c1.data.labels.slice(), tot: c1.data.datasets.map(function(d){ return d.data.reduce(function(a,b){return a+(Number(b)||0)},0); }) } : null;
+    } catch(e){ g1 = 'ERR:'+e.message; }
+    var kpi = {};
+    ['ciKpiFiltros','ciKpiDiagnostico','ciKpiDiagnosticoDetalle','ciKpiGrupo','ciKpiGrupoDetalle'].forEach(function(id){
+      var e = document.getElementById(id); kpi[id] = e ? e.textContent.replace(/\s+/g,' ').trim() : null;
+    });
+    return JSON.stringify({
+      estado: { anios: estadoCasosIndividualesV21.anios, mes: estadoCasosIndividualesV21.mes, semana: estadoCasosIndividualesV21.semana, tipo: estadoCasosIndividualesV21.tipo },
+      nFiltrados: ciV21Filtrados().length,
+      resumen: (document.getElementById('ciResumenFiltros')||{}).textContent,
+      selSemana: (document.getElementById('ciSelectSemana')||{}).value,
+      selTipo: (document.getElementById('ciSelectTipo')||{}).value,
+      kpi: kpi, g1: g1, g3: g3,
+      resets: (window.__reproResets||[]).slice(-6),
+      renders: (window.__reproRenders||[]).slice(-6)
+    });
+  })()`);
+}
+
+var fase = 0, salida = [], aplicado = false;
+function paso() {
+  try {
+    var w = W();
+    if (fase === 0) {
+      var n = 0;
+      try { n = w.eval('ciV21Dataset().length'); } catch (_) { }
+      if (n > 0) {
+        try {
+          w.eval(`
+            window.__reproResets = []; window.__reproRenders = [];
+            var _ini = ciV21InicializarSiCorresponde;
+            ciV21InicializarSiCorresponde = function(){
+              var antes = JSON.stringify(estadoCasosIndividualesV21);
+              _ini();
+              var desp = JSON.stringify(estadoCasosIndividualesV21);
+              if (antes !== desp) window.__reproResets.push('RESET ' + antes + ' => ' + desp + ' @ ' + (new Error().stack||'').split('\\n').slice(1,4).join(' <- '));
+            };
+            var _act = actualizarCasosIndividualesV21;
+            actualizarCasosIndividualesV21 = function(f){
+              var r = _act(f);
+              try { window.__reproRenders.push('render f=' + f + ' tipo=' + estadoCasosIndividualesV21.tipo + ' se=' + estadoCasosIndividualesV21.semana + ' n=' + ciV21Filtrados().length); } catch(e){}
+              return r;
+            };
+          `);
+        } catch (_) { }
+        try { w.eval("tabActiva='dashboard';"); w.cambiarTab('casos'); } catch (_) { }
+        setTimeout(function () { try { w.eval('actualizarCasosIndividualesV21(true);'); } catch (_) { } }, 1500);
+        fase = 1;
+        setTimeout(paso, 4000);
+      } else {
+        setTimeout(paso, 1000);
+      }
+      return;
+    }
+
+    if (fase === 1) {
+      // estado inicial (3 aÃ±os por defecto)
+      salida.push('INICIAL=' + leer(w));
+      // --- SELECCIONAR S.E. y TIPO desde la UI (clic real) ---
+      var sem = w.document.getElementById('ciSelectSemana');
+      var tipo = w.document.getElementById('ciSelectTipo');
+      var opciones = [];
+      try { opciones = Array.prototype.slice.call(sem.options).map(function (o) { return o.value; }); } catch (_) { }
+      var seElegida = null;
+      for (var i = opciones.length - 1; i >= 0; i--) { if (opciones[i] !== 'Todas') { seElegida = opciones[i]; break; } }
+      var tipos = [];
+      try { tipos = Array.prototype.slice.call(tipo.options).map(function (o) { return o.value; }); } catch (_) { }
+      var tipoElegido = null;
+      for (var j = 0; j < tipos.length; j++) { if (tipos[j] !== 'Todos') { tipoElegido = tipos[j]; break; } }
+      salida.push('UI_SE=' + seElegida + ' UI_TIPO=' + tipoElegido + ' OPS_TIPO=' + tipos.slice(0, 6).join(','));
+      try {
+        sem.value = seElegida;
+        sem.dispatchEvent(new w.Event('change', { bubbles: true }));
+      } catch (e) { salida.push('ERR_SE=' + e.message); }
+      setTimeout(function () {
+        try {
+          var t = w.document.getElementById('ciSelectTipo');
+          t.value = tipoElegido;
+          t.dispatchEvent(new w.Event('change', { bubbles: true }));
+        } catch (e) { salida.push('ERR_TIPO=' + e.message); }
+        aplicado = true;
+      }, 1200);
+      fase = 2;
+      setTimeout(paso, 4000);
+      return;
+    }
+
+    if (fase === 2) {
+      salida.push('TRAS_FILTRO=' + leer(w));
+      // forzar una recarga real de datos (Supabase) para comprobar que los filtros sobreviven
+      try { w.eval("window.__sync = veaActualizarDesdeSupabaseSeguro('prueba-recarga', true);"); salida.push('SYNC=lanzada'); }
+      catch (e) { salida.push('SYNC_ERR=' + e.message); }
+      setTimeout(function () { salida.push('TRAS_RECARGA=' + leer(w)); }, 6000);
+      // muestrear estado 18 s para detectar reintentos/resets
+      var muestras = 0;
+      var t = setInterval(function () {
+        muestras++;
+        try {
+          var e = w.eval('JSON.stringify({se:estadoCasosIndividualesV21.semana,tipo:estadoCasosIndividualesV21.tipo,n:ciV21Filtrados().length})');
+          salida.push('M' + muestras + '=' + e);
+        } catch (e2) { salida.push('M' + muestras + '=ERR ' + e2.message); }
+        if (muestras >= 18) {
+          clearInterval(t);
+          salida.push('FINAL=' + leer(w));
+          document.title = 'OK|' + salida.join('|');
+        }
+      }, 1000);
+      fase = 3;
+      return;
+    }
+  } catch (e) { document.title = 'ERR ' + e.message + ' ' + (e.stack || ''); }
+}
+setTimeout(paso, 16000);
+</script>
+</body>
+</html>
+
