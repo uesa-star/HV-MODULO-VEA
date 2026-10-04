@@ -119,7 +119,7 @@ async function restaurarAdmClave(req, res, cuerpo) {
   }
   if (String(s.email).toLowerCase() !== String(cfg.adm_email).toLowerCase()) {
     return res.status(403).json({
-      error: `Su correo Google (${s.email}) no coincide con el registrado (${cfg.adm_email}).`
+      error: `Su sesión actual (${s.email}) no corresponde a la cuenta Google del administrador. Inicie sesión con la cuenta registrada.`
     });
   }
 
