@@ -91,7 +91,7 @@
       </label>
       <button type="submit" id="btnIngresar" class="btnPrimario">Continuar</button>
       <p class="enlaces">¿No tiene cuenta? <a id="lnkRegistro">Regístrese aquí</a></p>
-      <p class="enlaces" style="font-size:12px;color:#94a3b8;">¿Olvidó su contraseña? El administrador puede restablecerla desde el panel ADM.</p>
+      <p class="enlaces" style="font-size:12px;color:#94a3b8;">¿Olvidó su contraseña? <a id="lnkRecuperar" style="color:#38bdf8;">Recupérela aquí</a></p>
     </form>
 
     <form id="formRegistro" class="formulario" autocomplete="on">
@@ -126,6 +126,26 @@
       </label>
       <button type="submit" id="btnCambiar" class="btnPrimario">Guardar contraseña</button>
       <p class="enlaces" style="font-size:12px;color:#94a3b8;">La contraseña debe ser propia y secreta. El cambio queda registrado.</p>
+    </form>
+
+    <form id="formRecupera" class="formulario" autocomplete="on">
+      <label class="campo"><span>Correo electrónico de su cuenta</span>
+        <input id="rcEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
+      </label>
+      <button type="submit" id="btnEnviarCodigo" class="btnPrimario">Enviar código</button>
+      <div id="rcPaso2" style="display:none;">
+        <label class="campo"><span>Código de 6 dígitos recibido por correo</span>
+          <input id="rcCodigo" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" style="letter-spacing:0.5em;" required>
+        </label>
+        <label class="campo"><span>Nueva contraseña (mínimo 8 caracteres)</span>
+          <input id="rcNueva" type="password" autocomplete="new-password" required>
+        </label>
+        <label class="campo"><span>Repetir nueva contraseña</span>
+          <input id="rcConfirm" type="password" autocomplete="new-password" required>
+        </label>
+        <button type="button" id="btnGuardarRecupera" class="btnPrimario">Guardar contraseña</button>
+      </div>
+      <p class="enlaces">¿Ya recordó su contraseña? <a id="lnkVolverLogin">Inicie sesión</a></p>
     </form>
 
     <div class="divider">o</div>
@@ -203,6 +223,7 @@
   var formLogin = document.getElementById('formLogin');
   var formRegistro = document.getElementById('formRegistro');
   var formCambio = document.getElementById('formCambio');
+  var formRecupera = document.getElementById('formRecupera');
   var msgForm = document.getElementById('msgForm');
   var msgOk = document.getElementById('msgOk');
 
@@ -212,6 +233,7 @@
     formLogin.classList.remove('activo');
     formRegistro.classList.remove('activo');
     formCambio.classList.remove('activo');
+    formRecupera.classList.remove('activo');
     form.classList.add('activo');
     var primero = form.querySelector('input');
     if (primero) primero.focus();
@@ -225,6 +247,13 @@
 
   document.getElementById('lnkRegistro').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formRegistro); });
   document.getElementById('lnkLogin').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formLogin); });
+  document.getElementById('lnkVolverLogin').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formLogin); });
+  document.getElementById('lnkRecuperar').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    var previo = document.getElementById('lgUsuario').value.trim().toLowerCase();
+    if (previo) document.getElementById('rcEmail').value = previo;
+    mostrar(formRecupera);
+  });
 
   function enviar(ruta, datos, boton, alOk) {
     boton.disabled = true;
@@ -273,6 +302,45 @@
         msgOk.textContent = 'Contraseña actualizada. Ingresando…';
         msgOk.style.display = 'block';
         setTimeout(function () { location.href = '/'; }, 800);
+      });
+  });
+
+  /* ===== Recuperación de contraseña con código por correo ===== */
+  formRecupera.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var email = document.getElementById('rcEmail').value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
+    enviar('/api/auth/cuentas', { accion: 'enviarCodigoUsuario', email: email },
+      document.getElementById('btnEnviarCodigo'),
+      function (d) {
+        msgForm.style.display = 'none';
+        document.getElementById('rcPaso2').style.display = 'block';
+        msgOk.textContent = (d && d.mensaje) || 'Si existe una cuenta con ese correo, le enviamos un código de 6 dígitos.';
+        msgOk.style.display = 'block';
+        document.getElementById('rcCodigo').focus();
+      });
+  });
+
+  document.getElementById('btnGuardarRecupera').addEventListener('click', function () {
+    var email = document.getElementById('rcEmail').value.trim().toLowerCase();
+    var codigo = document.getElementById('rcCodigo').value.trim();
+    var nueva = document.getElementById('rcNueva').value;
+    var confirm = document.getElementById('rcConfirm').value;
+    if (!/^\d{6}$/.test(codigo)) return error('Escriba el código de 6 dígitos recibido por correo.');
+    if (nueva.length < 8) return error('La nueva contraseña debe tener al menos 8 caracteres.');
+    if (nueva !== confirm) return error('Las contraseñas no coinciden.');
+    enviar('/api/auth/cuentas', { accion: 'restaurarConCodigoUsuario', email: email, codigo: codigo, claveNueva: nueva },
+      document.getElementById('btnGuardarRecupera'),
+      function () {
+        msgForm.style.display = 'none';
+        msgOk.textContent = 'Contraseña restablecida. Inicie sesión con su nueva contraseña.';
+        msgOk.style.display = 'block';
+        document.getElementById('rcPaso2').style.display = 'none';
+        setTimeout(function () {
+          mostrar(formLogin);
+          document.getElementById('lgUsuario').value = email;
+          document.getElementById('lgClave').focus();
+        }, 1200);
       });
   });
 

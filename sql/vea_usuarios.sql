@@ -7,10 +7,20 @@ create table if not exists public.vea_usuarios (
   celular text not null default '',  -- para avisos / recuperación
   password_hash text not null,
   activo boolean not null default true,
+  debe_cambiar boolean not null default false,   -- clave temporal puesta por el ADM
+  cod_hash text not null default '',             -- hash scrypt del código de recuperación
+  cod_exp bigint not null default 0,             -- vencimiento (epoch ms) del código
+  cod_fallos smallint not null default 0,        -- intentos fallidos con el código
+  cod_enviado bigint not null default 0,         -- último envío de código (epoch ms)
   creado_en timestamptz not null default now()
 );
 
 alter table public.vea_usuarios add column if not exists celular text not null default '';
+alter table public.vea_usuarios add column if not exists debe_cambiar boolean not null default false;
+alter table public.vea_usuarios add column if not exists cod_hash text not null default '';
+alter table public.vea_usuarios add column if not exists cod_exp bigint not null default 0;
+alter table public.vea_usuarios add column if not exists cod_fallos smallint not null default 0;
+alter table public.vea_usuarios add column if not exists cod_enviado bigint not null default 0;
 alter table public.vea_usuarios enable row level security;
 revoke all on public.vea_usuarios from anon, authenticated;
 grant select, insert, update, delete on public.vea_usuarios to service_role;

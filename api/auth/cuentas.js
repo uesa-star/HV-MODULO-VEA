@@ -8,13 +8,23 @@
  *        responde { debe_cambiar: true } y el cliente obliga a cambiarla.
  *   { accion: 'cambiarPropia', claveActual, claveNueva } → el usuario con
  *        sesión propia cambia su contraseña y quita la marca debe_cambiar.
+ *   { accion: 'enviarCodigoUsuario', email } → envía código de 6 dígitos al
+ *        correo del usuario (recuperación "olvidé mi contraseña"; máx. 3/15 min).
+ *   { accion: 'restaurarConCodigoUsuario', email, codigo, claveNueva }
+ *        → restablece con el código recibido (vence 10 min, máx. 5 intentos).
  */
+const crypto = require('crypto');
 const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = require('../../lib/session');
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
+const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
 const { admActivo, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
+const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a los 10 min
+const COD_INTENTOS = 5;                 // intentos fallidos antes de destruir el código
+const COD_REENVIO_MS = 60 * 1000;       // 1 envío como mínimo por minuto
+const COD_ENVIOS_MAX = 3;               // máx. 3 envíos por correo cada 15 min
 
 function clavesSupabase() {
   const k = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -329,6 +339,242 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   return res.status(200).json({ ok: true });
 }
 
+const MSJ_GENERICO = 'Si existe una cuenta con ese correo, le enviamos un código de 6 dígitos (vence en 10 minutos). Revise su bandeja de entrada.';
+
+async function enviarCodigoUsuario(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    return res.status(503).json({ error: 'El servicio de correo aún no está configurado en el servidor.' });
+  }
+
+  // Máximo 3 envíos por correo cada 15 minutos (cuenta existente o no).
+  try {
+    const corte = new Date(Date.now() - MINUTOS_BLOQUEO * 60000).toISOString();
+    const rf = await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_login_log?email=eq.${encodeURIComponent('cod:' + email)}` +
+      `&creado_en=gte.${encodeURIComponent(corte)}&select=id`,
+      { headers: claves, cache: 'no-store' }
+    );
+    if (rf.ok) {
+      const envios = await rf.json().catch(() => []);
+      if (Array.isArray(envios) && envios.length >= COD_ENVIOS_MAX) {
+        return res.status(429).json({ error: `Demasiadas solicitudes para este correo. Espere ${MINUTOS_BLOQUEO} minutos.` });
+      }
+    }
+  } catch (_) { /* sin conteo: continuar */ }
+
+  let r;
+  try {
+    r = await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=activo,cod_enviado&limit=1`,
+      { headers: claves, cache: 'no-store' }
+    );
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return enviarCodigoUsuario(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo verificar la cuenta. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
+
+  // Respuesta idéntica exista o no la cuenta (no revela quién está registrado).
+  if (!fila || fila.activo === false) {
+    await registrarAcceso({
+      email: `cod:${email}`,
+      nombre: 'Solicitud de código (sin cuenta o inactiva)',
+      proveedor: 'registro',
+      ip: ipDe(req),
+      user_agent: userAgentDe(req),
+      exito: true
+    });
+    return res.status(200).json({ ok: true, mensaje: MSJ_GENERICO });
+  }
+
+  const enviado = Number(fila.cod_enviado) || 0;
+  if (Date.now() - enviado < COD_REENVIO_MS) {
+    return res.status(429).json({ error: 'Espere un minuto antes de solicitar otro código.' });
+  }
+
+  const codigo = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  let rg;
+  try {
+    rg = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        cod_hash: hashearClave(codigo),
+        cod_exp: String(Date.now() + COD_EXPIRA_MS),
+        cod_fallos: 0,
+        cod_enviado: String(Date.now())
+      }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  if (!rg.ok) return res.status(500).json({ error: 'No se pudo generar el código. Intente nuevamente.' });
+
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;padding:28px;color:#e2e8f0;border-radius:14px">' +
+    '<p style="font-size:12px;letter-spacing:2px;color:#f59e0b;font-weight:800;margin:0 0 12px">MÓDULO VEA — RECUPERACIÓN DE CONTRASEÑA</p>' +
+    '<p style="font-size:14px;margin:0 0 16px">Use el siguiente código para restablecer su contraseña. Vence en <b>10 minutos</b>.</p>' +
+    '<p style="font-size:40px;font-weight:800;letter-spacing:12px;color:#fbbf24;margin:0;text-align:center;background:#1e293b;border-radius:10px;padding:16px">' + codigo + '</p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:16px 0 0">Si usted no solicitó este código, ignore este correo: no cambió nada.</p>' +
+    '</div>';
+
+  const rc = await enviarCorreo({ para: email, asunto: 'Codigo de recuperacion - Modulo VEA', html: html });
+  if (rc.error) {
+    if (rc.error === 'credenciales') {
+      console.error('correo: credenciales GMAIL_USER/GMAIL_APP_PASSWORD rechazadas (SMTP 535)');
+      return res.status(502).json({ error: 'El servidor de correo rechazó las credenciales. Revise GMAIL_USER y GMAIL_APP_PASSWORD en Vercel.' });
+    }
+    console.error('correo: fallo enviando código de usuario →', rc.error, rc.detalle || '');
+    return res.status(502).json({ error: 'No se pudo enviar el correo. Intente de nuevo en un minuto.' });
+  }
+
+  await registrarAcceso({
+    email: `cod:${email}`,
+    nombre: 'Solicitud de código de recuperación',
+    proveedor: 'registro',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true, mensaje: MSJ_GENERICO });
+}
+
+async function restaurarConCodigoUsuario(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  const codigo = String(cuerpo.codigo || '').trim();
+  const claveNueva = String(cuerpo.claveNueva || '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  if (!/^\d{6}$/.test(codigo)) {
+    return res.status(400).json({ error: 'Escriba el código de 6 dígitos recibido por correo.' });
+  }
+  if (claveNueva.length < 8 || claveNueva.length > 72) {
+    return res.status(400).json({ error: 'La contraseña nueva debe tener entre 8 y 72 caracteres.' });
+  }
+
+  let r;
+  try {
+    r = await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=cod_hash,cod_exp,cod_fallos&limit=1`,
+      { headers: claves, cache: 'no-store' }
+    );
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return restaurarConCodigoUsuario(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo verificar la cuenta. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
+  const msjSinCodigo = 'El código no existe o ya expiró. Solicite uno nuevo.';
+  if (!fila || !fila.cod_hash || !(Number(fila.cod_exp) > Date.now())) {
+    return res.status(400).json({ error: msjSinCodigo });
+  }
+
+  const fallos = Number(fila.cod_fallos) || 0;
+  if (fallos >= COD_INTENTOS) {
+    await destruirCodigo(email, claves);
+    return res.status(429).json({ error: 'Código bloqueado por intentos fallidos. Solicite uno nuevo.' });
+  }
+
+  if (!verificarClave(codigo, fila.cod_hash)) {
+    const nuevos = fallos + 1;
+    if (nuevos >= COD_INTENTOS) {
+      await destruirCodigo(email, claves);
+      await registrarAcceso({
+        email: `cod:${email}`,
+        nombre: 'Código incorrecto (bloqueado)',
+        proveedor: 'registro',
+        ip: ipDe(req),
+        user_agent: userAgentDe(req),
+        exito: false
+      });
+      return res.status(429).json({ error: 'Código bloqueado por intentos fallidos. Solicite uno nuevo.' });
+    }
+    await incrementarFallosCodigo(email, nuevos, claves);
+    return res.status(401).json({ error: `Código incorrecto. Quedan ${COD_INTENTOS - nuevos} intento(s).` });
+  }
+
+  let rg;
+  try {
+    rg = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        password_hash: hashearClave(claveNueva),
+        debe_cambiar: false,
+        cod_hash: '',
+        cod_exp: '0',
+        cod_fallos: 0,
+        cod_enviado: '0'
+      }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  if (!rg.ok) return res.status(500).json({ error: 'No se pudo guardar la contraseña. Intente nuevamente.' });
+
+  await registrarAcceso({
+    email: email,
+    nombre: 'Restableció su contraseña con código por correo',
+    proveedor: 'registro',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true });
+}
+
+async function destruirCodigo(email, claves) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ cod_hash: '', cod_exp: '0', cod_fallos: 0 }),
+      cache: 'no-store'
+    });
+  } catch (_) { /* el fallo se reintenta en el próximo intento */ }
+}
+
+async function incrementarFallosCodigo(email, nuevos, claves) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ cod_fallos: nuevos }),
+      cache: 'no-store'
+    });
+  } catch (_) { /* el fallo se reintenta en el próximo intento */ }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -359,5 +605,7 @@ module.exports = async function handler(req, res) {
   if (accion === 'usuarios') return listarUsuarios(req, res, claves);
   if (accion === 'restaurar') return restaurarClave(req, res, cuerpo, claves);
   if (accion === 'cambiarPropia') return cambiarClavePropia(req, res, cuerpo, claves);
-  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar" o "cambiarPropia").' });
+  if (accion === 'enviarCodigoUsuario') return enviarCodigoUsuario(req, res, cuerpo, claves);
+  if (accion === 'restaurarConCodigoUsuario') return restaurarConCodigoUsuario(req, res, cuerpo, claves);
+  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario" o "restaurarConCodigoUsuario").' });
 };
