@@ -3,7 +3,7 @@
  * GET /api/auth/log → { accesos: [...] } últimas 200 filas de vea_login_log.
  * Requiere cookie vea_adm válida (usuario + contraseña de administración).
  */
-const { sesionAdm } = require('../../lib/session');
+const { admActivo } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -15,7 +15,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
-  if (!sesionAdm(req)) {
+  if (!(await admActivo(req))) {
     return res.status(401).json({ error: 'Se requiere sesión de administrador' });
   }
 

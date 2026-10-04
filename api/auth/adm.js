@@ -1,35 +1,37 @@
 /**
  * VEA — Acceso de administración (usuario + contraseña).
  * POST /api/auth/adm
- *   { usuario, clave }              → crea cookie vea_adm (8 h).
+ *   { usuario, clave }              → crea cookie vea_adm (8 h, versión de sesión).
  *   { accion:'cambiar', email, claveActual, claveNueva }
- *                                    → cambia la contraseña propia (requiere sesión ADM).
+ *                                    → cambia la contraseña propia (requiere sesión ADM);
+ *                                      invalida todas las sesiones ADM previas.
  *   { accion:'restaurar', claveNueva }
- *                                    → la restablece quien tiene sesión Google con el
- *                                      mismo correo registrado («Olvidé mi contraseña»).
+ *                                    → lo restablece quien tiene sesión Google con el
+ *                                      mismo correo registrado («Olvidé mi contraseña»);
+ *                                      también invalida sesiones ADM previas.
  * DELETE /api/auth/adm → cierra la sesión ADM.
  *
- * Credenciales: la contraseña maestra VEA_ADM_PASS (variables de Vercel) siempre
- * funciona; además puede definir SU contraseña en public.vea_config
- * (adm_password_hash + adm_email) y el correo registrado se verifica con Google.
+ * Seguridad:
+ *  · Contraseña maestra VEA_ADM_PASS (Vercel) + contraseña propia (vea_config, scrypt).
+ *  · Bloqueo tras 5 intentos fallidos durante 15 minutos (anti fuerza bruta).
+ *  · Cookies ADM con versión de sesión: cambiar/restablecer la clave las invalida a todas.
  */
 const crypto = require('crypto');
-const { firmar, sesion, sesionAdm, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('../../lib/session');
+const { firmar, sesion, cookie, ipDe, userAgentDe, NOMBRE_ADM } = require('../../lib/session');
 const { hashearClave, verificarClave } = require('../../lib/clave');
-const { asegurarTablas } = require('../../lib/tablas');
+const {
+  clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion,
+  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes
+} = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
+const LLAVES_CFG = ['adm_password_hash', 'adm_email', 'adm_ses', 'adm_fallos', 'adm_bloqueo_hasta'];
 
 function iguales(a, b) {
   const ba = Buffer.from(String(a));
   const bb = Buffer.from(String(b));
   if (ba.length !== bb.length) return false;
   return crypto.timingSafeEqual(ba, bb);
-}
-
-function clavesSupabase() {
-  const k = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-  return k ? { apikey: k, Authorization: `Bearer ${k}` } : null;
 }
 
 async function registrarAcceso(fila) {
@@ -47,54 +49,8 @@ async function registrarAcceso(fila) {
   }
 }
 
-function errorTabla(texto) {
-  return texto.includes('PGRST205') || texto.includes('42P01');
-}
-
-async function leerConfig(req, res) {
-  const claves = clavesSupabase();
-  if (!claves) return { error: 'Sin credenciales de base de datos en Vercel.' };
-  for (let intento = 0; intento < 2; intento++) {
-    try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/vea_config?k=in.(adm_password_hash,adm_email)`, {
-        headers: claves,
-        cache: 'no-store'
-      });
-      if (r.status === 404 || (r.status === 400 && intento === 0)) {
-        if (intento === 0 && await asegurarTablas()) continue;
-        return { error: 'La tabla vea_config no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' };
-      }
-      if (!r.ok) return { error: 'No se pudo leer la configuración. Intente nuevamente.' };
-      const filas = await r.json().catch(() => []);
-      const cfg = {};
-      (Array.isArray(filas) ? filas : []).forEach(function (f) { cfg[String(f.k)] = String(f.v || ''); });
-      return { cfg };
-    } catch (_) {
-      return { error: 'No se pudo contactar con la base de datos. Intente nuevamente.' };
-    }
-  }
-  return { error: 'No se pudo leer la configuración. Intente nuevamente.' };
-}
-
-async function guardarConfig(pares) {
-  const claves = clavesSupabase();
-  if (!claves) return false;
-  const filas = Object.keys(pares).map(function (k) { return { k: k, v: String(pares[k]) }; });
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/vea_config?on_conflict=k`, {
-      method: 'POST',
-      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(filas),
-      cache: 'no-store'
-    });
-    return r.ok;
-  } catch (_) {
-    return false;
-  }
-}
-
 async function cambiarClaveAdm(req, res, cuerpo) {
-  if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
   const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
   const claveActual = String(cuerpo.claveActual || '');
@@ -106,7 +62,7 @@ async function cambiarClaveAdm(req, res, cuerpo) {
     return res.status(400).json({ error: 'La contraseña nueva debe tener entre 8 y 72 caracteres.' });
   }
 
-  const lectura = await leerConfig(req, res);
+  const lectura = await leerConfig(LLAVES_CFG);
   if (lectura.error) return res.status(503).json({ error: lectura.error });
   const cfg = lectura.cfg;
 
@@ -116,7 +72,13 @@ async function cambiarClaveAdm(req, res, cuerpo) {
     return res.status(401).json({ error: 'La contraseña actual es incorrecta.' });
   }
 
-  const guardado = await guardarConfig({ adm_password_hash: hashearClave(claveNueva), adm_email: email });
+  const guardado = await guardarConfig({
+    adm_password_hash: hashearClave(claveNueva),
+    adm_email: email,
+    adm_ses: tokenSesion(),          // invalida todas las sesiones ADM previas (C)
+    adm_fallos: '0',
+    adm_bloqueo_hasta: '0'
+  });
   if (!guardado) {
     return res.status(503).json({ error: 'No se pudo guardar la contraseña. Intente nuevamente.' });
   }
@@ -146,7 +108,7 @@ async function restaurarAdmClave(req, res, cuerpo) {
     return res.status(400).json({ error: 'La contraseña nueva debe tener entre 8 y 72 caracteres.' });
   }
 
-  const lectura = await leerConfig(req, res);
+  const lectura = await leerConfig(LLAVES_CFG);
   if (lectura.error) return res.status(503).json({ error: lectura.error });
   const cfg = lectura.cfg;
 
@@ -161,7 +123,12 @@ async function restaurarAdmClave(req, res, cuerpo) {
     });
   }
 
-  const guardado = await guardarConfig({ adm_password_hash: hashearClave(claveNueva) });
+  const guardado = await guardarConfig({
+    adm_password_hash: hashearClave(claveNueva),
+    adm_ses: tokenSesion(),          // invalida sesiones ADM previas (C)
+    adm_fallos: '0',
+    adm_bloqueo_hasta: '0'
+  });
   if (!guardado) {
     return res.status(503).json({ error: 'No se pudo guardar la contraseña. Intente nuevamente.' });
   }
@@ -212,17 +179,35 @@ module.exports = async function handler(req, res) {
 
   const usuario = String(cuerpo.usuario || '');
   const clave = String(cuerpo.clave || '');
+
+  // Config para: bloqueo de intentos, contraseña propia y versión de sesión.
+  const lecturaCfg = await leerConfig(LLAVES_CFG);
+  const cfg = lecturaCfg.cfg || {};   // sin config legible: degradar (solo maestra)
+
+  const ahora = Date.now();
+  const hasta = Number(cfg.adm_bloqueo_hasta || 0);
+  if (hasta > ahora) {
+    return res.status(429).json({
+      error: `Demasiados intentos fallidos. Su cuenta está bloqueada durante ${minutosRestantes(hasta)} minuto(s).`
+    });
+  }
+
   let valido = usuario.length > 0 && clave.length > 0 &&
     iguales(usuario, usuarioEsperado) && iguales(clave, claveEsperada);
 
-  if (!valido && usuario.length > 0 && clave.length > 0 && iguales(usuario, usuarioEsperado)) {
-    const lectura = await leerConfig(req, res);
-    if (!lectura.error && lectura.cfg && lectura.cfg.adm_password_hash) {
-      valido = verificarClave(clave, lectura.cfg.adm_password_hash);
-    }
+  if (!valido && usuario.length > 0 && clave.length > 0 &&
+      iguales(usuario, usuarioEsperado) && cfg.adm_password_hash) {
+    valido = verificarClave(clave, cfg.adm_password_hash);
   }
 
   if (!valido) {
+    const fallos = (Number(cfg.adm_fallos) || 0) + 1;
+    const pares = { adm_fallos: String(fallos) };
+    if (fallos >= FALLOS_ADM) {
+      pares.adm_fallos = '0';
+      pares.adm_bloqueo_hasta = String(ahora + MINUTOS_BLOQUEO * 60000);
+    }
+    await guardarConfig(pares);
     await registrarAcceso({
       email: `adm:${usuario.slice(0, 60) || '(vacío)'}`,
       nombre: 'Intento de acceso ADM',
@@ -231,7 +216,16 @@ module.exports = async function handler(req, res) {
       user_agent: userAgentDe(req),
       exito: false
     });
+    if (fallos >= FALLOS_ADM) {
+      return res.status(429).json({
+        error: `Demasiados intentos fallidos. Su cuenta está bloqueada durante ${MINUTOS_BLOQUEO} minutos.`
+      });
+    }
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  }
+
+  if ((Number(cfg.adm_fallos) || 0) > 0 || hasta > 0) {
+    await guardarConfig({ adm_fallos: '0', adm_bloqueo_hasta: '0' });
   }
 
   await registrarAcceso({
@@ -243,7 +237,12 @@ module.exports = async function handler(req, res) {
     exito: true
   });
 
-  const token = firmar({ email: `adm:${usuarioEsperado}`, nombre: 'Administrador', proveedor: 'adm' }, 8);
+  const token = firmar({
+    email: `adm:${usuarioEsperado}`,
+    nombre: 'Administrador',
+    proveedor: 'adm',
+    v: cfg.adm_ses || ''             // versión de sesión (C)
+  }, 8);
   res.setHeader('Set-Cookie', cookie(NOMBRE_ADM, token, 8));
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({ ok: true });

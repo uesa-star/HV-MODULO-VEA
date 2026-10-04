@@ -3,6 +3,7 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesion, sesionAdm } = require('../../lib/session');
+const { admActivo } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -15,10 +16,12 @@ module.exports = async function handler(req, res) {
   if (!datos) {
     return res.status(401).json({ autenticado: false, adm: false });
   }
+  let adm = false;
+  if (sesionAdm(req)) adm = Boolean(await admActivo(req));
   return res.status(200).json({
     autenticado: true,
     email: datos.email || '',
     nombre: datos.nombre || '',
-    adm: Boolean(sesionAdm(req))
+    adm: adm
   });
 };

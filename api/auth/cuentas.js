@@ -5,9 +5,10 @@
  *        en public.vea_usuarios (hash scrypt) y devuelve sesión vea_session (12 h).
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  */
-const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION, sesionAdm } = require('../../lib/session');
+const { firmar, cookie, ipDe, userAgentDe, NOMBRE_SESION } = require('../../lib/session');
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { asegurarTablas } = require('../../lib/tablas');
+const { admActivo, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -37,7 +38,7 @@ function errorTabla(texto) {
 
 async function listarUsuarios(req, res, claves, intento) {
   intento = intento || 0;
-  if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
   let r;
   try {
@@ -64,7 +65,8 @@ async function listarUsuarios(req, res, claves, intento) {
 
 async function restaurarClave(req, res, cuerpo, claves, intento) {
   intento = intento || 0;
-  if (!sesionAdm(req)) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+  const adm = await admActivo(req);
+  if (!adm) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
   const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
   const clave = String(cuerpo.clave || '');
@@ -101,10 +103,10 @@ async function restaurarClave(req, res, cuerpo, claves, intento) {
     return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
   }
 
-  const adm = sesionAdm(req) || {};
+  const admDatos = adm || {};
   await registrarAcceso({
     email: `adm:restauró clave → ${email}`,
-    nombre: String(adm.email || 'ADM'),
+    nombre: String(admDatos.email || 'ADM'),
     proveedor: 'adm',
     ip: ipDe(req),
     user_agent: userAgentDe(req),
@@ -181,6 +183,24 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   const usuario = String(cuerpo.usuario || cuerpo.email || '').toLowerCase().trim();
   const clave = String(cuerpo.clave || '');
   if (!usuario || !clave) return res.status(400).json({ error: 'Escriba su correo y su contraseña.' });
+
+  // Anti fuerza bruta: bloquea tras 10 intentos fallidos en 15 minutos.
+  try {
+    const corte = new Date(Date.now() - MINUTOS_BLOQUEO * 60000).toISOString();
+    const rf = await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_login_log?email=eq.${encodeURIComponent('registro:' + usuario)}` +
+      `&exito=eq.false&creado_en=gte.${encodeURIComponent(corte)}&select=id`,
+      { headers: claves, cache: 'no-store' }
+    );
+    if (rf.ok) {
+      const fallos = await rf.json().catch(() => []);
+      if (Array.isArray(fallos) && fallos.length >= FALLOS_USUARIO) {
+        return res.status(429).json({
+          error: `Demasiados intentos fallidos para esta cuenta. Intente de nuevo en ${MINUTOS_BLOQUEO} minutos.`
+        });
+      }
+    }
+  } catch (_) { /* sin conteo: continuar */ }
 
   let r;
   try {
