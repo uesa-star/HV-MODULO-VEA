@@ -1,0 +1,130 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; overflow: hidden; }
+iframe { width: 1600px; height: 900px; border: 0; display: block; }
+</style>
+</head>
+<body>
+<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=9"></iframe>
+<pre id="out" style="display:none"></pre>
+<script>
+function W() { return document.getElementById('fr').contentWindow; }
+function tieneDatos() {
+  try {
+    var w = W();
+    if (!w.__veaInst) {
+      try {
+        w.eval("(function(){try{if(window.__veaInst)return;var g=ciV21RenderG1,d=ciV21DestruirCharts,a=actualizarCasosIndividualesV21;window.__veaLog=[];window.ciV21RenderG1=function(x){window.__veaLog.push('renderG1 n='+x.length);return g(x)};window.ciV21DestruirCharts=function(){window.__veaLog.push('destruir ds='+ciV21Dataset().length);return d()};window.actualizarCasosIndividualesV21=function(f){window.__veaLog.push('actualizar f='+f+' ds='+ciV21Dataset().length);return a(f)};window.__veaInst=1;}catch(e){window.__veaInstErr=e.message;}})()");
+      } catch (_) { }
+    }
+    var c = w.document.getElementById('ciChartG1Anual');
+    var g = (w.Chart && w.Chart.getChart) ? w.Chart.getChart(c) : null;
+    return !!(g && g.data && g.data.datasets && g.data.datasets.some(function (s) { return s.data && s.data.length; }));
+  } catch (_) { return false; }
+}
+var cambiado = false;
+function intento(n) {
+  try {
+    var w = W();
+    if (cambiado !== true) {
+      var conDatos = false;
+      try { conDatos = w.eval("ciV21Dataset().length") > 0; } catch (_) { }
+      if (conDatos) {
+        try { w.eval("tabActiva = 'dashboard';"); w.cambiarTab('casos'); cambiado = true; } catch (e) { cambiado = 'ERR:' + e.message; }
+        setTimeout(function () { try { if (!tieneDatos()) W().eval("actualizarCasosIndividualesV21(true);"); } catch (_) { } }, 1500);
+      }
+    }
+    if (!tieneDatos()) {
+      if (n < 60) { setTimeout(function () { intento(n + 1); }, 1000); return; }
+      var diag = '';
+      try {
+        diag = w.eval("(function(){try{var cv=document.getElementById('ciChartG1Anual');var s='';s+='tab='+tabActiva;s+='|canvas='+!!cv;s+='|tam='+(cv?cv.width+'x'+cv.height:'-');s+='|inst='+(typeof ciChartG1Instance!=='undefined'?(ciChartG1Instance?'si':'no'):'?');s+='|api='+(typeof Chart!=='undefined'&&Chart.getChart&&cv?(Chart.getChart(cv)?'si':'no'):'?');s+='|ds='+ciV21Dataset().length;s+='|firma='+(ciV21UltimaFirmaRenderF318||'null');s+='|fil='+(function(){try{return ciV21Filtrados().length}catch(e){return 'F_ERR:'+e.message}})();s+='|instErr='+(window.__veaInstErr||'-')+'|LOG='+JSON.stringify(window.__veaLog||[]).slice(0,1600)+'|reRender='+(function(){try{actualizarCasosIndividualesV21(true);var c2=document.getElementById('ciChartG1Anual');return (typeof Chart!=='undefined'&&Chart.getChart&&c2&&Chart.getChart(c2))?'ok':'sigue_vacio'}catch(e){return 'ERR:'+e.message}})();return s;}catch(e){return 'GLOBAL:'+e.message}})()");
+      } catch (e) { diag = 'EVAL_ERR ' + e.message; }
+      document.title = 'ERR NO_DATOS cambiado=' + cambiado + ' ' + diag;
+      return;
+    }
+    setTimeout(function () { prueba(w); }, 2000);
+  } catch (e) { document.title = 'ERR ' + e.message; }
+}
+function dsDe(w, id) {
+  var g = (w.Chart && w.Chart.getChart) ? w.Chart.getChart(w.document.getElementById(id)) : null;
+  if (!g) return null;
+  return {
+    labels: (g.data.labels || []).slice(),
+    series: (g.data.datasets || []).map(function (d) {
+      return { l: d.label, v: (d.data || []).slice() };
+    }),
+    maxEje: (g.scales && g.scales.x && g.scales.x.max) || null,
+    minEje: (g.scales && g.scales.x && g.scales.x.min) || null
+  };
+}
+function suma(a) { return (a || []).reduce(function (s, v) { return s + (Number(v) || 0); }, 0); }
+async function prueba(w) {
+  try {
+    var d = w.document;
+    // ---- 1) estado inicial (sin filtros) ----
+    var salida = '';
+    await new Promise(function (r) { setTimeout(r, 3000); });
+    w.eval("ciV21InicializarSiCorresponde(); estadoCasosIndividualesV21.anios = [2024,2025,2026]; estadoCasosIndividualesV21.mes = 'Todos'; estadoCasosIndividualesV21.semana = '20'; estadoCasosIndividualesV21.tipo = 'A97.1'; ciV21SincronizarControles(); actualizarCasosIndividualesV21(true);");
+    await new Promise(function (r) { setTimeout(r, 7000); });
+    // reaplicar por si el dataset se recarga
+    w.eval("if (estadoCasosIndividualesV21.semana !== '20' || estadoCasosIndividualesV21.tipo !== 'A97.1') { estadoCasosIndividualesV21.anios = [2024,2025,2026]; estadoCasosIndividualesV21.mes = 'Todos'; estadoCasosIndividualesV21.semana = '20'; estadoCasosIndividualesV21.tipo = 'A97.1'; ciV21SincronizarControles(); actualizarCasosIndividualesV21(true); }");
+    await new Promise(function (r) { setTimeout(r, 5000); });
+
+    var st = w.eval("JSON.stringify({anios:estadoCasosIndividualesV21.anios, mes:estadoCasosIndividualesV21.mes, se:estadoCasosIndividualesV21.semana, tipo:estadoCasosIndividualesV21.tipo})");
+    salida += '|ESTADO=' + st;
+
+    // ---- 2) verdad de terreno desde el dataset filtrado ----
+    var esperado = w.eval("(function(){var f=ciV21Filtrados();var porAnio={},porMes={},porEdad={},porEdad2026={},porDiag={},porSe={};f.forEach(function(r){var a=ciV21Anio(r);porAnio[a]=(porAnio[a]||0)+1;var m=ciV21Mes(r);porMes[m]=(porMes[m]||0)+1;var g=ciV21GrupoEdad(r);porEdad[g]=(porEdad[g]||0)+1;if(a===2026){porEdad2026[g]=(porEdad2026[g]||0)+1;}var dg=ciV21Diagnostico(r);porDiag[dg]=(porDiag[dg]||0)+1;var s=ciV21Semana(r);porSe[s]=(porSe[s]||0)+1;});return JSON.stringify({n:f.length,porAnio:porAnio,porMes:porMes,porEdad:porEdad,porEdad2026:porEdad2026,porDiag:porDiag,porSe:porSe});})()");
+    salida += '|ESPERADO=' + esperado;
+
+    // ---- 3) lo que dicen los graficos ----
+    var g1 = dsDe(w, 'ciChartG1Anual');
+    var g2 = dsDe(w, 'ciChartG2Semanal');
+    var g3 = dsDe(w, 'ciChartG3Diagnostico');
+    var g4 = dsDe(w, 'ciChartG4Mensual');
+    var g5 = dsDe(w, 'ciChartG5Edad');
+    salida += '|G1=' + JSON.stringify({ l: g1.labels, tot: g1.series.map(function (s) { return suma(s.v); }) });
+    salida += '|G4=' + JSON.stringify({ l: g4.labels, s: g4.series.map(function (s) { return { l: s.l, v: s.v }; }) });
+    salida += '|G5=' + JSON.stringify({ l: g5.labels, s: g5.series.map(function (s) { return { l: s.l, v: s.v }; }) });
+    salida += '|G3=' + JSON.stringify({ l: g3.labels, s: g3.series.map(function (s) { return { l: s.l, v: s.v }; }), max: g3.maxEje });
+    salida += '|G2=' + JSON.stringify({ n: g2.labels.length, tot: g2.series.map(function (s) { return suma(s.v); }) }) + '|G2_SE20=' + w.eval("try{JSON.stringify((ciChartG2Instance.options.plugins.veaBloquesSemanasF480.metadatos||[]).filter(function(m){return Number(m.se)===20;}))}catch(e){'ERR '+e.message}")
+
+    // ---- 4) KPIs en pantalla ----
+    var kpis = [];
+    Array.prototype.slice.call(d.querySelectorAll('[data-kpi], .kpi, #ciKpiTotal, #ciKpiFiltrados')).slice(0, 12).forEach(function (el) { kpis.push(el.textContent.replace(/\s+/g, ' ').trim().slice(0, 40)); });
+    salida += '|KPI_IDS=' + w.eval("(function(){var ids=[].slice.call(document.querySelectorAll('[id^=ciKpi]')).map(function(e){return e.id+'='+e.textContent.replace(/\\s+/g,' ').trim().slice(0,44)});return JSON.stringify(ids)})()");
+    salida += '|RESUMEN=' + w.eval("(document.getElementById('ciResumenFiltros')||{}).textContent");
+    salida += '|EDAD_BADGE=' + w.eval("(document.getElementById('ciGraficoEdadAnio')||{}).textContent");
+
+    // ---- 5) matriz de consulta respetando los filtros ----
+    try {
+      w.eval("ciV21AlternarMatrizConsulta();");
+      await new Promise(function (r) { setTimeout(r, 2500); });
+      salida += '|MATRIZ_FILTRO=' + w.eval("(function(){var t=document.getElementById('ciTablaMatrizConsulta');return (t?t.querySelectorAll('tr').length:0)+' filas | '+(document.getElementById('ciInfoMatrizConsulta')||{}).textContent})()");
+      w.eval("(function(){var c=document.getElementById('ciMatrizUsarFiltros'); c.checked=false; ciV21AlternarFiltrosMatrizConsulta();})()");
+      await new Promise(function (r) { setTimeout(r, 2500); });
+      salida += '|MATRIZ_TODO=' + w.eval("(function(){var t=document.getElementById('ciTablaMatrizConsulta');return (t?t.querySelectorAll('tr').length:0)+' filas | '+(document.getElementById('ciInfoMatrizConsulta')||{}).textContent})()");
+      w.eval("(function(){var c=document.getElementById('ciMatrizUsarFiltros'); c.checked=true; ciV21AlternarFiltrosMatrizConsulta(); ciV21AlternarMatrizConsulta();})()");
+    } catch (e) { salida += '|MATRIZ_ERR=' + e.message; }
+
+    document.title = 'OK' + salida;
+  } catch (e) { document.title = 'ERR ' + e.message + ' ' + (e.stack || ''); }
+}
+setTimeout(function () { intento(0); }, 16000);
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
