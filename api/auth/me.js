@@ -29,6 +29,8 @@ module.exports = async function handler(req, res) {
     autenticado: true,
     email: datos.email || '',
     nombre: datos.nombre || '',
+    proveedor: datos.proveedor || '',
+    debe_cambiar: Boolean(datos.dc),
     adm: adm
   });
 };

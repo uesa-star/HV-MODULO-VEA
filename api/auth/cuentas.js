@@ -4,8 +4,12 @@
  *   { accion: 'registro', nombre, usuario, clave, confirm } → crea la cuenta
  *        en public.vea_usuarios (hash scrypt) y devuelve sesión vea_session (12 h).
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
+ *        Si la cuenta tiene debe_cambiar (clave temporal puesta por el ADM),
+ *        responde { debe_cambiar: true } y el cliente obliga a cambiarla.
+ *   { accion: 'cambiarPropia', claveActual, claveNueva } → el usuario con
+ *        sesión propia cambia su contraseña y quita la marca debe_cambiar.
  */
-const { firmar, cookie, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = require('../../lib/session');
+const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = require('../../lib/session');
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { asegurarTablas } = require('../../lib/tablas');
 const { admActivo, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
@@ -42,7 +46,7 @@ async function listarUsuarios(req, res, claves, intento) {
 
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,celular,activo,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,celular,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -82,7 +86,7 @@ async function restaurarClave(req, res, cuerpo, claves, intento) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
       method: 'PATCH',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ password_hash: hashearClave(clave) }),
+      body: JSON.stringify({ password_hash: hashearClave(clave), debe_cambiar: true }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -207,7 +211,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   let r;
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=nombre,password_hash,activo&limit=1`,
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=nombre,password_hash,activo,debe_cambiar&limit=1`,
       { headers: claves, cache: 'no-store' }
     );
   } catch (_) {
@@ -251,7 +255,76 @@ async function ingresar(req, res, cuerpo, claves, intento) {
     sesion_id: sidIng
   });
 
-  const token = firmar({ email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng }, 12);
+  const debeCambiar = fila.debe_cambiar === true;
+  const datosToken = { email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng };
+  if (debeCambiar) datosToken.dc = 1;
+  const token = firmar(datosToken, 12);
+  res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
+  return res.status(200).json({ ok: true, debe_cambiar: debeCambiar });
+}
+
+async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  const datos = sesion(req);
+  if (!datos || datos.proveedor !== 'registro' || !datos.email) {
+    return res.status(401).json({ error: 'Requiere ingreso con correo y contraseña.' });
+  }
+  const usuario = String(datos.email).toLowerCase().trim().slice(0, 120);
+  const actual = String(cuerpo.claveActual || '');
+  const nueva = String(cuerpo.claveNueva || cuerpo.clave || '');
+  if (nueva.length < 8 || nueva.length > 72) {
+    return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
+  }
+
+  let r;
+  try {
+    r = await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=password_hash&limit=1`,
+      { headers: claves, cache: 'no-store' }
+    );
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return cambiarClavePropia(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo verificar la cuenta. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
+  if (!fila) return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  if (!verificarClave(actual, fila.password_hash)) {
+    return res.status(401).json({ error: 'La contraseña actual es incorrecta.' });
+  }
+
+  let r2;
+  try {
+    r2 = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ password_hash: hashearClave(nueva), debe_cambiar: false }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  if (!r2.ok) return res.status(500).json({ error: 'No se pudo guardar la nueva contraseña. Intente nuevamente.' });
+
+  await registrarAcceso({
+    email: usuario,
+    nombre: String(datos.nombre || usuario),
+    proveedor: 'registro',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  const token = firmar({ email: usuario, nombre: datos.nombre || usuario, proveedor: 'registro', sid: datos.sid }, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true });
 }
@@ -285,5 +358,6 @@ module.exports = async function handler(req, res) {
   if (accion === 'ingreso') return ingresar(req, res, cuerpo, claves);
   if (accion === 'usuarios') return listarUsuarios(req, res, claves);
   if (accion === 'restaurar') return restaurarClave(req, res, cuerpo, claves);
-  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios" o "restaurar").' });
+  if (accion === 'cambiarPropia') return cambiarClavePropia(req, res, cuerpo, claves);
+  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar" o "cambiarPropia").' });
 };

@@ -114,6 +114,20 @@
       <p class="enlaces">¿Ya tiene cuenta? <a id="lnkLogin">Inicie sesión</a></p>
     </form>
 
+    <form id="formCambio" class="formulario" autocomplete="on">
+      <label class="campo"><span>Contraseña actual (o la temporal que le dio el administrador)</span>
+        <input id="cmActual" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="campo"><span>Nueva contraseña (mínimo 8 caracteres)</span>
+        <input id="cmNueva" type="password" autocomplete="new-password" required>
+      </label>
+      <label class="campo"><span>Repetir nueva contraseña</span>
+        <input id="cmConfirm" type="password" autocomplete="new-password" required>
+      </label>
+      <button type="submit" id="btnCambiar" class="btnPrimario">Guardar contraseña</button>
+      <p class="enlaces" style="font-size:12px;color:#94a3b8;">La contraseña debe ser propia y secreta. El cambio queda registrado.</p>
+    </form>
+
     <div class="divider">o</div>
 
     <a id="btnGoogle" class="btn" href="#" aria-disabled="true">
@@ -188,6 +202,7 @@
   /* ===== Ingreso y registro con correo/contraseña ===== */
   var formLogin = document.getElementById('formLogin');
   var formRegistro = document.getElementById('formRegistro');
+  var formCambio = document.getElementById('formCambio');
   var msgForm = document.getElementById('msgForm');
   var msgOk = document.getElementById('msgOk');
 
@@ -196,6 +211,7 @@
     msgOk.style.display = 'none';
     formLogin.classList.remove('activo');
     formRegistro.classList.remove('activo');
+    formCambio.classList.remove('activo');
     form.classList.add('activo');
     var primero = form.querySelector('input');
     if (primero) primero.focus();
@@ -237,8 +253,49 @@
     if (!email || !clave) return error('Escriba su correo y su contraseña.');
     enviar('/api/auth/cuentas', { accion: 'ingreso', usuario: email, clave: clave },
       document.getElementById('btnIngresar'),
-      function () { location.href = '/'; });
+      function (d) {
+        if (d && d.debe_cambiar) location.href = '/login.html?cambiar=1';
+        else location.href = '/';
+      });
   });
+
+  formCambio.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var actual = document.getElementById('cmActual').value;
+    var nueva = document.getElementById('cmNueva').value;
+    var confirm = document.getElementById('cmConfirm').value;
+    if (nueva.length < 8) return error('La nueva contraseña debe tener al menos 8 caracteres.');
+    if (nueva !== confirm) return error('Las contraseñas no coinciden.');
+    enviar('/api/auth/cuentas', { accion: 'cambiarPropia', claveActual: actual, claveNueva: nueva },
+      document.getElementById('btnCambiar'),
+      function () {
+        msgForm.style.display = 'none';
+        msgOk.textContent = 'Contraseña actualizada. Ingresando…';
+        msgOk.style.display = 'block';
+        setTimeout(function () { location.href = '/'; }, 800);
+      });
+  });
+
+  /* Modo cambio de contraseña (?cambiar=1): obligatorio tras clave temporal o voluntario desde el módulo. */
+  if (params.get('cambiar')) {
+    document.querySelector('.divider').style.display = 'none';
+    document.getElementById('btnGoogle').style.display = 'none';
+    document.getElementById('verificando').style.display = 'none';
+    var titulo = document.querySelector('h1');
+    if (titulo) titulo.textContent = 'Cambiar contraseña';
+    var intro = document.querySelector('.intro');
+    if (intro) intro.textContent = 'Su contraseña debe ser propia y secreta. Después de guardarla entrará al módulo.';
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.autenticado || d.proveedor !== 'registro') {
+          location.replace('/login.html');
+          return;
+        }
+        mostrar(formCambio);
+      })
+      .catch(function () { mostrar(formCambio); });
+  }
 
   formRegistro.addEventListener('submit', function (ev) {
     ev.preventDefault();
