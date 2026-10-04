@@ -10,7 +10,7 @@ canvas { display: block; width: 1600px; }
 </style>
 </head>
 <body>
-<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=9"></iframe>
+<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=24"></iframe>
 <pre id="pdf"></pre>
 <script>
 function W() { return document.getElementById('fr').contentWindow; }
@@ -83,6 +83,55 @@ async function prueba(w, d, canvases) {
       window.__ciOk = true;
     } catch (e) { window.__ciOk = false; faseCasos += '|ERR=' + e.message; }
 
+    // --- FASE BOTON REAL "GRAFICOS" EN LA PESTANA CASOS ---
+    var faseBtn = '';
+    window.__btnPaginas = null;
+    try {
+      w.eval("tabActiva = 'dashboard';");
+      w.cambiarTab('casos');
+      await new Promise(function (r) { setTimeout(r, 9000); });
+      faseBtn += '|SE_DISP=' + w.eval("(function(){var s=document.getElementById('ciSelectSemana');if(!s)return 'N/A';return [].slice.call(s.options).map(function(x){return x.value;}).filter(function(v){return v!=='Todas';}).join(',');})()");
+      var aplicarSe = "(function(){var s=document.getElementById('ciSelectSemana');if(!s)return 'no_sel';var o=[].slice.call(s.options).map(function(x){return x.value;}).filter(function(v){return v!=='Todas';});var st=estadoCasosIndividualesV21;var prev=st.semana;var best='Todas',bestN=-1;o.forEach(function(v){st.semana=v;var n=ciV21Filtrados().length;if(n>bestN){bestN=n;best=v;}});st.semana=prev;s.value=best;actualizarFiltroCasosIndividualesV21('semana',best);actualizarFiltroCasosIndividualesV21('tipo','Todos');return best+'('+bestN+')';})()";
+      faseBtn += '|SE_ELIGIDA=' + w.eval(aplicarSe);
+      await new Promise(function (r) { setTimeout(r, 5000); });
+      faseBtn += '|SE_ENTRE=' + w.eval('estadoCasosIndividualesV21.semana');
+      // El repositorio se recarga en caliente y ciV21InicializarSiCorresponde limpia
+      // los filtros: reaplicar una vez estabilizado el dataset.
+      faseBtn += '|SE_REAPLICA=' + w.eval(aplicarSe);
+      await new Promise(function (r) { setTimeout(r, 4000); });
+      faseBtn += '|DBG_T=' + w.eval('typeof actualizarFiltroCasosIndividualesV21') + '|DBG_SE_POST=' + w.eval('estadoCasosIndividualesV21.semana') + '|DBG_ANIOS=' + w.eval('JSON.stringify(estadoCasosIndividualesV21.anios)') + '|DBG_SELVAL=' + w.eval("(document.getElementById('ciSelectSemana')||{}).value");
+      await new Promise(function (r) { setTimeout(r, 3000); });
+      faseBtn += '|DBG_SE_POST6=' + w.eval('estadoCasosIndividualesV21.semana') + '|DBG_ANIOS6=' + w.eval('JSON.stringify(estadoCasosIndividualesV21.anios)') + '|DBG_STACK=' + String(w.__resetStack || 'none').replace(/\s+/g, ' ').slice(0, 300);
+      faseBtn += '|N_ROWS=' + w.eval('ciV21Filtrados().length');
+      var notaG4 = d.getElementById('ciG4NotaSe');
+      faseBtn += '|NOTA_G4=' + (notaG4 && !notaG4.classList.contains('hidden') ? notaG4.textContent.trim().slice(0, 120) : 'OCULTA');
+      var resumenCI = d.getElementById('ciResumenFiltros');
+      faseBtn += '|RESUMEN=' + (resumenCI ? resumenCI.textContent.trim().slice(0, 160) : '-');
+      var cont = d.getElementById('contentCasos');
+      var cs = Array.prototype.slice.call(cont.querySelectorAll('canvas[id]')).filter(function (c) {
+        return c.width > 0 && c.height > 0 && w.veaTarjetaParaGraficoF468(c);
+      });
+      faseBtn += '|CNV=' + cs.length + '|IDS=' + cs.map(function (c) { return c.id; }).join(',');
+      faseBtn += '|TITS=' + cs.map(function (c) {
+        var t = w.veaTarjetaParaGraficoF468(c).querySelector('h3,h4');
+        return t ? t.textContent.trim().slice(0, 26) : '?';
+      }).join('~');
+      faseBtn += '|DATOS=' + cs.map(function (c) {
+        var g = (w.Chart && w.Chart.getChart) ? w.Chart.getChart(c) : null;
+        var n = (g && g.data && g.data.datasets) ? g.data.datasets.reduce(function (s, ds) { return s + ((ds.data || []).filter(function (v) { return Number(v) > 0; }).length); }, 0) : 0;
+        return c.id + ':' + n;
+      }).join(',');
+      var capt = null;
+      var orig = w.veaDescargarPdfF469;
+      var origAlert = w.alert;
+      window.__alertMsg = '-';
+      w.alert = function (m) { window.__alertMsg = String(m); };
+      w.veaDescargarPdfF469 = function (paginas, nombre) { capt = { n: paginas.length, nombre: nombre }; window.__btnPaginas = paginas; };
+      try { await w.descargarGraficosModuloVeaF469(); } finally { w.veaDescargarPdfF469 = orig; w.alert = origAlert; }
+      faseBtn += '|BTN_PAG=' + (capt ? capt.n : 'null') + '|BTN_NOMBRE=' + (capt ? capt.nombre : '-') + '|ALERT=' + window.__alertMsg + '|BTN_SIZES=' + (window.__btnPaginas || []).map(function (cv) { return cv.width + 'x' + cv.height; }).join(',');
+      window.__btnOk = !!capt;
+    } catch (e) { window.__btnOk = false; faseBtn += '|BTN_ERR=' + e.message; }
+
     var modulo = 'Vigilancia Epidemiologica Activa';
     var port = w.veaCrearPortadaLaminaF469(modulo, '');
     var paginas = [port];
@@ -94,6 +143,7 @@ async function prueba(w, d, canvases) {
     if (cEdad) paginas.push((await w.veaCrearLaminaGraficoF469(cEdad, modulo, '', 3)).salida);
     paginas.push(c38);
     if (window.__ciPaginas) paginas = paginas.concat(window.__ciPaginas);
+    if (window.__btnPaginas) paginas = paginas.concat(window.__btnPaginas);
     var bytes = w.veaConstruirPdfF469(paginas);
     var bin = '';
     for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
@@ -109,13 +159,25 @@ async function prueba(w, d, canvases) {
     pre.id = 'pdf';
     pre.textContent = b64;
     document.body.appendChild(pre);
-    document.title = 'OK PAG=' + paginas.length + ' PDF=' + bytes.length + ' SE38=' + d38.se + ' R38=' + w.veaRangoSemanasCierreF469('2026', '38') + ' R40=' + w.veaRangoSemanasCierreF469('2026', '40') + (window.__ciOk ? '' : ' CI_FAIL') + faseCasos;
+    document.title = 'OK PAG=' + paginas.length + ' PDF=' + bytes.length + ' SE38=' + d38.se + ' R38=' + w.veaRangoSemanasCierreF469('2026', '38') + ' R40=' + w.veaRangoSemanasCierreF469('2026', '40') + (window.__ciOk ? '' : ' CI_FAIL') + (window.__btnOk ? '' : ' BTN_FAIL') + faseCasos + faseBtn;
   } catch (e) { document.title = 'ERR ' + e.message; }
 }
 setTimeout(function () { intento(0); }, 16000);
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
