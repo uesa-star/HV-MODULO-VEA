@@ -1,4 +1,4 @@
-Ôªø<!doctype html>
+<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -10,7 +10,7 @@ canvas { display: block; width: 1600px; }
 </style>
 </head>
 <body>
-<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=29"></iframe>
+<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=30"></iframe>
 <pre id="pdf"></pre>
 <script>
 function W() { return document.getElementById('fr').contentWindow; }
@@ -74,7 +74,7 @@ async function prueba(w, d, canvases) {
       var portCi = w.veaCrearPortadaLaminaF469('Casos Individuales', '');
       var cerrCi = w.veaCrearCierreLaminaF469();
       faseCasos += '|PORT_CI=' + (portCi.width === 1600 && portCi.height === 900 ? 'ok' : 'mal');
-      // F5.01 ‚Äî la car√°tula y las l√°minas deben declarar el Tipo de Caso filtrado.
+      // F5.01 ó la car·tula y las l·minas deben declarar el Tipo de Caso filtrado.
       faseCasos += '|TIPO_LAM=' + w.veaTipoCasoLaminaF469();
       w.eval("estadoCasosIndividualesV21.semana = 'Todas'; estadoCasosIndividualesV21.tipo = 'Todos';");
       faseCasos += '|TIPO_LAM_TODOS=' + w.veaTipoCasoLaminaF469();
