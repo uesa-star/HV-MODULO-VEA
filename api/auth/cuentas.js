@@ -42,8 +42,9 @@ const PROFESIONES_VALIDAS = new Set([
   'Tecnología médica', 'Laboratorio', 'Farmacia', 'Técnico en enfermería',
   'Administrativo', 'Otro'
 ]);
+const TIPOS_DOCUMENTO = new Set(['DNI', 'CE', 'PASAPORTE']);
 
-function validarRegistro(nombre, email, celular, profesion, institucion) {
+function validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento) {
   if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) {
     return 'Escriba nombres y apellidos reales, usando solo letras (por ejemplo: Ana Pérez).';
   }
@@ -60,6 +61,10 @@ function validarRegistro(nombre, email, celular, profesion, institucion) {
       !/[\p{L}]{2}/u.test(institucion)) {
     return 'Escriba el nombre real de la institución donde labora.';
   }
+  if (tipoDocumento === 'DNI' && !/^\d{8}$/.test(numeroDocumento)) return 'El DNI debe tener exactamente 8 dígitos.';
+  if (tipoDocumento === 'CE' && !/^\d{9}$/.test(numeroDocumento)) return 'El carné de extranjería debe tener 9 dígitos.';
+  if (tipoDocumento === 'PASAPORTE' && !/^[A-Z0-9]{6,12}$/.test(numeroDocumento)) return 'El pasaporte debe tener entre 6 y 12 caracteres alfanuméricos.';
+  if (!TIPOS_DOCUMENTO.has(tipoDocumento)) return 'Seleccione un tipo de documento válido.';
   return '';
 }
 
@@ -103,7 +108,7 @@ async function listarUsuarios(req, res, claves, intento) {
 
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,dni,celular,profesion,institucion,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,dni,tipo_documento,numero_documento,celular,profesion,institucion,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -184,16 +189,17 @@ async function registrar(req, res, cuerpo, claves, intento) {
   intento = intento || 0;
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 80);
   const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
-  const dni = String(cuerpo.dni || '').replace(/\D/g, '').slice(0, 8);
+  const tipoDocumento = String(cuerpo.tipoDocumento || 'DNI').trim().toUpperCase();
+  const numeroDocumento = String(cuerpo.numeroDocumento || '').trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 12);
+  const dni = tipoDocumento === 'DNI' ? numeroDocumento : '';
   const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
   const profesion = String(cuerpo.profesion || '').trim().slice(0, 60);
   const institucion = String(cuerpo.institucion || '').trim().slice(0, 120);
   const clave = String(cuerpo.clave || '');
   const confirm = String(cuerpo.confirm || cuerpo.clave || '');
 
-  const errorRegistro = validarRegistro(nombre, email, celular, profesion, institucion);
+  const errorRegistro = validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento);
   if (errorRegistro) return res.status(400).json({ error: errorRegistro });
-  if (!/^\d{8}$/.test(dni)) return res.status(400).json({ error: 'El DNI debe tener exactamente 8 dígitos.' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Escriba un correo electrónico válido (ej: juan.perez@hospitaldeventanilla.gob.pe).' });
   }
@@ -210,7 +216,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
       method: 'POST',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ usuario: email, nombre, dni, celular, profesion, institucion, password_hash: hashearClave(clave), activo: false }),
+      body: JSON.stringify({ usuario: email, nombre, dni, tipo_documento: tipoDocumento, numero_documento: numeroDocumento, celular, profesion, institucion, password_hash: hashearClave(clave), activo: false }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -219,8 +225,8 @@ async function registrar(req, res, cuerpo, claves, intento) {
 
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
-    if (texto.includes('vea_usuarios_dni_unq')) {
-      return res.status(409).json({ error: 'Ese DNI ya está registrado en otra cuenta.' });
+    if (texto.includes('vea_usuarios_dni_unq') || texto.includes('vea_usuarios_documento_unq')) {
+      return res.status(409).json({ error: 'Ese documento ya está registrado en otra cuenta.' });
     }
     if (r.status === 409 || texto.includes('23505')) {
       return res.status(409).json({ error: 'Ese correo ya está registrado. Inicie sesión o use otro correo.' });
@@ -710,7 +716,8 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
 
   const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 120);
-  const dni = String(cuerpo.dni || '').replace(/\D/g, '').slice(0, 8);
+  const tipoDocumento = String(cuerpo.tipoDocumento || 'DNI').trim().toUpperCase();
+  const numeroDocumento = String(cuerpo.numeroDocumento || '').trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 12);
   const celular = String(cuerpo.celular || '').trim().slice(0, 30);
   const nuevoEmail = String(cuerpo.nuevoEmail || '').toLowerCase().trim().slice(0, 120);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -719,8 +726,12 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
   if (nombre.length < 2) {
     return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres.' });
   }
-  if (cuerpo.dni !== undefined && !/^\d{8}$/.test(dni)) {
-    return res.status(400).json({ error: 'El DNI debe tener exactamente 8 dígitos.' });
+  if (cuerpo.numeroDocumento !== undefined && !TIPOS_DOCUMENTO.has(tipoDocumento)) {
+    return res.status(400).json({ error: 'Seleccione un tipo de documento válido.' });
+  }
+  if (cuerpo.numeroDocumento !== undefined) {
+    const errorDocumento = validarRegistro(nombre, email, celular, 'Otro', 'Hospital de Ventanilla', tipoDocumento, numeroDocumento);
+    if (errorDocumento && /documento|DNI|carné|pasaporte/i.test(errorDocumento)) return res.status(400).json({ error: errorDocumento });
   }
   if (celular && !/^\+?[0-9\s()-]{7,18}$/.test(celular)) {
     return res.status(400).json({ error: 'El celular debe contener solo dígitos (7 a 15 números).' });
@@ -731,7 +742,11 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
   }
 
   const cambios = { nombre: nombre, celular: celular };
-  if (cuerpo.dni !== undefined) cambios.dni = dni;
+  if (cuerpo.numeroDocumento !== undefined) {
+    cambios.dni = tipoDocumento === 'DNI' ? numeroDocumento : '';
+    cambios.tipo_documento = tipoDocumento;
+    cambios.numero_documento = numeroDocumento;
+  }
   if (cuerpo.profesion !== undefined) {
     const prof = String(cuerpo.profesion || '').trim().slice(0, 60);
     if (prof.length < 2) return res.status(400).json({ error: 'Seleccione la profesión.' });
