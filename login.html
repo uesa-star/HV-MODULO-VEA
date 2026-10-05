@@ -73,6 +73,17 @@
   .verificando { display: none; text-align: center; padding: .9rem 0 0; font-size: .78rem; color: #636c76; font-weight: 600; }
   .pie { margin-top: 1.5rem; text-align: center; font-size: .68rem; color: #8b949e; line-height: 1.6; }
   .pie strong { color: #57606a; }
+  .campo.conOjo { position: relative; }
+  .campo.conOjo input { padding-right: 2.4rem; }
+  .verClave {
+    position: absolute; right: .45rem; bottom: .32rem;
+    width: 1.9rem; height: 1.9rem; display: grid; place-items: center;
+    background: transparent; border: 0; border-radius: .35rem; cursor: pointer;
+    color: #57606a; padding: 0;
+  }
+  .verClave:hover { background: #eef1f4; color: #1f2328; }
+  .verClave:focus-visible { outline: 2px solid #0969da; outline-offset: 1px; }
+  .verClave svg { display: block; }
 </style>
 </head>
 <body>
@@ -394,6 +405,32 @@
         setTimeout(function () { location.href = '/'; }, 800);
       });
   });
+
+  /* Ojito para ver/ocultar todas las contraseñas */
+  var SVG_OJO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var SVG_OJO_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>';
+  var camposClave = document.querySelectorAll('input[type="password"]');
+  for (var i = 0; i < camposClave.length; i++) {
+    (function (inp) {
+      var etiqueta = inp.closest ? inp.closest('label.campo') : inp.parentNode;
+      if (!etiqueta || etiqueta.querySelector('.verClave')) return;
+      etiqueta.classList.add('conOjo');
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'verClave';
+      btn.setAttribute('aria-label', 'Mostrar contraseña');
+      btn.tabIndex = -1;
+      btn.innerHTML = SVG_OJO;
+      btn.addEventListener('click', function () {
+        var ver = inp.type === 'password';
+        inp.type = ver ? 'text' : 'password';
+        btn.innerHTML = ver ? SVG_OJO_OFF : SVG_OJO;
+        btn.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        inp.focus();
+      });
+      etiqueta.appendChild(btn);
+    })(camposClave[i]);
+  }
 })();
 </script>
 </body>
