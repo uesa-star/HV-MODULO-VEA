@@ -10,7 +10,7 @@ canvas { display: block; width: 1600px; }
 </style>
 </head>
 <body>
-<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=28"></iframe>
+<iframe id="fr" src="node_modules/modulo-vea/index.html?nocache=29"></iframe>
 <pre id="pdf"></pre>
 <script>
 function W() { return document.getElementById('fr').contentWindow; }
@@ -74,7 +74,10 @@ async function prueba(w, d, canvases) {
       var portCi = w.veaCrearPortadaLaminaF469('Casos Individuales', '');
       var cerrCi = w.veaCrearCierreLaminaF469();
       faseCasos += '|PORT_CI=' + (portCi.width === 1600 && portCi.height === 900 ? 'ok' : 'mal');
+      // F5.01 — la carátula y las láminas deben declarar el Tipo de Caso filtrado.
+      faseCasos += '|TIPO_LAM=' + w.veaTipoCasoLaminaF469();
       w.eval("estadoCasosIndividualesV21.semana = 'Todas'; estadoCasosIndividualesV21.tipo = 'Todos';");
+      faseCasos += '|TIPO_LAM_TODOS=' + w.veaTipoCasoLaminaF469();
       var dCiTodas = w.eval('veaDatosPeriodoF469(null)');
       faseCasos += '|CI_TODAS_SE=' + dCiTodas.se;
       var cerrCi2 = w.veaCrearCierreLaminaF469();
@@ -103,6 +106,7 @@ async function prueba(w, d, canvases) {
       await new Promise(function (r) { setTimeout(r, 3000); });
       faseBtn += '|DBG_SE_POST6=' + w.eval('estadoCasosIndividualesV21.semana') + '|DBG_ANIOS6=' + w.eval('JSON.stringify(estadoCasosIndividualesV21.anios)') + '|DBG_STACK=' + String(w.__resetStack || 'none').replace(/\s+/g, ' ').slice(0, 300);
       faseBtn += '|N_ROWS=' + w.eval('ciV21Filtrados().length');
+      faseBtn += '|TIPO_BOTON=' + w.veaTipoCasoLaminaF469();
       var notaG4 = d.getElementById('ciG4NotaSe');
       faseBtn += '|NOTA_G4=' + (notaG4 && !notaG4.classList.contains('hidden') ? notaG4.textContent.trim().slice(0, 120) : 'OCULTA');
       var resumenCI = d.getElementById('ciResumenFiltros');
