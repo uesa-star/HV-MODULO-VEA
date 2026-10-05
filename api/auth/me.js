@@ -3,7 +3,7 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesion, sesionAdm } = require('../../lib/session');
-const { admActivo, marcarVisto, clavesSupabase, leerConfig } = require('../../lib/control');
+const { admActivo, marcarVisto, clavesSupabase, leerConfig, correoGooglePermitido } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -16,6 +16,10 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   const datos = sesion(req);
   if (!datos) {
+    return res.status(401).json({ autenticado: false, adm: false });
+  }
+  // Google solo institucional: expulsa sesiones de otros dominios aunque la cookie siga vigente.
+  if (datos.proveedor === 'google' && !correoGooglePermitido(datos.email)) {
     return res.status(401).json({ autenticado: false, adm: false });
   }
   // Cuentas de correo/contraseña desactivadas (o eliminadas) pierden acceso

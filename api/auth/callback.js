@@ -5,6 +5,7 @@
  * acceso en vea_login_log y crea la cookie de sesión firmada.
  */
 const { firmar, leerCookie, cookie, ipDe, userAgentDe, nuevoSid } = require('../../lib/session');
+const { correoGooglePermitido, DOMINIO_GOOGLE } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -91,6 +92,18 @@ module.exports = async function handler(req, res) {
 
     if (!perfil.email || perfil.email_verified !== true) {
       return redirigir(res, '/login.html?e=verificado');
+    }
+
+    if (!correoGooglePermitido(perfil.email)) {
+      await registrarAcceso({
+        email: String(perfil.email).toLowerCase(),
+        nombre: 'Dominio Google no permitido',
+        proveedor: 'google',
+        ip: ipDe(req),
+        user_agent: userAgentDe(req),
+        exito: false
+      });
+      return redirigir(res, '/login.html?e=dominio');
     }
 
     const sid = nuevoSid();
