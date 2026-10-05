@@ -36,7 +36,6 @@ const COD_REENVIO_MS = 60 * 1000;       // 1 envío como mínimo por minuto
 const COD_ENVIOS_MAX = 3;               // máx. 3 envíos por correo cada 15 min
 const DIAS_CLAVE = 90;                  // la contraseña vence a los 90 días
 const AVISO_CLAVE_DIAS = 7;             // avisar 7 días antes del vencimiento
-const DOMINIO_INSTITUCIONAL = '@hospitaldeventanilla.gob.pe';
 const PROFESIONES_VALIDAS = new Set([
   'Médico', 'Enfermería', 'Obstetricia', 'Odontología', 'Psicología',
   'Tecnología médica', 'Laboratorio', 'Farmacia', 'Técnico en enfermería',
@@ -47,9 +46,6 @@ const TIPOS_DOCUMENTO = new Set(['DNI', 'CE', 'PASAPORTE']);
 function validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento) {
   if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) {
     return 'Escriba nombres y apellidos reales, usando solo letras (por ejemplo: Ana Pérez).';
-  }
-  if (!email.endsWith(DOMINIO_INSTITUCIONAL)) {
-    return 'Use su correo institucional @hospitaldeventanilla.gob.pe.';
   }
   if (celular && !/^9\d{8}$/.test(celular)) {
     return 'El celular debe tener 9 dígitos y comenzar con 9.';

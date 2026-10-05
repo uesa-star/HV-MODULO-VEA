@@ -101,7 +101,7 @@
 
     <form id="formLogin" class="formulario activo" autocomplete="on">
       <label class="campo"><span>Correo electrónico</span>
-        <input id="lgUsuario" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
+        <input id="lgUsuario" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: nombre.apellido@gmail.com" required>
       </label>
       <label class="campo"><span>Contraseña</span>
         <input id="lgClave" name="password" type="password" autocomplete="current-password" required>
@@ -126,7 +126,7 @@
         <input id="rgNumeroDocumento" type="text" inputmode="numeric" autocomplete="off" maxlength="12" title="Ingrese su número de documento" placeholder="ej: 12345678" required>
       </label>
       <label class="campo"><span>Correo electrónico</span>
-        <input id="rgEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" pattern="[^\s@]+@hospitaldeventanilla\.gob\.pe" title="Use su correo @hospitaldeventanilla.gob.pe" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
+        <input id="rgEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: nombre.apellido@gmail.com" required>
       </label>
       <label class="campo"><span>Celular (opcional, para avisos y recuperación)</span>
         <input id="rgCelular" type="tel" autocomplete="tel" inputmode="numeric" pattern="9[0-9]{8}" maxlength="9" title="Ingrese 9 dígitos, comenzando con 9" placeholder="ej: 987654321">
@@ -442,7 +442,7 @@
     if (tipoDocumento === 'DNI' && !/^\d{8}$/.test(numeroDocumento)) return error('El DNI debe tener exactamente 8 dígitos.');
     if (tipoDocumento === 'CE' && !/^\d{9}$/.test(numeroDocumento)) return error('El carné de extranjería debe tener 9 dígitos.');
     if (tipoDocumento === 'PASAPORTE' && !/^[A-Z0-9]{6,12}$/.test(numeroDocumento)) return error('El pasaporte debe tener entre 6 y 12 caracteres.');
-    if (!/^[^\s@]+@hospitaldeventanilla\.gob\.pe$/.test(email)) return error('Use su correo institucional @hospitaldeventanilla.gob.pe.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
     if (celular && !/^9\d{8}$/.test(celular)) return error('El celular debe tener 9 dígitos y comenzar con 9.');
     if (!profesion) return error('Seleccione una profesión válida.');
     if (!/^[\p{L}0-9][\p{L}0-9 .,'&/-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
