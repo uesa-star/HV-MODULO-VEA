@@ -103,7 +103,7 @@ async function listarUsuarios(req, res, claves, intento) {
 
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,celular,profesion,institucion,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,dni,celular,profesion,institucion,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -184,6 +184,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
   intento = intento || 0;
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 80);
   const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
+  const dni = String(cuerpo.dni || '').replace(/\D/g, '').slice(0, 8);
   const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
   const profesion = String(cuerpo.profesion || '').trim().slice(0, 60);
   const institucion = String(cuerpo.institucion || '').trim().slice(0, 120);
@@ -192,6 +193,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
 
   const errorRegistro = validarRegistro(nombre, email, celular, profesion, institucion);
   if (errorRegistro) return res.status(400).json({ error: errorRegistro });
+  if (!/^\d{8}$/.test(dni)) return res.status(400).json({ error: 'El DNI debe tener exactamente 8 dígitos.' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Escriba un correo electrónico válido (ej: juan.perez@hospitaldeventanilla.gob.pe).' });
   }
@@ -208,7 +210,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
       method: 'POST',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ usuario: email, nombre, celular, profesion, institucion, password_hash: hashearClave(clave), activo: false }),
+      body: JSON.stringify({ usuario: email, nombre, dni, celular, profesion, institucion, password_hash: hashearClave(clave), activo: false }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -217,6 +219,9 @@ async function registrar(req, res, cuerpo, claves, intento) {
 
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
+    if (texto.includes('vea_usuarios_dni_unq')) {
+      return res.status(409).json({ error: 'Ese DNI ya está registrado en otra cuenta.' });
+    }
     if (r.status === 409 || texto.includes('23505')) {
       return res.status(409).json({ error: 'Ese correo ya está registrado. Inicie sesión o use otro correo.' });
     }
@@ -257,8 +262,9 @@ async function registrar(req, res, cuerpo, claves, intento) {
             '<p style="font-size:12px;letter-spacing:2px;color:#f59e0b;font-weight:800;margin:0 0 12px">MÓDULO VEA — NUEVA CUENTA POR ACTIVAR</p>' +
             '<p style="font-size:14px;margin:0 0 16px">Se registró un usuario. Actívelo desde el panel ADM → Cuentas de usuarios.</p>' +
             '<table style="font-size:13px;border-collapse:collapse">' +
-            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Nombre</td><td><b>' + esc(nombre) + '</b></td></tr>' +
-            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Correo</td><td><b>' + esc(email) + '</b></td></tr>' +
+             '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Nombre</td><td><b>' + esc(nombre) + '</b></td></tr>' +
+             '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">DNI</td><td><b>' + esc(dni) + '</b></td></tr>' +
+             '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Correo</td><td><b>' + esc(email) + '</b></td></tr>' +
             '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Celular</td><td><b>' + esc(celular) + '</b></td></tr>' +
             '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Profesión</td><td><b>' + esc(profesion) + '</b></td></tr>' +
             '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Institución</td><td><b>' + esc(institucion) + '</b></td></tr>' +
@@ -704,6 +710,7 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
 
   const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 120);
+  const dni = String(cuerpo.dni || '').replace(/\D/g, '').slice(0, 8);
   const celular = String(cuerpo.celular || '').trim().slice(0, 30);
   const nuevoEmail = String(cuerpo.nuevoEmail || '').toLowerCase().trim().slice(0, 120);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -711,6 +718,9 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
   }
   if (nombre.length < 2) {
     return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres.' });
+  }
+  if (cuerpo.dni !== undefined && !/^\d{8}$/.test(dni)) {
+    return res.status(400).json({ error: 'El DNI debe tener exactamente 8 dígitos.' });
   }
   if (celular && !/^\+?[0-9\s()-]{7,18}$/.test(celular)) {
     return res.status(400).json({ error: 'El celular debe contener solo dígitos (7 a 15 números).' });
@@ -721,6 +731,7 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
   }
 
   const cambios = { nombre: nombre, celular: celular };
+  if (cuerpo.dni !== undefined) cambios.dni = dni;
   if (cuerpo.profesion !== undefined) {
     const prof = String(cuerpo.profesion || '').trim().slice(0, 60);
     if (prof.length < 2) return res.status(400).json({ error: 'Seleccione la profesión.' });

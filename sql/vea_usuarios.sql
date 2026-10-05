@@ -4,6 +4,7 @@ create table if not exists public.vea_usuarios (
   id bigint generated always as identity primary key,
   usuario text not null unique,      -- correo en minúsculas (identificador de ingreso)
   nombre text not null default '',
+  dni text,
   celular text not null default '',  -- para avisos / recuperación
   password_hash text not null,
   activo boolean not null default true,
@@ -20,6 +21,7 @@ create table if not exists public.vea_usuarios (
 );
 
 alter table public.vea_usuarios add column if not exists celular text not null default '';
+alter table public.vea_usuarios add column if not exists dni text;
 alter table public.vea_usuarios add column if not exists debe_cambiar boolean not null default false;
 alter table public.vea_usuarios add column if not exists profesion text not null default '';
 alter table public.vea_usuarios add column if not exists institucion text not null default '';
@@ -29,6 +31,7 @@ alter table public.vea_usuarios add column if not exists cod_hash text not null 
 alter table public.vea_usuarios add column if not exists cod_exp bigint not null default 0;
 alter table public.vea_usuarios add column if not exists cod_fallos smallint not null default 0;
 alter table public.vea_usuarios add column if not exists cod_enviado bigint not null default 0;
+create unique index if not exists vea_usuarios_dni_unq on public.vea_usuarios (dni) where dni is not null and dni <> '';
 alter table public.vea_usuarios enable row level security;
 revoke all on public.vea_usuarios from anon, authenticated;
 grant select, insert, update, delete on public.vea_usuarios to service_role;
