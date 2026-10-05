@@ -3,7 +3,9 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesion, sesionAdm } = require('../../lib/session');
-const { admActivo, marcarVisto } = require('../../lib/control');
+const { admActivo, marcarVisto, clavesSupabase } = require('../../lib/control');
+
+const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -15,6 +17,26 @@ module.exports = async function handler(req, res) {
   const datos = sesion(req);
   if (!datos) {
     return res.status(401).json({ autenticado: false, adm: false });
+  }
+  // Cuentas de correo/contraseña desactivadas (o eliminadas) pierden acceso
+  // aunque su cookie siga vigente: la pantalla «Mi contraseña» no las muestra y el guard las expulsa.
+  if (datos.proveedor === 'registro' && datos.email) {
+    try {
+      const claves = typeof clavesSupabase === 'function' ? clavesSupabase() : null;
+      if (claves) {
+        const rq = await fetch(
+          `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(String(datos.email).toLowerCase())}&select=activo&limit=1`,
+          { headers: claves, cache: 'no-store' }
+        );
+        if (rq.ok) {
+          const fr = await rq.json().catch(() => []);
+          const fu = Array.isArray(fr) && fr.length ? fr[0] : null;
+          if (!fu || fu.activo === false) {
+            return res.status(401).json({ autenticado: false, adm: false });
+          }
+        }
+      }
+    } catch (_) { /* sin verificación: continúa con la sesión */ }
   }
   let adm = false;
   const vistas = [];

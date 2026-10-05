@@ -12,6 +12,14 @@
  *        correo del usuario (recuperación "olvidé mi contraseña"; máx. 3/15 min).
  *   { accion: 'restaurarConCodigoUsuario', email, codigo, claveNueva }
  *        → restablece con el código recibido (vence 10 min, máx. 5 intentos).
+ *   { accion: 'editar', email, nombre, celular, nuevoEmail } → el ADM
+ *        corrige los datos de una cuenta, incluido el correo si el usuario
+ *        se equivocó al registrarse (nuevoEmail debe ser único).
+ *        La sesión que use el correo antiguo se cierra sola al no encontrarlo.
+ *   { accion: 'estado', email, activo } → el ADM activa o desactiva
+ *        una cuenta (desactivada no puede ingresar; requiere sesión ADM).
+ *   { accion: 'eliminar', email } → el ADM elimina una cuenta
+ *        (requiere sesión ADM; el historial del log se conserva).
  */
 const crypto = require('crypto');
 const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = require('../../lib/session');
@@ -289,7 +297,7 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   let r;
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=password_hash&limit=1`,
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=password_hash,activo&limit=1`,
       { headers: claves, cache: 'no-store' }
     );
   } catch (_) {
@@ -308,6 +316,9 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   const filas = await r.json().catch(() => []);
   const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
   if (!fila) return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  if (fila.activo === false) {
+    return res.status(403).json({ error: 'La cuenta está desactivada. Contacte al administrador.' });
+  }
   if (!verificarClave(actual, fila.password_hash)) {
     return res.status(401).json({ error: 'La contraseña actual es incorrecta.' });
   }
@@ -577,6 +588,181 @@ async function incrementarFallosCodigo(email, nuevos, claves) {
   } catch (_) { /* el fallo se reintenta en el próximo intento */ }
 }
 
+async function editarUsuario(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  const nombre = String(cuerpo.nombre || '').trim().slice(0, 120);
+  const celular = String(cuerpo.celular || '').trim().slice(0, 30);
+  const nuevoEmail = String(cuerpo.nuevoEmail || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  if (nombre.length < 2) {
+    return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres.' });
+  }
+  if (celular && !/^\+?[0-9\s()-]{7,18}$/.test(celular)) {
+    return res.status(400).json({ error: 'El celular debe contener solo dígitos (7 a 15 números).' });
+  }
+  const cambiaCorreo = Boolean(nuevoEmail) && nuevoEmail !== email;
+  if (cambiaCorreo && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(nuevoEmail)) {
+    return res.status(400).json({ error: 'Correo nuevo inválido.' });
+  }
+
+  const cambios = { nombre: nombre, celular: celular };
+  if (cambiaCorreo) {
+    cambios.usuario = nuevoEmail;
+    cambios.cod_hash = '';
+    cambios.cod_exp = '0';
+    cambios.cod_fallos = 0;
+    cambios.cod_enviado = '0';
+  }
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(cambios),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return editarUsuario(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    if (r.status === 409 || texto.includes('duplicate') || texto.includes('23505')) {
+      return res.status(409).json({ error: 'Ese correo ya está registrado en otra cuenta.' });
+    }
+    return res.status(500).json({ error: 'No se pudo guardar los cambios. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  if (!Array.isArray(filas) || !filas.length) {
+    return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
+  const adm = await admActivo(req);
+  const admDatos = adm || {};
+  await registrarAcceso({
+    email: cambiaCorreo ? `adm:editó cuenta ${email} → ${nuevoEmail}` : `adm:editó cuenta → ${email}`,
+    nombre: String(admDatos.email || 'ADM'),
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true, usuario: cambiaCorreo ? nuevoEmail : email });
+}
+
+async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  if (cuerpo.activo !== true && cuerpo.activo !== false) {
+    return res.status(400).json({ error: 'Estado inválido.' });
+  }
+  const activo = cuerpo.activo === true;
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ activo: activo }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return cambiarEstadoUsuario(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo cambiar el estado. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  if (!Array.isArray(filas) || !filas.length) {
+    return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
+  const adm = await admActivo(req);
+  const admDatos = adm || {};
+  await registrarAcceso({
+    email: `adm:${activo ? 'activó' : 'desactivó'} cuenta → ${email}`,
+    nombre: String(admDatos.email || 'ADM'),
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true, usuario: email, activo: activo });
+}
+
+async function eliminarUsuario(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+      headers: { ...claves, Prefer: 'return=representation' },
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return eliminarUsuario(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo eliminar la cuenta. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  if (!Array.isArray(filas) || !filas.length) {
+    return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
+  const adm = await admActivo(req);
+  const admDatos = adm || {};
+  await registrarAcceso({
+    email: `adm:eliminó cuenta → ${email}`,
+    nombre: String(admDatos.email || 'ADM'),
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true, usuario: email });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -609,5 +795,8 @@ module.exports = async function handler(req, res) {
   if (accion === 'cambiarPropia') return cambiarClavePropia(req, res, cuerpo, claves);
   if (accion === 'enviarCodigoUsuario') return enviarCodigoUsuario(req, res, cuerpo, claves);
   if (accion === 'restaurarConCodigoUsuario') return restaurarConCodigoUsuario(req, res, cuerpo, claves);
-  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario" o "restaurarConCodigoUsuario").' });
+  if (accion === 'editar') return editarUsuario(req, res, cuerpo, claves);
+  if (accion === 'estado') return cambiarEstadoUsuario(req, res, cuerpo, claves);
+  if (accion === 'eliminar') return eliminarUsuario(req, res, cuerpo, claves);
+  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado" o "eliminar").' });
 };
