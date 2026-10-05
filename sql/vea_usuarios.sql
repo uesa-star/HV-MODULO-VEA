@@ -8,6 +8,8 @@ create table if not exists public.vea_usuarios (
   password_hash text not null,
   activo boolean not null default true,
   debe_cambiar boolean not null default false,   -- clave temporal puesta por el ADM
+  profesion text not null default '',            -- para aprobación del ADM
+  institucion text not null default '',          -- para aprobación del ADM
   cod_hash text not null default '',             -- hash scrypt del código de recuperación
   cod_exp bigint not null default 0,             -- vencimiento (epoch ms) del código
   cod_fallos smallint not null default 0,        -- intentos fallidos con el código
@@ -17,6 +19,8 @@ create table if not exists public.vea_usuarios (
 
 alter table public.vea_usuarios add column if not exists celular text not null default '';
 alter table public.vea_usuarios add column if not exists debe_cambiar boolean not null default false;
+alter table public.vea_usuarios add column if not exists profesion text not null default '';
+alter table public.vea_usuarios add column if not exists institucion text not null default '';
 alter table public.vea_usuarios add column if not exists cod_hash text not null default '';
 alter table public.vea_usuarios add column if not exists cod_exp bigint not null default 0;
 alter table public.vea_usuarios add column if not exists cod_fallos smallint not null default 0;

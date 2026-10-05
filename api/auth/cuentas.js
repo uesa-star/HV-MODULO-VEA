@@ -65,7 +65,7 @@ async function listarUsuarios(req, res, claves, intento) {
 
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,celular,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,celular,profesion,institucion,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -144,6 +144,8 @@ async function registrar(req, res, cuerpo, claves, intento) {
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 80);
   const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
   const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
+  const profesion = String(cuerpo.profesion || '').trim().slice(0, 60);
+  const institucion = String(cuerpo.institucion || '').trim().slice(0, 120);
   const clave = String(cuerpo.clave || '');
   const confirm = String(cuerpo.confirm || cuerpo.clave || '');
 
@@ -151,6 +153,8 @@ async function registrar(req, res, cuerpo, claves, intento) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Escriba un correo electrónico válido (ej: juan.perez@hospitaldeventanilla.gob.pe).' });
   }
+  if (profesion.length < 2) return res.status(400).json({ error: 'Seleccione su profesión.' });
+  if (institucion.length < 2) return res.status(400).json({ error: 'Escriba su institución (mínimo 2 letras).' });
   if (celular && !/^\+?[0-9]{7,15}$/.test(celular)) {
     return res.status(400).json({ error: 'El celular debe tener solo dígitos (7 a 15 números, puede empezar con +).' });
   }
@@ -164,7 +168,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
       method: 'POST',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ usuario: email, nombre, celular, password_hash: hashearClave(clave), activo: false }),
+      body: JSON.stringify({ usuario: email, nombre, celular, profesion, institucion, password_hash: hashearClave(clave), activo: false }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -626,6 +630,16 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
   }
 
   const cambios = { nombre: nombre, celular: celular };
+  if (cuerpo.profesion !== undefined) {
+    const prof = String(cuerpo.profesion || '').trim().slice(0, 60);
+    if (prof.length < 2) return res.status(400).json({ error: 'Seleccione la profesión.' });
+    cambios.profesion = prof;
+  }
+  if (cuerpo.institucion !== undefined) {
+    const inst = String(cuerpo.institucion || '').trim().slice(0, 120);
+    if (inst.length < 2) return res.status(400).json({ error: 'Escriba la institución (mínimo 2 letras).' });
+    cambios.institucion = inst;
+  }
   if (cambiaCorreo) {
     cambios.usuario = nuevoEmail;
     cambios.cod_hash = '';
