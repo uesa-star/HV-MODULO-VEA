@@ -435,10 +435,7 @@
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
     enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, email: email, celular: celular, profesion: profesion, institucion: institucion, clave: clave, confirm: confirm },
       document.getElementById('btnCrear'),
-      function (d) {
-        msgForm.style.display = 'none';
-        msgOk.textContent = (d && d.mensaje) || 'Cuenta creada. Está pendiente de activación por el administrador.';
-        msgOk.style.display = 'block';
+      function () {
         document.getElementById('lgUsuario').value = email;
         mostrar(formLogin);
       });
