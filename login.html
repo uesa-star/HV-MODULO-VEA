@@ -399,11 +399,12 @@
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
     enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, email: email, celular: celular, clave: clave, confirm: confirm },
       document.getElementById('btnCrear'),
-      function () {
+      function (d) {
         msgForm.style.display = 'none';
-        msgOk.textContent = 'Cuenta creada. Ingresando…';
+        msgOk.textContent = (d && d.mensaje) || 'Cuenta creada. Está pendiente de activación por el administrador.';
         msgOk.style.display = 'block';
-        setTimeout(function () { location.href = '/'; }, 800);
+        document.getElementById('lgUsuario').value = email;
+        setTimeout(function () { mostrar(formLogin); }, 2500);
       });
   });
 

@@ -2,7 +2,8 @@
  * VEA — Cuentas propias: registro e ingreso con usuario y contraseña.
  * POST /api/auth/cuentas
  *   { accion: 'registro', nombre, usuario, clave, confirm } → crea la cuenta
- *        en public.vea_usuarios (hash scrypt) y devuelve sesión vea_session (12 h).
+ *        en public.vea_usuarios (hash scrypt) DESACTIVADA: el ADM la activa
+ *        desde el panel; no devuelve sesión hasta la activación.
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  *        Si la cuenta tiene debe_cambiar (clave temporal puesta por el ADM),
  *        responde { debe_cambiar: true } y el cliente obliga a cambiarla.
@@ -163,7 +164,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
       method: 'POST',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ usuario: email, nombre, celular, password_hash: hashearClave(clave) }),
+      body: JSON.stringify({ usuario: email, nombre, celular, password_hash: hashearClave(clave), activo: false }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -186,20 +187,22 @@ async function registrar(req, res, cuerpo, claves, intento) {
     return res.status(500).json({ error: 'No se pudo crear la cuenta. Intente nuevamente.' });
   }
 
-  const sidReg = nuevoSid();
+  // La cuenta nace DESACTIVADA: el ADM la activa desde el panel (punto 2 auditoría).
+  // No se crea sesión: el usuario debe esperar la activación para ingresar.
   await registrarAcceso({
     email,
     nombre,
     proveedor: 'registro',
     ip: ipDe(req),
     user_agent: userAgentDe(req),
-    exito: true,
-    sesion_id: sidReg
+    exito: true
   });
 
-  const token = firmar({ email, nombre, proveedor: 'registro', sid: sidReg }, 12);
-  res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({
+    ok: true,
+    pendiente: true,
+    mensaje: 'Cuenta creada. Está pendiente de activación por el administrador; intente ingresar luego.'
+  });
 }
 
 async function ingresar(req, res, cuerpo, claves, intento) {
@@ -250,7 +253,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   const correcta = fila ? verificarClave(clave, fila.password_hash) : (claveFalsa(), false);
   const activo = fila && fila.activo !== false;
 
-  if (!fila || !correcta || !activo) {
+  if (!fila || !correcta) {
     await registrarAcceso({
       email: `registro:${usuario.slice(0, 60) || '(vacío)'}`,
       nombre: 'Intento de acceso con usuario/contraseña',
@@ -260,6 +263,18 @@ async function ingresar(req, res, cuerpo, claves, intento) {
       exito: false
     });
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  }
+
+  if (!activo) {
+    await registrarAcceso({
+      email: `registro:${usuario.slice(0, 60) || '(vacío)'}`,
+      nombre: 'Cuenta pendiente de activación',
+      proveedor: 'registro',
+      ip: ipDe(req),
+      user_agent: userAgentDe(req),
+      exito: false
+    });
+    return res.status(403).json({ error: 'Su cuenta está pendiente de activación por el administrador. Contáctelo para que la active.' });
   }
 
   const sidIng = nuevoSid();
