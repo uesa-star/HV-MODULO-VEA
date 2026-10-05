@@ -113,13 +113,13 @@
 
     <form id="formRegistro" class="formulario" autocomplete="on">
       <label class="campo"><span>Nombre completo</span>
-        <input id="rgNombre" type="text" autocomplete="name" required>
+        <input id="rgNombre" type="text" autocomplete="name" maxlength="80" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü .'-]{5,80}" title="Ingrese nombres y apellidos reales" required>
       </label>
       <label class="campo"><span>Correo electrónico</span>
-        <input id="rgEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
+        <input id="rgEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" pattern="[^\s@]+@hospitaldeventanilla\.gob\.pe" title="Use su correo @hospitaldeventanilla.gob.pe" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
       </label>
       <label class="campo"><span>Celular (opcional, para avisos y recuperación)</span>
-        <input id="rgCelular" type="tel" autocomplete="tel" inputmode="tel" placeholder="ej: 987654321">
+        <input id="rgCelular" type="tel" autocomplete="tel" inputmode="numeric" pattern="9[0-9]{8}" maxlength="9" title="Ingrese 9 dígitos, comenzando con 9" placeholder="ej: 987654321">
       </label>
       <label class="campo"><span>Profesión</span>
         <select id="rgProfesion" required>
@@ -138,7 +138,7 @@
         </select>
       </label>
       <label class="campo"><span>Institución donde labora</span>
-        <input id="rgInstitucion" type="text" autocomplete="organization" placeholder="ej: Hospital de Ventanilla" required>
+        <input id="rgInstitucion" type="text" autocomplete="organization" maxlength="120" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9 .,'&amp;/-]{3,120}" title="Ingrese el nombre real de su institución" placeholder="ej: Hospital de Ventanilla" required>
       </label>
       <label class="campo"><span>Crear contraseña (mínimo 8 caracteres)</span>
         <input id="rgClave" type="password" autocomplete="new-password" required>
@@ -426,11 +426,11 @@
     var institucion = document.getElementById('rgInstitucion').value.trim();
     var clave = document.getElementById('rgClave').value;
     var confirm = document.getElementById('rgConfirm').value;
-    if (nombre.length < 2) return error('Escriba su nombre completo.');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
-    if (celular && !/^\+?[0-9\s()-]{7,18}$/.test(celular)) return error('El celular debe contener solo dígitos (7 a 15 números).');
-    if (profesion.length < 2) return error('Seleccione su profesión.');
-    if (institucion.length < 2) return error('Escriba su institución.');
+    if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) return error('Escriba nombres y apellidos reales.');
+    if (!/^[^\s@]+@hospitaldeventanilla\.gob\.pe$/.test(email)) return error('Use su correo institucional @hospitaldeventanilla.gob.pe.');
+    if (celular && !/^9\d{8}$/.test(celular)) return error('El celular debe tener 9 dígitos y comenzar con 9.');
+    if (!profesion) return error('Seleccione una profesión válida.');
+    if (!/^[\p{L}0-9][\p{L}0-9 .,'&/-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
     enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, email: email, celular: celular, profesion: profesion, institucion: institucion, clave: clave, confirm: confirm },

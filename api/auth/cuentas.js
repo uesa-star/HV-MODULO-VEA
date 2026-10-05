@@ -36,6 +36,32 @@ const COD_REENVIO_MS = 60 * 1000;       // 1 envío como mínimo por minuto
 const COD_ENVIOS_MAX = 3;               // máx. 3 envíos por correo cada 15 min
 const DIAS_CLAVE = 90;                  // la contraseña vence a los 90 días
 const AVISO_CLAVE_DIAS = 7;             // avisar 7 días antes del vencimiento
+const DOMINIO_INSTITUCIONAL = '@hospitaldeventanilla.gob.pe';
+const PROFESIONES_VALIDAS = new Set([
+  'Médico', 'Enfermería', 'Obstetricia', 'Odontología', 'Psicología',
+  'Tecnología médica', 'Laboratorio', 'Farmacia', 'Técnico en enfermería',
+  'Administrativo', 'Otro'
+]);
+
+function validarRegistro(nombre, email, celular, profesion, institucion) {
+  if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) {
+    return 'Escriba nombres y apellidos reales, usando solo letras (por ejemplo: Ana Pérez).';
+  }
+  if (!email.endsWith(DOMINIO_INSTITUCIONAL)) {
+    return 'Use su correo institucional @hospitaldeventanilla.gob.pe.';
+  }
+  if (celular && !/^9\d{8}$/.test(celular)) {
+    return 'El celular debe tener 9 dígitos y comenzar con 9.';
+  }
+  if (!PROFESIONES_VALIDAS.has(profesion)) {
+    return 'Seleccione una profesión válida de la lista.';
+  }
+  if (!/^[\p{L}0-9][\p{L}0-9 .,'&/-]{2,119}$/u.test(institucion) ||
+      !/[\p{L}]{2}/u.test(institucion)) {
+    return 'Escriba el nombre real de la institución donde labora.';
+  }
+  return '';
+}
 
 // Política de clave: mínimo 8 caracteres, al menos una mayúscula y un número.
 function claveCumplePolitica(clave) {
@@ -164,14 +190,10 @@ async function registrar(req, res, cuerpo, claves, intento) {
   const clave = String(cuerpo.clave || '');
   const confirm = String(cuerpo.confirm || cuerpo.clave || '');
 
-  if (nombre.length < 2) return res.status(400).json({ error: 'Escriba su nombre completo (mínimo 2 letras).' });
+  const errorRegistro = validarRegistro(nombre, email, celular, profesion, institucion);
+  if (errorRegistro) return res.status(400).json({ error: errorRegistro });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Escriba un correo electrónico válido (ej: juan.perez@hospitaldeventanilla.gob.pe).' });
-  }
-  if (profesion.length < 2) return res.status(400).json({ error: 'Seleccione su profesión.' });
-  if (institucion.length < 2) return res.status(400).json({ error: 'Escriba su institución (mínimo 2 letras).' });
-  if (celular && !/^\+?[0-9]{7,15}$/.test(celular)) {
-    return res.status(400).json({ error: 'El celular debe tener solo dígitos (7 a 15 números, puede empezar con +).' });
   }
   if (clave.length < 8 || clave.length > 72) {
     return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
