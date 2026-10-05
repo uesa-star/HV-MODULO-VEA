@@ -20,9 +20,11 @@ module.exports = async function handler(req, res) {
   const rawYear = String(req.query.year || '').trim();
   const year = /^\d{4}$/.test(rawYear) ? rawYear : null;
 
-  const apikey = req.headers.apikey;
-  const authorization = req.headers.authorization;
-  if (!apikey || !authorization) return res.status(401).json({ error: 'Credenciales públicas faltantes' });
+  // Llave del SERVIDOR (service_role): los datos se sirven solo con sesión
+  // válida. La llave pública del navegador ya no se usa ni se acepta, porque
+  // la tabla `individual` (datos de pacientes) no tiene acceso anónimo.
+  const k = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!k) return res.status(503).json({ error: 'Base de datos no configurada.' });
 
   const params = new URLSearchParams({ select: '*', offset: String(offset), limit: String(limit) });
   // No usar _row_id: puede no existir en la tabla y dejar todos los gráficos sin datos.
@@ -37,7 +39,7 @@ module.exports = async function handler(req, res) {
   try {
     const upstream = await fetch(upstreamUrl, {
       method: 'GET',
-      headers: { apikey, Authorization: authorization, Accept: 'application/json' },
+      headers: { apikey: k, Authorization: `Bearer ${k}`, Accept: 'application/json' },
       cache: 'no-store'
     });
     const body = await upstream.text();
