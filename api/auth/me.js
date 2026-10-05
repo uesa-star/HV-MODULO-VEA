@@ -29,13 +29,18 @@ module.exports = async function handler(req, res) {
       const claves = typeof clavesSupabase === 'function' ? clavesSupabase() : null;
       if (claves) {
         const rq = await fetch(
-          `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(String(datos.email).toLowerCase())}&select=activo&limit=1`,
+          `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(String(datos.email).toLowerCase())}&select=activo,sesion_v&limit=1`,
           { headers: claves, cache: 'no-store' }
         );
         if (rq.ok) {
           const fr = await rq.json().catch(() => []);
           const fu = Array.isArray(fr) && fr.length ? fr[0] : null;
           if (!fu || fu.activo === false) {
+            return res.status(401).json({ autenticado: false, adm: false });
+          }
+          // La cookie lleva la versión de sesión (sv); si el ADM restableció la
+          // clave o el usuario la cambió, la versión subió y esta sesión muere.
+          if (Number(fu.sesion_v) !== Number(datos.sv || 0)) {
             return res.status(401).json({ autenticado: false, adm: false });
           }
         }

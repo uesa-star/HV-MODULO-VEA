@@ -274,7 +274,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   let r;
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=nombre,password_hash,activo,debe_cambiar&limit=1`,
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=nombre,password_hash,activo,debe_cambiar,sesion_v&limit=1`,
       { headers: claves, cache: 'no-store' }
     );
   } catch (_) {
@@ -331,7 +331,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   });
 
   const debeCambiar = fila.debe_cambiar === true;
-  const datosToken = { email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng };
+  const datosToken = { email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng, sv: Number(fila.sesion_v) || 0 };
   if (debeCambiar) datosToken.dc = 1;
   const token = firmar(datosToken, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
@@ -384,7 +384,7 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   try {
     r2 = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}`, {
       method: 'PATCH',
-      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify({ password_hash: hashearClave(nueva), debe_cambiar: false }),
       cache: 'no-store'
     });
@@ -392,6 +392,10 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
     return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
   }
   if (!r2.ok) return res.status(500).json({ error: 'No se pudo guardar la nueva contraseña. Intente nuevamente.' });
+
+  const filasG = await r2.json().catch(() => []);
+  const filaG = Array.isArray(filasG) && filasG.length ? filasG[0] : null;
+  const nuevaSv = filaG ? (Number(filaG.sesion_v) || 0) : 0;
 
   await registrarAcceso({
     email: usuario,
@@ -402,7 +406,7 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
     exito: true
   });
 
-  const token = firmar({ email: usuario, nombre: datos.nombre || usuario, proveedor: 'registro', sid: datos.sid }, 12);
+  const token = firmar({ email: usuario, nombre: datos.nombre || usuario, proveedor: 'registro', sid: datos.sid, sv: nuevaSv }, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true });
 }

@@ -10,6 +10,7 @@ create table if not exists public.vea_usuarios (
   debe_cambiar boolean not null default false,   -- clave temporal puesta por el ADM
   profesion text not null default '',            -- para aprobación del ADM
   institucion text not null default '',          -- para aprobación del ADM
+  sesion_v integer not null default 0,           -- versión de sesión: cambiar/restablecer clave la invalida
   cod_hash text not null default '',             -- hash scrypt del código de recuperación
   cod_exp bigint not null default 0,             -- vencimiento (epoch ms) del código
   cod_fallos smallint not null default 0,        -- intentos fallidos con el código
@@ -21,6 +22,7 @@ alter table public.vea_usuarios add column if not exists celular text not null d
 alter table public.vea_usuarios add column if not exists debe_cambiar boolean not null default false;
 alter table public.vea_usuarios add column if not exists profesion text not null default '';
 alter table public.vea_usuarios add column if not exists institucion text not null default '';
+alter table public.vea_usuarios add column if not exists sesion_v integer not null default 0;
 alter table public.vea_usuarios add column if not exists cod_hash text not null default '';
 alter table public.vea_usuarios add column if not exists cod_exp bigint not null default 0;
 alter table public.vea_usuarios add column if not exists cod_fallos smallint not null default 0;
