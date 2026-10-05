@@ -27,7 +27,7 @@ const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = r
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
-const { admActivo, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
+const { admActivo, leerConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a los 10 min
@@ -201,6 +201,44 @@ async function registrar(req, res, cuerpo, claves, intento) {
     user_agent: userAgentDe(req),
     exito: true
   });
+
+  // Aviso inmediato al ADM para activación rápida. Nunca bloquea el registro.
+  try {
+    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      const lectura = await leerConfig(['adm_email']);
+      const paraAdm = lectura && lectura.cfg ? String(lectura.cfg.adm_email || '').trim() : '';
+      if (paraAdm) {
+        const esc = (s) => String(s || '—').replace(/[<>&"']/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[m]));
+        const rc = await enviarCorreo({
+          para: paraAdm,
+          asunto: 'Nueva cuenta por activar - Modulo VEA',
+          html:
+            '<div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;padding:28px;color:#e2e8f0;border-radius:14px">' +
+            '<p style="font-size:12px;letter-spacing:2px;color:#f59e0b;font-weight:800;margin:0 0 12px">MÓDULO VEA — NUEVA CUENTA POR ACTIVAR</p>' +
+            '<p style="font-size:14px;margin:0 0 16px">Se registró un usuario. Actívelo desde el panel ADM → Cuentas de usuarios.</p>' +
+            '<table style="font-size:13px;border-collapse:collapse">' +
+            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Nombre</td><td><b>' + esc(nombre) + '</b></td></tr>' +
+            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Correo</td><td><b>' + esc(email) + '</b></td></tr>' +
+            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Celular</td><td><b>' + esc(celular) + '</b></td></tr>' +
+            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Profesión</td><td><b>' + esc(profesion) + '</b></td></tr>' +
+            '<tr><td style="color:#94a3b8;padding:4px 12px 4px 0">Institución</td><td><b>' + esc(institucion) + '</b></td></tr>' +
+            '</table>' +
+            '<p style="margin:20px 0 4px"><a href="https://vigilancia-epidemiologica-ecru.vercel.app/?adm=1" style="display:inline-block;background:#f59e0b;color:#0f172a;font-weight:800;font-size:14px;text-decoration:none;border-radius:10px;padding:12px 24px">Abrir panel ADM</a></p>' +
+            '</div>'
+        });
+        if (!rc.error) {
+          await registrarAcceso({
+            email: `adm:avisó nueva cuenta → ${email}`,
+            nombre: nombre,
+            proveedor: 'adm',
+            ip: ipDe(req),
+            user_agent: userAgentDe(req),
+            exito: true
+          });
+        }
+      }
+    }
+  } catch (_) { /* el aviso nunca bloquea el registro */ }
 
   return res.status(200).json({
     ok: true,
