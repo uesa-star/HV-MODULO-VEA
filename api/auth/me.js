@@ -3,7 +3,7 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesion, sesionAdm } = require('../../lib/session');
-const { admActivo, marcarVisto, clavesSupabase } = require('../../lib/control');
+const { admActivo, marcarVisto, clavesSupabase, leerConfig } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -47,12 +47,25 @@ module.exports = async function handler(req, res) {
     if (a && a.sid && a.sid !== datos.sid) vistas.push(a.sid);
   }
   await Promise.all(vistas.map(marcarVisto));
+  // ¿La sesión Google actual es la del correo registrado como administrador?
+  // Solo se devuelve sí/no (nunca el correo), para mostrarle la pestaña ADM
+  // únicamente a él sin exponer nada a los demás usuarios.
+  let admEmail = false;
+  if (datos.proveedor === 'google' && datos.email) {
+    try {
+      const lectura = await leerConfig(['adm_email']);
+      const cfg = (lectura && lectura.cfg) || {};
+      admEmail = Boolean(cfg.adm_email) &&
+        String(datos.email).toLowerCase() === String(cfg.adm_email).toLowerCase();
+    } catch (_) { admEmail = false; }
+  }
   return res.status(200).json({
     autenticado: true,
     email: datos.email || '',
     nombre: datos.nombre || '',
     proveedor: datos.proveedor || '',
     debe_cambiar: Boolean(datos.dc),
+    admEmail: admEmail,
     adm: adm
   });
 };
