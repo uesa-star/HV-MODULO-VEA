@@ -115,6 +115,13 @@
       <label class="campo"><span>Nombre completo</span>
         <input id="rgNombre" type="text" autocomplete="name" maxlength="80" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü .'-]{5,80}" title="Ingrese nombres y apellidos reales" required>
       </label>
+      <label class="campo"><span>Nacionalidad</span>
+        <select id="rgNacionalidad" required>
+          <option value="">Seleccione su nacionalidad…</option>
+          <option>Peruana</option><option>Venezolana</option><option>Colombiana</option>
+          <option>Ecuatoriana</option><option>Boliviana</option><option>Otra</option>
+        </select>
+      </label>
       <label class="campo"><span>Tipo de documento</span>
         <select id="rgTipoDocumento" required>
           <option value="DNI">DNI peruano</option>
@@ -147,8 +154,20 @@
           <option>Otro</option>
         </select>
       </label>
-      <label class="campo"><span>Institución donde labora</span>
-        <input id="rgInstitucion" type="text" autocomplete="organization" maxlength="120" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9 .,'&amp;/-]{3,120}" title="Ingrese el nombre real de su institución" placeholder="ej: Hospital de Ventanilla" required>
+      <label class="campo"><span>Establecimiento donde labora</span>
+        <select id="rgInstitucion" required>
+          <option value="">Seleccione su establecimiento…</option>
+          <option>Hospital de Ventanilla</option>
+          <option>Centro de Salud de Lima o Callao</option>
+          <option>Hospital de Lima o Callao</option>
+          <option>Clínica o establecimiento privado</option>
+          <option>Dirección u oficina de salud</option>
+          <option>Otro establecimiento (revisión ADM)</option>
+        </select>
+      </label>
+      <label class="campo" style="display:flex;gap:.5rem;align-items:flex-start;margin-top:1rem;">
+        <input id="rgTerminos" type="checkbox" style="width:auto;margin-top:.15rem" required>
+        <span style="margin:0;font-weight:400">Acepto los términos de uso y la política de privacidad del módulo VEA.</span>
       </label>
       <label class="campo"><span>Crear contraseña (mínimo 8 caracteres)</span>
         <input id="rgClave" type="password" autocomplete="new-password" required>
@@ -435,6 +454,7 @@
     var nombre = document.getElementById('rgNombre').value.trim();
     var tipoDocumento = document.getElementById('rgTipoDocumento').value;
     var numeroDocumento = document.getElementById('rgNumeroDocumento').value.trim().toUpperCase().replace(/[\s-]/g, '');
+    var nacionalidad = document.getElementById('rgNacionalidad').value;
     var email = document.getElementById('rgEmail').value.trim().toLowerCase();
     var celular = document.getElementById('rgCelular').value.trim();
     var profesion = document.getElementById('rgProfesion').value;
@@ -448,10 +468,12 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
     if (celular && !/^9\d{8}$/.test(celular)) return error('El celular debe tener 9 dígitos y comenzar con 9.');
     if (!profesion) return error('Seleccione una profesión válida.');
+    if (!nacionalidad) return error('Seleccione su nacionalidad.');
     if (!/^[\p{L}0-9][\p{L}0-9 .,'&/-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
+    if (!document.getElementById('rgTerminos').checked) return error('Debe aceptar los términos y la política de privacidad.');
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
-    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, tipoDocumento: tipoDocumento, numeroDocumento: numeroDocumento, email: email, celular: celular, profesion: profesion, institucion: institucion, clave: clave, confirm: confirm },
+    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, tipoDocumento: tipoDocumento, numeroDocumento: numeroDocumento, nacionalidad: nacionalidad, email: email, celular: celular, profesion: profesion, establecimiento: institucion, institucion: institucion, terminos: document.getElementById('rgTerminos').checked, clave: clave, confirm: confirm },
       document.getElementById('btnCrear'),
       function () {
         document.getElementById('lgUsuario').value = email;

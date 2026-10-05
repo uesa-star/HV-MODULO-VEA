@@ -42,6 +42,8 @@ const PROFESIONES_VALIDAS = new Set([
   'Administrativo', 'Otro'
 ]);
 const TIPOS_DOCUMENTO = new Set(['DNI', 'CE', 'PASAPORTE']);
+const NACIONALIDADES_VALIDAS = new Set(['Peruana', 'Venezolana', 'Colombiana', 'Ecuatoriana', 'Boliviana', 'Otra']);
+const TERMINOS_VERSION = 'VEA-REGISTRO-2026-01';
 
 function validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento) {
   if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) {
@@ -104,7 +106,7 @@ async function listarUsuarios(req, res, claves, intento) {
 
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,dni,tipo_documento,numero_documento,celular,profesion,institucion,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,nacionalidad,dni,tipo_documento,numero_documento,celular,profesion,institucion,establecimiento,terminos_version,terminos_aceptados_en,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -187,6 +189,8 @@ async function registrar(req, res, cuerpo, claves, intento) {
   const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
   const tipoDocumento = String(cuerpo.tipoDocumento || 'DNI').trim().toUpperCase();
   const numeroDocumento = String(cuerpo.numeroDocumento || '').trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 12);
+  const nacionalidad = String(cuerpo.nacionalidad || '').trim();
+  const establecimiento = String(cuerpo.establecimiento || cuerpo.institucion || '').trim().slice(0, 120);
   const dni = tipoDocumento === 'DNI' ? numeroDocumento : '';
   const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
   const profesion = String(cuerpo.profesion || '').trim().slice(0, 60);
@@ -196,6 +200,9 @@ async function registrar(req, res, cuerpo, claves, intento) {
 
   const errorRegistro = validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento);
   if (errorRegistro) return res.status(400).json({ error: errorRegistro });
+  if (!NACIONALIDADES_VALIDAS.has(nacionalidad)) return res.status(400).json({ error: 'Seleccione una nacionalidad válida.' });
+  if (establecimiento.length < 3) return res.status(400).json({ error: 'Seleccione el establecimiento donde labora.' });
+  if (cuerpo.terminos !== true) return res.status(400).json({ error: 'Debe aceptar los términos y la política de privacidad.' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Escriba un correo electrónico válido (ej: juan.perez@hospitaldeventanilla.gob.pe).' });
   }
@@ -212,7 +219,7 @@ async function registrar(req, res, cuerpo, claves, intento) {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
       method: 'POST',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ usuario: email, nombre, dni, tipo_documento: tipoDocumento, numero_documento: numeroDocumento, celular, profesion, institucion, password_hash: hashearClave(clave), activo: false }),
+      body: JSON.stringify({ usuario: email, nombre, nacionalidad, dni, tipo_documento: tipoDocumento, numero_documento: numeroDocumento, celular, profesion, institucion: establecimiento, establecimiento, terminos_version: TERMINOS_VERSION, terminos_aceptados_en: new Date().toISOString(), password_hash: hashearClave(clave), activo: false }),
       cache: 'no-store'
     });
   } catch (_) {

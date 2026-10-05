@@ -4,9 +4,13 @@ create table if not exists public.vea_usuarios (
   id bigint generated always as identity primary key,
   usuario text not null unique,      -- correo en minúsculas (identificador de ingreso)
   nombre text not null default '',
+  nacionalidad text not null default 'Peruana',
   dni text,
   tipo_documento text not null default 'DNI',
   numero_documento text not null default '',
+  establecimiento text not null default '',
+  terminos_version text not null default '',
+  terminos_aceptados_en timestamptz,
   celular text not null default '',  -- para avisos / recuperación
   password_hash text not null,
   activo boolean not null default true,
@@ -24,8 +28,12 @@ create table if not exists public.vea_usuarios (
 
 alter table public.vea_usuarios add column if not exists celular text not null default '';
 alter table public.vea_usuarios add column if not exists dni text;
+alter table public.vea_usuarios add column if not exists nacionalidad text not null default 'Peruana';
 alter table public.vea_usuarios add column if not exists tipo_documento text not null default 'DNI';
 alter table public.vea_usuarios add column if not exists numero_documento text not null default '';
+alter table public.vea_usuarios add column if not exists establecimiento text not null default '';
+alter table public.vea_usuarios add column if not exists terminos_version text not null default '';
+alter table public.vea_usuarios add column if not exists terminos_aceptados_en timestamptz;
 alter table public.vea_usuarios add column if not exists debe_cambiar boolean not null default false;
 alter table public.vea_usuarios add column if not exists profesion text not null default '';
 alter table public.vea_usuarios add column if not exists institucion text not null default '';
