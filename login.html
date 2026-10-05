@@ -440,7 +440,7 @@
         msgOk.textContent = (d && d.mensaje) || 'Cuenta creada. Está pendiente de activación por el administrador.';
         msgOk.style.display = 'block';
         document.getElementById('lgUsuario').value = email;
-        setTimeout(function () { mostrar(formLogin); }, 2500);
+        mostrar(formLogin);
       });
   });
 
