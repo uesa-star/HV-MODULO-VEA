@@ -412,10 +412,13 @@ def main() -> int:
     key = required("SUPABASE_SERVICE_ROLE_KEY")
     raw = drive_download(file_id, required("GOOGLE_SERVICE_ACCOUNT_JSON"))
 
-    with tempfile.NamedTemporaryFile(suffix=".xlsx") as temp:
-        temp.write(raw)
-        temp.flush()
-        workbook = load_workbook(temp.name, read_only=True, data_only=True)
+    temp_path = None
+    try:
+        # Windows no permite que openpyxl lea un NamedTemporaryFile aún abierto.
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp:
+            temp.write(raw)
+            temp_path = temp.name
+        workbook = load_workbook(temp_path, read_only=True, data_only=True)
         sheetnames = set(workbook.sheetnames)
         parsed: dict[str, list[dict[str, Any]]] = {}
 
@@ -441,6 +444,9 @@ def main() -> int:
                 optional_missing.append(sheet)
 
         workbook.close()
+    finally:
+        if temp_path:
+            os.unlink(temp_path)
 
     for table in list(parsed):
         antes = len(parsed[table])
