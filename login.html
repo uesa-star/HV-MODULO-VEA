@@ -328,8 +328,15 @@
     enviar('/api/auth/cuentas', { accion: 'ingreso', usuario: email, clave: clave },
       document.getElementById('btnIngresar'),
       function (d) {
-        if (d && d.debe_cambiar) location.href = '/login.html?cambiar=1';
-        else location.href = '/';
+        if (d && d.debe_cambiar) { location.href = '/login.html?cambiar=1'; return; }
+        if (d && d.aviso_clave) {
+          msgForm.style.display = 'none';
+          msgOk.textContent = d.aviso_clave;
+          msgOk.style.display = 'block';
+          setTimeout(function () { location.href = '/'; }, 2500);
+          return;
+        }
+        location.href = '/';
       });
   });
 

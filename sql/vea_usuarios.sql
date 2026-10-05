@@ -11,6 +11,7 @@ create table if not exists public.vea_usuarios (
   profesion text not null default '',            -- para aprobación del ADM
   institucion text not null default '',          -- para aprobación del ADM
   sesion_v integer not null default 0,           -- versión de sesión: cambiar/restablecer clave la invalida
+  clave_vence timestamptz,                       -- vencimiento de la contraseña (90 días)
   cod_hash text not null default '',             -- hash scrypt del código de recuperación
   cod_exp bigint not null default 0,             -- vencimiento (epoch ms) del código
   cod_fallos smallint not null default 0,        -- intentos fallidos con el código
@@ -23,6 +24,7 @@ alter table public.vea_usuarios add column if not exists debe_cambiar boolean no
 alter table public.vea_usuarios add column if not exists profesion text not null default '';
 alter table public.vea_usuarios add column if not exists institucion text not null default '';
 alter table public.vea_usuarios add column if not exists sesion_v integer not null default 0;
+alter table public.vea_usuarios add column if not exists clave_vence timestamptz;
 alter table public.vea_usuarios add column if not exists cod_hash text not null default '';
 alter table public.vea_usuarios add column if not exists cod_exp bigint not null default 0;
 alter table public.vea_usuarios add column if not exists cod_fallos smallint not null default 0;

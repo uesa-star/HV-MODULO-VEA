@@ -34,6 +34,18 @@ const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a l
 const COD_INTENTOS = 5;                 // intentos fallidos antes de destruir el código
 const COD_REENVIO_MS = 60 * 1000;       // 1 envío como mínimo por minuto
 const COD_ENVIOS_MAX = 3;               // máx. 3 envíos por correo cada 15 min
+const DIAS_CLAVE = 90;                  // la contraseña vence a los 90 días
+const AVISO_CLAVE_DIAS = 7;             // avisar 7 días antes del vencimiento
+
+// Política de clave: mínimo 8 caracteres, al menos una mayúscula y un número.
+function claveCumplePolitica(clave) {
+  return clave.length >= 8 && clave.length <= 72 &&
+    /[A-Z]/.test(clave) && /[0-9]/.test(clave);
+}
+
+function claveVenceEn() {
+  return new Date(Date.now() + DIAS_CLAVE * 24 * 60 * 60 * 1000).toISOString();
+}
 
 function clavesSupabase() {
   const k = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -99,13 +111,16 @@ async function restaurarClave(req, res, cuerpo, claves, intento) {
   if (clave.length < 8 || clave.length > 72) {
     return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
   }
+  if (!claveCumplePolitica(clave)) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos una mayúscula y un número.' });
+  }
 
   let r;
   try {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
       method: 'PATCH',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ password_hash: hashearClave(clave), debe_cambiar: true }),
+      body: JSON.stringify({ password_hash: hashearClave(clave), debe_cambiar: true, clave_vence: claveVenceEn() }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -160,6 +175,9 @@ async function registrar(req, res, cuerpo, claves, intento) {
   }
   if (clave.length < 8 || clave.length > 72) {
     return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
+  }
+  if (!claveCumplePolitica(clave)) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos una mayúscula y un número.' });
   }
   if (clave !== confirm) return res.status(400).json({ error: 'Las contraseñas no coinciden.' });
 
@@ -335,7 +353,13 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   if (debeCambiar) datosToken.dc = 1;
   const token = firmar(datosToken, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
-  return res.status(200).json({ ok: true, debe_cambiar: debeCambiar });
+  let avisoClave = null;
+  if (fila.clave_vence) {
+    const dias = Math.ceil((new Date(fila.clave_vence).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+    if (dias <= 0) avisoClave = 'Su contraseña venció. Cámbiela desde «Mi contraseña».';
+    else if (dias <= AVISO_CLAVE_DIAS) avisoClave = 'Su contraseña vence en ' + dias + ' día(s). Cámbiela desde «Mi contraseña».';
+  }
+  return res.status(200).json({ ok: true, debe_cambiar: debeCambiar, aviso_clave: avisoClave });
 }
 
 async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
@@ -349,6 +373,9 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   const nueva = String(cuerpo.claveNueva || cuerpo.clave || '');
   if (nueva.length < 8 || nueva.length > 72) {
     return res.status(400).json({ error: 'La contraseña debe tener entre 8 y 72 caracteres.' });
+  }
+  if (!claveCumplePolitica(nueva)) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos una mayúscula y un número.' });
   }
 
   let r;
@@ -385,7 +412,7 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
     r2 = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}`, {
       method: 'PATCH',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ password_hash: hashearClave(nueva), debe_cambiar: false }),
+      body: JSON.stringify({ password_hash: hashearClave(nueva), debe_cambiar: false, clave_vence: claveVenceEn() }),
       cache: 'no-store'
     });
   } catch (_) {
