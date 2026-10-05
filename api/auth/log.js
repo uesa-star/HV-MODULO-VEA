@@ -28,6 +28,14 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    // Purga perezosa: al cargar el registro se borran filas de más de 12 meses.
+    // Mantiene la tabla acotada sin necesidad de cron ni jobs externos.
+    const corte = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_login_log?creado_en=lt.${encodeURIComponent(corte)}`,
+      { method: 'DELETE', headers: { apikey: service, Authorization: `Bearer ${service}`, Prefer: 'return=minimal' }, cache: 'no-store' }
+    );
+
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/vea_login_log?select=creado_en,email,nombre,proveedor,ip,exito,user_agent,sesion_id,salida,ultimo_visto&order=creado_en.desc&limit=200`,
       { headers: { apikey: service, Authorization: `Bearer ${service}` }, cache: 'no-store' }
