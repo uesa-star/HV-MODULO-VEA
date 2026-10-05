@@ -327,7 +327,7 @@
       })
       .then(alOk)
       .catch(function (e) { error(e.message || 'No se pudo completar la operación.'); })
-      .then(function () { boton.disabled = false; });
+      .then(function () { if (boton.dataset.enviado !== 'true') boton.disabled = false; });
   }
 
   formLogin.addEventListener('submit', function (ev) {
@@ -372,12 +372,15 @@
     ev.preventDefault();
     var email = document.getElementById('rcEmail').value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
+    var botonCodigo = document.getElementById('btnEnviarCodigo');
     enviar('/api/auth/cuentas', { accion: 'enviarCodigoUsuario', email: email },
-      document.getElementById('btnEnviarCodigo'),
+      botonCodigo,
       function (d) {
         msgForm.style.display = 'none';
         document.getElementById('rcPaso2').style.display = 'block';
-        msgOk.textContent = (d && d.mensaje) || 'Si existe una cuenta con ese correo, le enviamos un código de 6 dígitos.';
+        botonCodigo.dataset.enviado = 'true';
+        botonCodigo.textContent = 'Código enviado';
+        msgOk.textContent = 'Código enviado. Revise su correo (también Spam o Promociones), ingréselo abajo y cree su nueva contraseña. No pulse nuevamente el botón.';
         msgOk.style.display = 'block';
         document.getElementById('rcCodigo').focus();
       });
