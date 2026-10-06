@@ -525,8 +525,9 @@ async function enviarCodigoUsuario(req, res, cuerpo, claves, intento) {
   const filas = await r.json().catch(() => []);
   const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
 
-  // Respuesta idéntica exista o no la cuenta (no revela quién está registrado).
-  if (!fila || fila.activo === false) {
+  // Respuesta idéntica si no existe la cuenta. Una cuenta inactiva también
+  // puede recuperar su clave; seguirá sin poder ingresar hasta que el ADM la active.
+  if (!fila) {
     await registrarAcceso({
       email: `cod:${email}`,
       nombre: 'Solicitud de código (sin cuenta o inactiva)',
