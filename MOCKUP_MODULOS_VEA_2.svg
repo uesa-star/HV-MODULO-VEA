@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f8fafc"/>
+  <rect width="250" height="900" fill="#ffffff"/>
+  <rect x="250" width="1190" height="76" fill="#ffffff"/>
+  <line x1="250" y1="76" x2="1440" y2="76" stroke="#e2e8f0"/>
+  <line x1="250" y1="0" x2="250" y2="900" stroke="#e2e8f0"/>
+  <circle cx="55" cy="52" r="24" fill="#0f172a"/><text x="42" y="59" fill="#f87171" font-family="Arial" font-size="13" font-weight="800">VEA</text>
+  <text x="95" y="48" fill="#0f172a" font-family="Arial" font-size="16" font-weight="800">Hospital de</text><text x="95" y="68" fill="#64748b" font-family="Arial" font-size="13">Ventanilla</text>
+  <text x="30" y="130" fill="#94a3b8" font-family="Arial" font-size="11" font-weight="700">MENÚ PRINCIPAL</text>
+  <rect x="18" y="151" width="214" height="44" rx="10" fill="#e0f2fe"/><text x="42" y="179" fill="#0369a1" font-family="Arial" font-size="14" font-weight="700">⌂  Inicio</text>
+  <text x="42" y="238" fill="#334155" font-family="Arial" font-size="14">▦  Vigilancia VEA</text>
+  <text x="42" y="282" fill="#334155" font-family="Arial" font-size="14">▣  Otros módulos</text>
+  <line x1="30" y1="330" x2="220" y2="330" stroke="#e2e8f0"/>
+  <text x="30" y="370" fill="#94a3b8" font-family="Arial" font-size="11" font-weight="700">GESTIÓN</text>
+  <text x="42" y="414" fill="#334155" font-family="Arial" font-size="14">♙  Usuarios</text>
+  <text x="42" y="458" fill="#334155" font-family="Arial" font-size="14">▤  Registro de accesos</text>
+  <text x="42" y="502" fill="#334155" font-family="Arial" font-size="14">⚙  Configuración</text>
+  <text x="42" y="850" fill="#94a3b8" font-family="Arial" font-size="11">Sesión protegida</text>
+  <text x="292" y="48" fill="#0f172a" font-family="Arial" font-size="21" font-weight="800">Inicio</text><text x="1220" y="48" fill="#64748b" font-family="Arial" font-size="13">Usuario activo</text><circle cx="1380" cy="38" r="18" fill="#0284c7"/><text x="1374" y="44" fill="#fff" font-family="Arial" font-size="13" font-weight="700">U</text>
+  <text x="300" y="140" fill="#0f172a" font-family="Arial" font-size="30" font-weight="800">Módulos de trabajo</text><text x="300" y="170" fill="#64748b" font-family="Arial" font-size="14">Seleccione el área que desea consultar.</text>
+  <text x="300" y="230" fill="#0369a1" font-family="Arial" font-size="14" font-weight="800">VIGILANCIA EPIDEMIOLÓGICA</text><line x1="300" y1="245" x2="1370" y2="245" stroke="#bae6fd"/>
+  <rect x="300" y="275" width="1030" height="115" rx="14" fill="#fff" stroke="#bae6fd" stroke-width="2"/><rect x="325" y="298" width="60" height="60" rx="14" fill="#dbeafe"/><text x="343" y="337" fill="#0369a1" font-family="Arial" font-size="26">▦</text><text x="415" y="318" fill="#0f172a" font-family="Arial" font-size="20" font-weight="800">Vigilancia VEA</text><text x="415" y="345" fill="#64748b" font-family="Arial" font-size="14">EDAs · IRAs · Febriles · Casos individuales · Boletín</text><rect x="1120" y="315" width="165" height="38" rx="9" fill="#0284c7"/><text x="1161" y="339" fill="#fff" font-family="Arial" font-size="13" font-weight="700">Entrar al módulo</text>
+  <text x="300" y="455" fill="#475569" font-family="Arial" font-size="14" font-weight="800">MÓDULOS ESPECIALIZADOS</text><line x1="300" y1="470" x2="1370" y2="470" stroke="#cbd5e1"/>
+  <g fill="#fff" stroke="#e2e8f0" stroke-width="2"><rect x="300" y="500" width="245" height="125" rx="14"/><rect x="565" y="500" width="245" height="125" rx="14"/><rect x="830" y="500" width="245" height="125" rx="14"/><rect x="1095" y="500" width="235" height="125" rx="14"/><rect x="300" y="650" width="245" height="125" rx="14"/><rect x="565" y="650" width="245" height="125" rx="14"/></g>
+  <text x="325" y="540" fill="#b45309" font-family="Arial" font-size="18" font-weight="800">SOAT</text><text x="325" y="565" fill="#64748b" font-family="Arial" font-size="13">Atenciones y reportes</text><text x="325" y="600" fill="#0284c7" font-family="Arial" font-size="13" font-weight="700">Abrir →</text>
+  <text x="590" y="540" fill="#15803d" font-family="Arial" font-size="18" font-weight="800">TBC</text><text x="590" y="565" fill="#64748b" font-family="Arial" font-size="13">Seguimiento clínico</text><text x="590" y="600" fill="#0284c7" font-family="Arial" font-size="13" font-weight="700">Abrir →</text>
+  <text x="855" y="540" fill="#be185d" font-family="Arial" font-size="18" font-weight="800">VIH</text><text x="855" y="565" fill="#64748b" font-family="Arial" font-size="13">Control y reportes</text><text x="855" y="600" fill="#0284c7" font-family="Arial" font-size="13" font-weight="700">Abrir →</text>
+  <text x="1120" y="540" fill="#7c3aed" font-family="Arial" font-size="18" font-weight="800">Psicología</text><text x="1120" y="565" fill="#64748b" font-family="Arial" font-size="13">Atención y seguimiento</text><text x="1120" y="600" fill="#0284c7" font-family="Arial" font-size="13" font-weight="700">Abrir →</text>
+  <text x="325" y="690" fill="#475569" font-family="Arial" font-size="18" font-weight="800">IASS</text><text x="325" y="715" fill="#64748b" font-family="Arial" font-size="13">Módulo especializado</text><text x="325" y="750" fill="#0284c7" font-family="Arial" font-size="13" font-weight="700">Abrir →</text>
+  <text x="590" y="690" fill="#0f172a" font-family="Arial" font-size="18" font-weight="800">Próximamente</text><text x="590" y="715" fill="#64748b" font-family="Arial" font-size="13">Nuevo módulo disponible</text><text x="590" y="750" fill="#94a3b8" font-family="Arial" font-size="13">En preparación</text>
+</svg>
