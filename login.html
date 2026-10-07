@@ -210,13 +210,13 @@
       <p class="enlaces" style="font-size:12px;color:#94a3b8;">El correo puede tardar hasta 3 minutos en llegar. Revise también Spam o Promociones.</p>
       <div id="rcPaso2" style="display:none;">
         <label class="campo"><span>Código de 6 dígitos recibido por correo</span>
-          <input id="rcCodigo" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" style="letter-spacing:0.5em;" required>
+          <input id="rcCodigo" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" style="letter-spacing:0.5em;">
         </label>
         <label class="campo"><span>Nueva contraseña (mínimo 8 caracteres)</span>
-          <input id="rcNueva" type="password" autocomplete="new-password" required>
+          <input id="rcNueva" type="password" autocomplete="new-password">
         </label>
         <label class="campo"><span>Repetir nueva contraseña</span>
-          <input id="rcConfirm" type="password" autocomplete="new-password" required>
+          <input id="rcConfirm" type="password" autocomplete="new-password">
         </label>
         <button type="button" id="btnGuardarRecupera" class="btnPrimario">Guardar contraseña</button>
       </div>
@@ -413,6 +413,11 @@
   /* ===== Recuperación de contraseña con código por correo ===== */
   formRecupera.addEventListener('submit', function (ev) {
     ev.preventDefault();
+    // Si el paso 2 (código + clave nueva) está visible, Enter guarda en vez de reenviar.
+    if (document.getElementById('rcPaso2').style.display !== 'none') {
+      document.getElementById('btnGuardarRecupera').click();
+      return;
+    }
     var email = document.getElementById('rcEmail').value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
     // La navegación no debe quedar bloqueada esperando SMTP/Resend.
