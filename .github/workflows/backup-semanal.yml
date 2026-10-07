@@ -1,0 +1,44 @@
+name: Respaldo semanal de la base VEA
+
+# Respaldo automático semanal de TODAS las tablas a JSON.
+# El respaldo se guarda como artefacto (90 días) como red de seguridad
+# ante un ataque que borre o altere la base.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 0"   # domingos 05:00 UTC = 22:00 (sábado) hora de Perú
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vea-backup
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generar respaldo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/backup_bd.mjs --out respaldo
+
+      - name: Subir respaldo como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-vea-${{ github.run_number }}
+          path: respaldo/
+          retention-days: 90
+          if-no-files-found: error

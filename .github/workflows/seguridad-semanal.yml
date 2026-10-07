@@ -1,0 +1,50 @@
+name: Verificación de seguridad VEA
+
+# Si alguien vuelve a abrir /api/vea-sync, quita permisos mal, rompe las
+# cabeceras o cambia la página de login, este chequeo falla y GitHub
+# envía una alerta por correo.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # lunes 06:00 UTC
+  push:
+    branches:
+      - main
+    paths:
+      - "api/**"
+      - "lib/**"
+      - "vercel.json"
+      - "login.html"
+      - "node_modules/modulo-vea/index.html"
+      - "scripts/verificar_seguridad.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+    group: vea-seguridad-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Esperar despliegue de Vercel
+        if: github.event_name == 'push'
+        run: sleep 120
+
+      - name: Verificar blindaje en producción
+        env:
+          BASE_URL: https://vigilancia-epidemiologica-ecru.vercel.app
+        run: node scripts/verificar_seguridad.mjs

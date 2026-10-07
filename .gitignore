@@ -3,3 +3,7 @@
 
 __pycache__/
 *.pyc
+
+# Respaldos de BD: contienen datos personales, jamás al repositorio
+backups/
+respaldo/
