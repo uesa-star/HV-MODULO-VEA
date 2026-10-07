@@ -396,12 +396,13 @@
       botonCodigo,
       function (d) {
         msgForm.style.display = 'none';
-        document.getElementById('rcPaso2').style.display = 'block';
         botonCodigo.dataset.enviado = 'true';
         botonCodigo.textContent = 'Código enviado';
-        msgOk.textContent = 'Código enviado. Revise su correo (también Spam o Promociones), ingréselo abajo y cree su nueva contraseña. No pulse nuevamente el botón.';
+        document.getElementById('lgUsuario').value = email;
+        document.getElementById('lgClave').value = '';
+        mostrar(formLogin);
+        msgOk.textContent = 'Código enviado a su correo. Revise bandeja, Spam o Promociones. Abra el enlace recibido para ingresar el código y cambiar su clave.';
         msgOk.style.display = 'block';
-        document.getElementById('rcCodigo').focus();
       });
   });
 
