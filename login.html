@@ -76,6 +76,13 @@
   .aviso { background: #fff8c5; border: 1px solid #d4a72c66; color: #7d4e00; }
   .errorBox { background: #ffebe9; border: 1px solid #ff8182; color: #a40e26; }
   .okBox { background: #dafbe1; border: 1px solid #4ac26b66; color: #116329; }
+  .avisoEnviado {
+    display: none; margin: .2rem 0 1rem; padding: .8rem .9rem; border-radius: .5rem;
+    background: #dafbe1; border: 1px solid #2da44e; color: #116329;
+    font-size: .85rem; font-weight: 700; line-height: 1.55; text-align: left;
+    box-shadow: 0 2px 10px rgba(46,160,67,.18);
+  }
+  .avisoEnviado strong { color: #0a5c22; }
   .verificando { display: none; text-align: center; padding: .9rem 0 0; font-size: .78rem; color: #636c76; font-weight: 600; }
   .pie { margin-top: 1.5rem; text-align: center; font-size: .68rem; color: #8b949e; line-height: 1.6; }
   .pie strong { color: #57606a; }
@@ -98,6 +105,8 @@
     <h1>Iniciar sesión</h1>
     <p class="sub">Módulo de Vigilancia Epidemiológica Activa · Hospital de Ventanilla</p>
     <p class="intro">Acceso restringido. Cada ingreso queda registrado con fecha y hora.</p>
+
+    <div id="avisoEnviado" class="avisoEnviado" role="status" aria-live="polite"></div>
 
     <form id="formLogin" class="formulario activo" autocomplete="on">
       <label class="campo"><span>Correo electrónico</span>
@@ -318,8 +327,12 @@
     if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correoEnviado)) {
       document.getElementById('lgUsuario').value = correoEnviado;
     }
-    msgOk.textContent = 'Código enviado a su correo. Puede tardar hasta 3 minutos en llegar. Revise bandeja, Spam o Promociones; si no aparece, espere 1 minuto y pulse «Enviar código» de nuevo. Abra el enlace recibido para ingresar el código y cambiar su clave.';
-    msgOk.style.display = 'block';
+    var avisoEnviado = document.getElementById('avisoEnviado');
+    avisoEnviado.innerHTML = '<strong>Código enviado a su correo.</strong> ' +
+      'Puede tardar hasta 3 minutos en llegar: revise su bandeja de entrada, Spam o Promociones. ' +
+      'Si aún no llega, espere 1 minuto y pulse «Enviar código» de nuevo. ' +
+      'Abra el enlace del correo para pegar el código y cambiar su clave.';
+    avisoEnviado.style.display = 'block';
   }
 
   document.getElementById('lnkRegistro').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formRegistro); });
