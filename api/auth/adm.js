@@ -216,7 +216,7 @@ async function enviarCodigoAdm(req, res) {
 
   return res.status(200).json({
     ok: true,
-    mensaje: 'Código enviado al correo del administrador. Vence en 10 minutos.'
+    mensaje: 'Código enviado al correo del administrador. Vence en 10 minutos; puede tardar hasta 3 minutos en llegar.'
   });
 }
 

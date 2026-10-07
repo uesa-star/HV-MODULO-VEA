@@ -475,7 +475,7 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   return res.status(200).json({ ok: true });
 }
 
-const MSJ_GENERICO = 'Si existe una cuenta con ese correo, le enviamos un código de 6 dígitos (vence en 10 minutos). Revise su bandeja de entrada.';
+const MSJ_GENERICO = 'Si existe una cuenta con ese correo, le enviamos un código de 6 dígitos (vence en 10 minutos). Puede tardar hasta 3 minutos en llegar: revise su bandeja de entrada, Spam o Promociones.';
 
 async function enviarCodigoUsuario(req, res, cuerpo, claves, intento) {
   intento = intento || 0;

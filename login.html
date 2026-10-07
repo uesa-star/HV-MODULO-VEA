@@ -198,6 +198,7 @@
         <input id="rcEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: juan.perez@hospitaldeventanilla.gob.pe" required>
       </label>
       <button type="submit" id="btnEnviarCodigo" class="btnPrimario">Enviar código</button>
+      <p class="enlaces" style="font-size:12px;color:#94a3b8;">El correo puede tardar hasta 3 minutos en llegar. Revise también Spam o Promociones.</p>
       <div id="rcPaso2" style="display:none;">
         <label class="campo"><span>Código de 6 dígitos recibido por correo</span>
           <input id="rcCodigo" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" style="letter-spacing:0.5em;" required>
@@ -317,7 +318,7 @@
     if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correoEnviado)) {
       document.getElementById('lgUsuario').value = correoEnviado;
     }
-    msgOk.textContent = 'Código enviado a su correo. Revise bandeja, Spam o Promociones. Abra el enlace recibido para ingresar el código y cambiar su clave.';
+    msgOk.textContent = 'Código enviado a su correo. Puede tardar hasta 3 minutos en llegar. Revise bandeja, Spam o Promociones; si no aparece, espere 1 minuto y pulse «Enviar código» de nuevo. Abra el enlace recibido para ingresar el código y cambiar su clave.';
     msgOk.style.display = 'block';
   }
 
