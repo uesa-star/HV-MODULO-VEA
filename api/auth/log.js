@@ -21,10 +21,7 @@ module.exports = async function handler(req, res) {
 
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!service) {
-    return res.status(503).json({
-      error: 'Consulta no disponible',
-      detalle: 'Falta SUPABASE_SERVICE_ROLE_KEY en las variables de Vercel.'
-    });
+    return res.status(503).json({ error: 'Consulta no disponible' });
   }
 
   try {
@@ -42,9 +39,14 @@ module.exports = async function handler(req, res) {
     );
     const texto = await r.text();
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    if (!r.ok) return res.status(502).send(texto);
+    if (!r.ok) {
+      // El error crudo de Postgres no se devuelve al cliente.
+      console.error('[auth/log] Supabase respondió', r.status, texto.slice(0, 300));
+      return res.status(502).json({ error: 'No se pudo leer el registro. Intente nuevamente.' });
+    }
     return res.status(200).send(JSON.stringify({ accesos: JSON.parse(texto) }));
   } catch (err) {
-    return res.status(502).json({ error: 'No se pudo leer el registro', detail: String(err?.message || err) });
+    console.error('[auth/log] error:', String(err?.message || err));
+    return res.status(502).json({ error: 'No se pudo leer el registro' });
   }
 };

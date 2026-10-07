@@ -27,7 +27,7 @@ const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = r
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
-const { admActivo, leerConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO } = require('../../lib/control');
+const { admActivo, leerConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a los 10 min
@@ -55,7 +55,7 @@ function validarRegistro(nombre, email, celular, profesion, institucion, tipoDoc
   if (!PROFESIONES_VALIDAS.has(profesion)) {
     return 'Seleccione una profesión válida de la lista.';
   }
-  if (!/^[\p{L}0-9][\p{L}0-9 .,'&/-]{2,119}$/u.test(institucion) ||
+  if (!/^[\p{L}0-9][\p{L}0-9 .,'&/()-]{2,119}$/u.test(institucion) ||
       !/[\p{L}]{2}/u.test(institucion)) {
     return 'Escriba el nombre real de la institución donde labora.';
   }
@@ -144,12 +144,40 @@ async function restaurarClave(req, res, cuerpo, claves, intento) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos una mayúscula y un número.' });
   }
 
+  // Se lee la versión de sesión actual para poder subirla en el mismo guardado:
+  // al restablecer la clave, cualquier cookie vigente de esa cuenta queda muerta.
+  let prev;
+  try {
+    prev = await fetch(
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=sesion_v&limit=1`,
+      { headers: claves, cache: 'no-store' }
+    );
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  if (!prev.ok) {
+    const textoPrev = await prev.text().catch(() => '');
+    if (prev.status === 404 || errorTabla(textoPrev)) {
+      if (intento === 0 && await asegurarTablas()) return restaurarClave(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo restablecer la contraseña. Intente nuevamente.' });
+  }
+  const previas = await prev.json().catch(() => []);
+  const previa = Array.isArray(previas) && previas.length ? previas[0] : null;
+  if (!previa) return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+
   let r;
   try {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
       method: 'PATCH',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ password_hash: hashearClave(clave), debe_cambiar: true, clave_vence: claveVenceEn() }),
+      body: JSON.stringify({
+        password_hash: hashearClave(clave),
+        debe_cambiar: true,
+        clave_vence: claveVenceEn(),
+        sesion_v: (Number(previa.sesion_v) || 0) + 1
+      }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -185,20 +213,22 @@ async function restaurarClave(req, res, cuerpo, claves, intento) {
 
 async function registrar(req, res, cuerpo, claves, intento) {
   intento = intento || 0;
-  const nombre = String(cuerpo.nombre || '').trim().slice(0, 80);
+  const nombre = textoSeguro(cuerpo.nombre, 80);
   const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
   const tipoDocumento = String(cuerpo.tipoDocumento || 'DNI').trim().toUpperCase();
   const numeroDocumento = String(cuerpo.numeroDocumento || '').trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 12);
   const nacionalidad = String(cuerpo.nacionalidad || '').trim();
-  const establecimiento = String(cuerpo.establecimiento || cuerpo.institucion || '').trim().slice(0, 120);
+  const establecimiento = textoSeguro(cuerpo.establecimiento || cuerpo.institucion, 120);
   const dni = tipoDocumento === 'DNI' ? numeroDocumento : '';
   const celular = String(cuerpo.celular || '').replace(/[\s()-]/g, '').slice(0, 20);
-  const profesion = String(cuerpo.profesion || '').trim().slice(0, 60);
-  const institucion = String(cuerpo.institucion || '').trim().slice(0, 120);
+  const profesion = textoSeguro(cuerpo.profesion, 60);
+  const institucion = textoSeguro(cuerpo.institucion, 120);
   const clave = String(cuerpo.clave || '');
   const confirm = String(cuerpo.confirm || cuerpo.clave || '');
 
-  const errorRegistro = validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento);
+  // Se valida lo que se PERSISTE (establecimiento): antes podía enviarse una
+  // institución válida junto con un establecimiento malicioso que iba a BD.
+  const errorRegistro = validarRegistro(nombre, email, celular, profesion, establecimiento, tipoDocumento, numeroDocumento);
   if (errorRegistro) return res.status(400).json({ error: errorRegistro });
   if (!NACIONALIDADES_VALIDAS.has(nacionalidad)) return res.status(400).json({ error: 'Seleccione una nacionalidad válida.' });
   if (establecimiento.length < 3) return res.status(400).json({ error: 'Seleccione el establecimiento donde labora.' });
@@ -352,7 +382,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
 
   if (!fila || !correcta) {
     await registrarAcceso({
-      email: `registro:${usuario.slice(0, 60) || '(vacío)'}`,
+      email: `registro:${textoSeguro(usuario, 60) || '(vacío)'}`,
       nombre: 'Intento de acceso con usuario/contraseña',
       proveedor: 'registro',
       ip: ipDe(req),
@@ -364,7 +394,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
 
   if (!activo) {
     await registrarAcceso({
-      email: `registro:${usuario.slice(0, 60) || '(vacío)'}`,
+      email: `registro:${textoSeguro(usuario, 60) || '(vacío)'}`,
       nombre: 'Cuenta pendiente de activación',
       proveedor: 'registro',
       ip: ipDe(req),
@@ -418,7 +448,7 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
   let r;
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=password_hash,activo&limit=1`,
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=password_hash,activo,sesion_v&limit=1`,
       { headers: claves, cache: 'no-store' }
     );
   } catch (_) {
@@ -449,7 +479,14 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
     r2 = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}`, {
       method: 'PATCH',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ password_hash: hashearClave(nueva), debe_cambiar: false, clave_vence: claveVenceEn() }),
+      body: JSON.stringify({
+        password_hash: hashearClave(nueva),
+        debe_cambiar: false,
+        clave_vence: claveVenceEn(),
+        // Sube la versión de sesión: mata las cookies vigentes de esta cuenta
+        // (la nueva cookie de abajo ya lleva el número nuevo).
+        sesion_v: (Number(fila.sesion_v) || 0) + 1
+      }),
       cache: 'no-store'
     });
   } catch (_) {
@@ -613,7 +650,7 @@ async function restaurarConCodigoUsuario(req, res, cuerpo, claves, intento) {
   let r;
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=cod_hash,cod_exp,cod_fallos&limit=1`,
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=cod_hash,cod_exp,cod_fallos,sesion_v&limit=1`,
       { headers: claves, cache: 'no-store' }
     );
   } catch (_) {
@@ -671,7 +708,9 @@ async function restaurarConCodigoUsuario(req, res, cuerpo, claves, intento) {
         cod_hash: '',
         cod_exp: '0',
         cod_fallos: 0,
-        cod_enviado: '0'
+        cod_enviado: '0',
+        // Revoca cualquier cookie vigente de esta cuenta.
+        sesion_v: (Number(fila.sesion_v) || 0) + 1
       }),
       cache: 'no-store'
     });
@@ -719,7 +758,7 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
   if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
   const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
-  const nombre = String(cuerpo.nombre || '').trim().slice(0, 120);
+  const nombre = textoSeguro(cuerpo.nombre, 120);
   const tipoDocumento = String(cuerpo.tipoDocumento || 'DNI').trim().toUpperCase();
   const numeroDocumento = String(cuerpo.numeroDocumento || '').trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 12);
   const celular = String(cuerpo.celular || '').trim().slice(0, 30);
@@ -752,12 +791,12 @@ async function editarUsuario(req, res, cuerpo, claves, intento) {
     cambios.numero_documento = numeroDocumento;
   }
   if (cuerpo.profesion !== undefined) {
-    const prof = String(cuerpo.profesion || '').trim().slice(0, 60);
+    const prof = textoSeguro(cuerpo.profesion, 60);
     if (prof.length < 2) return res.status(400).json({ error: 'Seleccione la profesión.' });
     cambios.profesion = prof;
   }
   if (cuerpo.institucion !== undefined) {
-    const inst = String(cuerpo.institucion || '').trim().slice(0, 120);
+    const inst = textoSeguro(cuerpo.institucion, 120);
     if (inst.length < 2) return res.status(400).json({ error: 'Escriba la institución (mínimo 2 letras).' });
     cambios.institucion = inst;
   }

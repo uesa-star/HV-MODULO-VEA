@@ -14,10 +14,11 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { sesion } = require('../lib/session');
+  const { sesionActiva } = require('../lib/control');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  if (!sesion(req)) {
-    return res.status(401).json({ error: 'No autenticado', detalle: 'Ingrese con su cuenta de Google en /login.html' });
+  const sesionOk = await sesionActiva(req);
+  if (!sesionOk.ok) {
+    return res.status(sesionOk.status || 401).json({ error: sesionOk.error || 'No autenticado' });
   }
   return res.status(200).json({
     alertas: [],

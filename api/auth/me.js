@@ -2,10 +2,8 @@
  * VEA — Estado de la sesión actual.
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
-const { sesion, sesionAdm } = require('../../lib/session');
-const { admActivo, marcarVisto, clavesSupabase, leerConfig, correoGooglePermitido } = require('../../lib/control');
-
-const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
+const { sesionAdm } = require('../../lib/session');
+const { admActivo, marcarVisto, leerConfig, sesionActiva } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -14,39 +12,13 @@ module.exports = async function handler(req, res) {
   }
 
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  const datos = sesion(req);
-  if (!datos) {
+  // Misma regla que /api/vea-data, /api/alerts y /api/app: cookie vigente +
+  // dominio Google permitido + cuenta activa + sesion_v sin cambiar.
+  const activa = await sesionActiva(req);
+  if (!activa.ok) {
     return res.status(401).json({ autenticado: false, adm: false });
   }
-  // Google solo institucional: expulsa sesiones de otros dominios aunque la cookie siga vigente.
-  if (datos.proveedor === 'google' && !correoGooglePermitido(datos.email)) {
-    return res.status(401).json({ autenticado: false, adm: false });
-  }
-  // Cuentas de correo/contraseña desactivadas (o eliminadas) pierden acceso
-  // aunque su cookie siga vigente: la pantalla «Mi contraseña» no las muestra y el guard las expulsa.
-  if (datos.proveedor === 'registro' && datos.email) {
-    try {
-      const claves = typeof clavesSupabase === 'function' ? clavesSupabase() : null;
-      if (claves) {
-        const rq = await fetch(
-          `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(String(datos.email).toLowerCase())}&select=activo,sesion_v&limit=1`,
-          { headers: claves, cache: 'no-store' }
-        );
-        if (rq.ok) {
-          const fr = await rq.json().catch(() => []);
-          const fu = Array.isArray(fr) && fr.length ? fr[0] : null;
-          if (!fu || fu.activo === false) {
-            return res.status(401).json({ autenticado: false, adm: false });
-          }
-          // La cookie lleva la versión de sesión (sv); si el ADM restableció la
-          // clave o el usuario la cambió, la versión subió y esta sesión muere.
-          if (Number(fu.sesion_v) !== Number(datos.sv || 0)) {
-            return res.status(401).json({ autenticado: false, adm: false });
-          }
-        }
-      }
-    } catch (_) { /* sin verificación: continúa con la sesión */ }
-  }
+  const datos = activa.datos;
   let adm = false;
   const vistas = [];
   if (datos.sid) vistas.push(datos.sid);

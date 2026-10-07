@@ -13,14 +13,26 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
   }
 
+  // ESCRITURA RESTRINGIDA: sin sesión ADM este endpoint permitía cargar miles
+  // de registros (incluida la tabla `individual`) con la llave del servidor.
+  const { admActivo } = require('../lib/control');
+  let adm = null;
+  try {
+    adm = await admActivo(req);
+  } catch (_) {
+    adm = null;
+  }
+  if (!adm) {
+    return res.status(401).json({ ok: false, error: 'Requiere sesión de administrador.' });
+  }
+
   const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 
   if (!supabaseUrl || !serviceRoleKey) {
     return res.status(503).json({
       ok: false,
-      error: 'Configuración de servidor incompleta',
-      detail: 'Faltan variables seguras en Vercel.'
+      error: 'Configuración de servidor incompleta'
     });
   }
 
@@ -36,6 +48,14 @@ module.exports = async function handler(req, res) {
   }
   if (registros.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
     return res.status(400).json({ ok: false, error: 'Registro inválido en el lote' });
+  }
+  // Solo columnas con nombre de columna válido: evita claves raras en el cuerpo
+  // que PostgREST interprete como columnas inexistentes o filtros.
+  const columnasMalas = registros.some(row =>
+    Object.keys(row).some(c => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(c))
+  );
+  if (columnasMalas) {
+    return res.status(400).json({ ok: false, error: 'Nombre de columna inválido en el lote' });
   }
 
   const conflictTarget = String(body.conflictTarget || '').trim();
@@ -64,15 +84,12 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify(registros)
     });
 
-    const text = await upstream.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = text; }
-
     if (!upstream.ok) {
-      return res.status(upstream.status).json({
+      // Nunca se devuelve el cuerpo crudo de Supabase al cliente.
+      console.error('[vea-sync] Supabase rechazó la carga:', upstream.status, tabla);
+      return res.status(502).json({
         ok: false,
-        error: 'Supabase rechazó la carga',
-        detail: data
+        error: 'La base de datos rechazó la carga. Revise los datos e intente nuevamente.'
       });
     }
 
@@ -80,14 +97,13 @@ module.exports = async function handler(req, res) {
       ok: true,
       estado: conflictTarget ? 'UPSERT_CONFIRMADO_POR_SUPABASE' : 'INSERT_CONFIRMADO_POR_SUPABASE',
       tabla,
-      recibidos: registros.length,
-      respuesta: data
+      recibidos: registros.length
     });
   } catch (error) {
+    console.error('[vea-sync] error de red:', String(error?.message || error));
     return res.status(502).json({
       ok: false,
-      error: 'No se pudo contactar con Supabase',
-      detail: String(error?.message || error)
+      error: 'No se pudo contactar con la base de datos'
     });
   }
 };

@@ -7,7 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { sesion } = require('../lib/session');
+const { sesionActiva } = require('../lib/control');
 
 let htmlCache = null;
 
@@ -24,7 +24,8 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  if (!sesion(req)) {
+  const sesionOk = await sesionActiva(req);
+  if (!sesionOk.ok) {
     res.setHeader('Location', '/login.html');
     res.setHeader('Cache-Control', 'no-store');
     return res.status(302).end();
@@ -38,6 +39,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).send(html);
   } catch (err) {
     console.error('[VEA app]', err);
-    return res.status(500).json({ error: 'Módulo no disponible', detail: String(err?.message || err) });
+    return res.status(500).json({ error: 'Módulo no disponible' });
   }
 };

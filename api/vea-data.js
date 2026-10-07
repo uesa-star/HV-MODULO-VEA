@@ -4,9 +4,10 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { sesion } = require('../lib/session');
-  if (!sesion(req)) {
-    return res.status(401).json({ error: 'No autenticado', detalle: 'Ingrese con su cuenta de Google en /login.html' });
+  const { sesionActiva } = require('../lib/control');
+  const sesionOk = await sesionActiva(req);
+  if (!sesionOk.ok) {
+    return res.status(sesionOk.status || 401).json({ error: sesionOk.error || 'No autenticado' });
   }
 
   const allowed = new Set(['edas', 'iras', 'febriles', 'individual']);
@@ -47,6 +48,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
     return res.status(upstream.status).send(body);
   } catch (err) {
-    return res.status(502).json({ error: 'No se pudo consultar Supabase', detail: String(err?.message || err) });
+    console.error('[vea-data] error:', String(err?.message || err));
+    return res.status(502).json({ error: 'No se pudo consultar la base de datos' });
   }
 };

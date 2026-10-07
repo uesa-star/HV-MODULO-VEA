@@ -494,7 +494,7 @@
     if (celular && !/^9\d{8}$/.test(celular)) return error('El celular debe tener 9 dígitos y comenzar con 9.');
     if (!profesion) return error('Seleccione una profesión válida.');
     if (!nacionalidad) return error('Seleccione su nacionalidad.');
-    if (!/^[\p{L}0-9][\p{L}0-9 .,'&/-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
+    if (!/^[\p{L}0-9][\p{L}0-9 .,'&/()-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
     if (!document.getElementById('rgTerminos').checked) return error('Debe aceptar los términos y la política de privacidad.');
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
     if (clave !== confirm) return error('Las contraseñas no coinciden.');

@@ -28,7 +28,7 @@ const { hashearClave, verificarClave } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const {
   clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion, marcarSalida,
-  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes
+  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes, textoSeguro, sesionActiva
 } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
@@ -110,7 +110,8 @@ async function cambiarClaveAdm(req, res, cuerpo) {
 }
 
 async function restaurarAdmClave(req, res, cuerpo) {
-  const s = sesion(req);
+  const act = await sesionActiva(req);
+  const s = act.ok ? act.datos : null;
   if (!s || s.proveedor !== 'google' || !s.email) {
     return res.status(401).json({
       error: 'Verifíquese con Google primero: ingrese al módulo con su cuenta de Google y vuelva a esta pantalla.'
@@ -355,7 +356,7 @@ module.exports = async function handler(req, res) {
     }
     await guardarConfig(pares);
     await registrarAcceso({
-      email: `adm:${usuario.slice(0, 60) || '(vacío)'}`,
+      email: `adm:${textoSeguro(usuario, 60) || '(vacío)'}`,
       nombre: 'Intento de acceso ADM',
       proveedor: 'adm',
       ip: ipDe(req),
