@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820">
+  <defs>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity=".16"/></filter>
+  </defs>
+  <rect width="1400" height="820" fill="#f1f5f9"/>
+  <text x="700" y="70" text-anchor="middle" font-family="Arial" font-size="31" font-weight="800" fill="#0f172a">Recuperación segura de contraseña</text>
+  <text x="700" y="105" text-anchor="middle" font-family="Arial" font-size="16" fill="#64748b">El usuario recupera el acceso sin que ADM conozca su contraseña</text>
+  <line x1="205" y1="360" x2="1195" y2="360" stroke="#94a3b8" stroke-width="5" stroke-dasharray="12 12"/>
+  <g filter="url(#s)">
+    <rect x="65" y="190" width="250" height="310" rx="20" fill="#fff"/>
+    <rect x="405" y="190" width="250" height="310" rx="20" fill="#fff"/>
+    <rect x="745" y="190" width="250" height="310" rx="20" fill="#fff"/>
+    <rect x="1085" y="190" width="250" height="310" rx="20" fill="#fff"/>
+  </g>
+  <circle cx="190" cy="255" r="42" fill="#dbeafe"/><text x="190" y="269" text-anchor="middle" font-family="Arial" font-size="33" fill="#0369a1">1</text>
+  <text x="190" y="335" text-anchor="middle" font-family="Arial" font-size="20" font-weight="800" fill="#0f172a">Usuario solicita</text>
+  <text x="190" y="370" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">Pulsa “Recupérela aquí”</text>
+  <text x="190" y="400" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">y escribe su correo</text>
+  <rect x="105" y="435" width="170" height="35" rx="8" fill="#0284c7"/><text x="190" y="458" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">Solicitar código</text>
+  <circle cx="530" cy="255" r="42" fill="#fef3c7"/><text x="530" y="269" text-anchor="middle" font-family="Arial" font-size="33" fill="#b45309">2</text>
+  <text x="530" y="335" text-anchor="middle" font-family="Arial" font-size="20" font-weight="800" fill="#0f172a">Sistema envía</text>
+  <text x="530" y="370" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">Genera código de 6 dígitos</text>
+  <text x="530" y="400" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">y lo manda automáticamente</text>
+  <rect x="445" y="435" width="170" height="35" rx="8" fill="#d97706"/><text x="530" y="458" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">Correo automático</text>
+  <circle cx="870" cy="255" r="42" fill="#dcfce7"/><text x="870" y="269" text-anchor="middle" font-family="Arial" font-size="33" fill="#15803d">3</text>
+  <text x="870" y="335" text-anchor="middle" font-family="Arial" font-size="20" font-weight="800" fill="#0f172a">Usuario verifica</text>
+  <text x="870" y="370" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">Ingresa el código recibido</text>
+  <text x="870" y="400" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">desde su propio correo</text>
+  <rect x="785" y="435" width="170" height="35" rx="8" fill="#16a34a"/><text x="870" y="458" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">Validar código</text>
+  <circle cx="1210" cy="255" r="42" fill="#fce7f3"/><text x="1210" y="269" text-anchor="middle" font-family="Arial" font-size="33" fill="#be185d">4</text>
+  <text x="1210" y="335" text-anchor="middle" font-family="Arial" font-size="20" font-weight="800" fill="#0f172a">Cambia su clave</text>
+  <text x="1210" y="370" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">Crea una contraseña nueva</text>
+  <text x="1210" y="400" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">y vuelve al inicio de sesión</text>
+  <rect x="1125" y="435" width="170" height="35" rx="8" fill="#db2777"/><text x="1210" y="458" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">Ingresar al módulo</text>
+  <rect x="315" y="625" width="770" height="100" rx="16" fill="#0f172a"/>
+  <text x="700" y="663" text-anchor="middle" font-family="Arial" font-size="18" font-weight="800" fill="#fff">¿Qué ve el ADM?</text>
+  <text x="700" y="695" text-anchor="middle" font-family="Arial" font-size="15" fill="#cbd5e1">Solo fecha, correo y resultado de la solicitud. Nunca el código ni la contraseña.</text>
+</svg>
