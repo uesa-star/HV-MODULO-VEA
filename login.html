@@ -311,6 +311,16 @@
     msgForm.style.display = 'block';
   }
 
+  if (params.get('enviado') === '1') {
+    var correoEnviado = (params.get('email') || '').trim().toLowerCase();
+    mostrar(formLogin);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correoEnviado)) {
+      document.getElementById('lgUsuario').value = correoEnviado;
+    }
+    msgOk.textContent = 'Código enviado a su correo. Revise bandeja, Spam o Promociones. Abra el enlace recibido para ingresar el código y cambiar su clave.';
+    msgOk.style.display = 'block';
+  }
+
   document.getElementById('lnkRegistro').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formRegistro); });
   document.getElementById('lnkLogin').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formLogin); });
   document.getElementById('lnkVolverLogin').addEventListener('click', function (ev) { ev.preventDefault(); mostrar(formLogin); });
@@ -400,9 +410,7 @@
         botonCodigo.textContent = 'Código enviado';
         document.getElementById('lgUsuario').value = email;
         document.getElementById('lgClave').value = '';
-        mostrar(formLogin);
-        msgOk.textContent = 'Código enviado a su correo. Revise bandeja, Spam o Promociones. Abra el enlace recibido para ingresar el código y cambiar su clave.';
-        msgOk.style.display = 'block';
+        location.replace('/login.html?enviado=1&email=' + encodeURIComponent(email));
       });
   });
 
