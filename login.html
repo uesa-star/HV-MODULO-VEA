@@ -401,22 +401,14 @@
     ev.preventDefault();
     var email = document.getElementById('rcEmail').value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
-    var botonCodigo = document.getElementById('btnEnviarCodigo');
-    document.getElementById('lgUsuario').value = email;
-    document.getElementById('lgClave').value = '';
-    enviar('/api/auth/cuentas', { accion: 'enviarCodigoUsuario', email: email },
-      botonCodigo,
-      function (d) {
-        msgForm.style.display = 'none';
-        botonCodigo.dataset.enviado = 'true';
-        botonCodigo.textContent = 'Código enviado';
-        document.getElementById('lgUsuario').value = email;
-        document.getElementById('lgClave').value = '';
-        location.replace('/login.html?enviado=1&email=' + encodeURIComponent(email));
-      });
-    mostrar(formLogin);
-    msgOk.textContent = 'Procesando el envío del código a su correo…';
-    msgOk.style.display = 'block';
+    // La navegación no debe quedar bloqueada esperando SMTP/Resend.
+    fetch('/api/auth/cuentas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'enviarCodigoUsuario', email: email }),
+      keepalive: true
+    }).catch(function () { /* la solicitud continúa en servidor; no detener el retorno al login */ });
+    location.replace('/login.html?enviado=1&email=' + encodeURIComponent(email));
   });
 
   document.getElementById('btnGuardarRecupera').addEventListener('click', function () {
