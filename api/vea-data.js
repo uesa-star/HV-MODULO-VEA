@@ -1,3 +1,11 @@
+/**
+ * VEA — Datos de vigilancia + alertas (función única: el plan Hobby solo
+ * permite 12 funciones serverless por deployment).
+ *   GET /api/vea-data?table=...          → registros de una tabla permitida.
+ *   GET /api/vea-data?ruta=alerts        → { alertas:[], actualizadoEn, fuente }
+ *        (antes era /api/alerts: el cliente lo pide con ruta=alerts y el
+ *        rewrite de vercel.json conserva la URL vieja para HTML cacheado).
+ */
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -5,9 +13,21 @@ module.exports = async function handler(req, res) {
   }
 
   const { sesionActiva } = require('../lib/control');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
   const sesionOk = await sesionActiva(req);
   if (!sesionOk.ok) {
     return res.status(sesionOk.status || 401).json({ error: sesionOk.error || 'No autenticado' });
+  }
+
+  /* ---------- alertas del carrusel (antes /api/alerts) ---------- */
+  if (String(req.query.ruta || '') === 'alerts') {
+    // El cliente combina esto con su catálogo local (VEA_ALERTAS_OFICIALES_F474)
+    // y elimina duplicados por url. Responde 200 con timestamp real (no 404).
+    return res.status(200).json({
+      alertas: [],
+      actualizadoEn: new Date().toISOString(),
+      fuente: 'catalogo-local-vea'
+    });
   }
 
   const allowed = new Set(['edas', 'iras', 'febriles', 'individual']);

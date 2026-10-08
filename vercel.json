@@ -4,7 +4,9 @@
     { "source": "/", "destination": "/api/app" },
     { "source": "/boletines", "destination": "/boletines.html" },
     { "source": "/boletines/", "destination": "/boletines.html" },
-    { "source": "/boletines/([0-9]+)", "destination": "/api/boletines?i=$1" }
+    { "source": "/boletines/([0-9]+)", "destination": "/api/boletines?i=$1" },
+    { "source": "/api/alerts", "destination": "/api/vea-data?ruta=alerts" },
+    { "source": "/api/vea-boletin", "destination": "/api/boletines" }
   ],
   "functions": {
     "api/app.js": { "includeFiles": "node_modules/modulo-vea/**" }

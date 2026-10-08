@@ -4,14 +4,15 @@
  *
  * Comprueba en producción que:
  *   1. /api/vea-sync responde 401 sin sesión ADM (no quedó abierto).
- *   2. /api/vea-data, /api/alerts y /api/auth/me responden 401 sin sesión.
+ *   2. /api/vea-data (datos y alertas) y /api/auth/me responden 401 sin sesión.
  *   3. / redirige a /login.html y /login.html carga.
  *   4. La llave pública NO puede leer tablas de vigilancia (privilegios revocados).
  *   5. La función de firma vea_firma_tabla sigue disponible (el módulo la usa).
  *   6. Cabeceras de seguridad presentes (HSTS, nosniff, frame, CSP).
- *   7. /api/vea-boletin (publicar boletín) exige sesión ADM → 401 sin cookie.
+ *   7. /api/boletines?adm=1 y POST /api/boletines (publicar boletín) exigen sesión ADM → 401.
  *   8. /api/boletines es público pero solo expone metadatos (sin HTML/PDF/correos).
  *   9. /api/auth/log (registro de accesos con país/VPN) exige sesión ADM → 401.
+ *  10. /api/alerts (legacy) sigue respondiendo vía rewrite a vea-data → 401 sin sesión.
  *
  * Sale con código 1 si algo falla → GitHub Actions avisa por correo.
  * Uso:  node scripts/verificar_seguridad.mjs
@@ -52,7 +53,7 @@ await check('POST /api/vea-sync sin sesión → 401', async () => {
   return '401';
 });
 
-for (const ruta of ['/api/vea-data?table=edas&offset=0&limit=1', '/api/alerts', '/api/auth/me', '/api/auth/log']) {
+for (const ruta of ['/api/vea-data?table=edas&offset=0&limit=1', '/api/vea-data?ruta=alerts', '/api/auth/me', '/api/auth/log']) {
   await check(`GET ${ruta.split('?')[0]} sin sesión → 401`, async () => {
     const { r, texto } = await pedir(`${BASE}${ruta}`);
     espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
@@ -109,15 +110,15 @@ await check('Firma vea_firma_tabla disponible para el módulo', async () => {
   return `200 (${t.slice(0, 30)})`;
 });
 
-await check('GET /api/vea-boletin sin sesión → 401', async () => {
-  const { r, texto } = await pedir(`${BASE}/api/vea-boletin`);
+await check('GET /api/boletines?adm=1 (correo ADM) sin sesión → 401', async () => {
+  const { r, texto } = await pedir(`${BASE}/api/boletines?adm=1`);
   espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
   return '401';
 });
 
 for (const accion of ['guardar_correo', 'publicar']) {
-  await check(`POST /api/vea-boletin (${accion}) sin sesión → 401`, async () => {
-    const { r, texto } = await pedir(`${BASE}/api/vea-boletin`, {
+  await check(`POST /api/boletines (${accion}) sin sesión → 401`, async () => {
+    const { r, texto } = await pedir(`${BASE}/api/boletines`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accion, anio: 2026, se: 1, titulo: 'x', resumen: '', html: '', pdf_b64: '', publicar: false, enviar: false })
@@ -126,6 +127,12 @@ for (const accion of ['guardar_correo', 'publicar']) {
     return '401';
   });
 }
+
+await check('GET /api/alerts (legacy → vea-data) sin sesión → 401', async () => {
+  const { r, texto } = await pedir(`${BASE}/api/alerts`);
+  espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
+  return '401';
+});
 
 await check('GET /api/boletines público solo expone metadatos', async () => {
   const { r, texto } = await pedir(`${BASE}/api/boletines`);
