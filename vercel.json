@@ -1,7 +1,10 @@
 {
   "rewrites": [
     { "source": "/index.html", "destination": "/api/app" },
-    { "source": "/", "destination": "/api/app" }
+    { "source": "/", "destination": "/api/app" },
+    { "source": "/boletines", "destination": "/boletines.html" },
+    { "source": "/boletines/", "destination": "/boletines.html" },
+    { "source": "/boletines/([0-9]+)", "destination": "/api/boletines?i=$1" }
   ],
   "functions": {
     "api/app.js": { "includeFiles": "node_modules/modulo-vea/**" }

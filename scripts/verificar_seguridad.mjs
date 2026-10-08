@@ -9,6 +9,9 @@
  *   4. La llave pública NO puede leer tablas de vigilancia (privilegios revocados).
  *   5. La función de firma vea_firma_tabla sigue disponible (el módulo la usa).
  *   6. Cabeceras de seguridad presentes (HSTS, nosniff, frame, CSP).
+ *   7. /api/vea-boletin (publicar boletín) exige sesión ADM → 401 sin cookie.
+ *   8. /api/boletines es público pero solo expone metadatos (sin HTML/PDF/correos).
+ *   9. /api/auth/log (registro de accesos con país/VPN) exige sesión ADM → 401.
  *
  * Sale con código 1 si algo falla → GitHub Actions avisa por correo.
  * Uso:  node scripts/verificar_seguridad.mjs
@@ -49,7 +52,7 @@ await check('POST /api/vea-sync sin sesión → 401', async () => {
   return '401';
 });
 
-for (const ruta of ['/api/vea-data?table=edas&offset=0&limit=1', '/api/alerts', '/api/auth/me']) {
+for (const ruta of ['/api/vea-data?table=edas&offset=0&limit=1', '/api/alerts', '/api/auth/me', '/api/auth/log']) {
   await check(`GET ${ruta.split('?')[0]} sin sesión → 401`, async () => {
     const { r, texto } = await pedir(`${BASE}${ruta}`);
     espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
@@ -104,6 +107,46 @@ await check('Firma vea_firma_tabla disponible para el módulo', async () => {
   const t = await r.text();
   espera(r.status === 200, `devolvió ${r.status}: ${t.slice(0, 120)}`);
   return `200 (${t.slice(0, 30)})`;
+});
+
+await check('GET /api/vea-boletin sin sesión → 401', async () => {
+  const { r, texto } = await pedir(`${BASE}/api/vea-boletin`);
+  espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
+  return '401';
+});
+
+for (const accion of ['guardar_correo', 'publicar']) {
+  await check(`POST /api/vea-boletin (${accion}) sin sesión → 401`, async () => {
+    const { r, texto } = await pedir(`${BASE}/api/vea-boletin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion, anio: 2026, se: 1, titulo: 'x', resumen: '', html: '', pdf_b64: '', publicar: false, enviar: false })
+    });
+    espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
+    return '401';
+  });
+}
+
+await check('GET /api/boletines público solo expone metadatos', async () => {
+  const { r, texto } = await pedir(`${BASE}/api/boletines`);
+  espera(r.status === 200, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
+  let d;
+  try { d = JSON.parse(texto); } catch (e) { throw new Error('respuesta no es JSON'); }
+  espera(Array.isArray(d.boletines), 'falta el arreglo boletines');
+  const filtrados = ['pdf_base64', 'html', 'creado_por', 'correo_destino', 'correo'];
+  for (const b of d.boletines) {
+    for (const campo of filtrados) {
+      espera(!(campo in b), `el listado expone el campo "${campo}"`);
+    }
+  }
+  return `${d.boletines.length} boletine(s), solo metadatos`;
+});
+
+await check('GET /boletines (listado público) → 200', async () => {
+  const { r, texto } = await pedir(`${BASE}/boletines`);
+  espera(r.status === 200, `devolvió ${r.status}`);
+  espera(texto.includes('Boletines epidemiologicos') || texto.includes('Boletines epidemiológicos') || texto.includes('/api/boletines'), 'no parece el listado de boletines');
+  return '200';
 });
 
 const fallidos = resultados.filter(x => !x.ok).length;

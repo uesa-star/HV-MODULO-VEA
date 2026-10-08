@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Boletines epidemiológicos — Hospital de Ventanilla</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh;display:flex;flex-direction:column}
+  header{background:#0056ac;color:#fff;padding:26px 20px}
+  header .in{max-width:960px;margin:0 auto}
+  header .marca{font-size:13px;letter-spacing:1.2px;opacity:.9}
+  header h1{font-size:26px;margin-top:6px}
+  header p{font-size:14px;opacity:.92;margin-top:6px;max-width:640px;line-height:1.5}
+  main{flex:1;max-width:960px;width:100%;margin:0 auto;padding:26px 20px 40px}
+  .cargando{color:#64748b;font-size:14px;padding:24px 0}
+  .grid{display:grid;gap:16px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-left:5px solid #0056ac;border-radius:10px;padding:18px 20px}
+  .badge{display:inline-block;background:#eff5fc;border:1px solid #cfe0f3;color:#0056ac;font-size:12px;font-weight:800;padding:4px 10px;border-radius:14px}
+  .card h2{font-size:18px;color:#0f3d7a;margin:10px 0 6px;line-height:1.3}
+  .card p{font-size:14px;color:#475569;line-height:1.55}
+  .meta{font-size:12px;color:#94a3b8;margin-top:10px}
+  .acciones{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .btn{display:inline-block;text-decoration:none;font-weight:700;font-size:14px;padding:9px 18px;border-radius:7px}
+  .btn.p{background:#0056ac;color:#fff}
+  .btn.s{background:#fff;color:#0056ac;border:1.5px solid #0056ac}
+  .vacio{background:#fff;border:1px dashed #94a3b8;border-radius:10px;padding:28px;text-align:center;color:#64748b;font-size:14px}
+  footer{background:#0f172a;color:#94a3b8;font-size:12.5px;padding:18px 20px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="in">
+    <div class="marca">HOSPITAL DE VENTANILLA · UNIDAD DE EPIDEMIOLOGÍA Y SALUD PÚBLICA</div>
+    <h1>Boletines epidemiológicos</h1>
+    <p>Publicaciones oficiales de vigilancia epidemiológica del Hospital de Ventanilla, generadas por el Módulo VEA tras la validación de cada semana epidemiológica.</p>
+  </div>
+</header>
+<main>
+  <div id="lista" class="cargando">Cargando boletines…</div>
+</main>
+<footer>Hospital de Ventanilla · Callao — Módulo VEA (Vigilancia Epidemiológica Aplicada)</footer>
+<script>
+(async function(){
+  const caja=document.getElementById('lista');
+  try{
+    const r=await fetch('/api/boletines',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const items=Array.isArray(d.boletines)?d.boletines:[];
+    if(!items.length){caja.className='';caja.innerHTML='<div class="vacio">Aún no hay boletines publicados. Vuelva pronto.</div>';return;}
+    caja.className='grid';
+    caja.innerHTML=items.map(function(b){
+      const fecha=b.creado_en?new Date(b.creado_en).toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'}):'';
+      const esc=function(s){return String(s||'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})};
+      return '<article class="card">'
+        +'<span class="badge">S.E. '+String(b.se).padStart(2,'0')+' · '+b.anio+'</span>'
+        +'<h2>'+esc(b.titulo||('Boletín epidemiológico S.E. '+b.se+' · '+b.anio))+'</h2>'
+        +(b.resumen?'<p>'+esc(b.resumen)+'</p>':'')
+        +(fecha?'<div class="meta">Publicado el '+fecha+'</div>':'')
+        +'<div class="acciones">'
+        +'<a class="btn p" href="/boletines/'+b.id+'">Ver boletín</a>'
+        +(b.tiene_pdf?'<a class="btn s" href="/api/boletines?i='+b.id+'&pdf=1" target="_blank" rel="noopener">Descargar PDF</a>':'')
+        +'</div></article>';
+    }).join('');
+  }catch(e){
+    caja.className='';
+    caja.innerHTML='<div class="vacio">No se pudo cargar el listado. Intente nuevamente en unos minutos.</div>';
+  }
+})();
+</script>
+</body>
+</html>
