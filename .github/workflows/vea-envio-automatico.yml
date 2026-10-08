@@ -1,0 +1,30 @@
+name: VEA · envío automático del boletín
+
+# Dispara el envío automático programado en el panel ADM (ADM → Boletín).
+# Vercel Cron solo está disponible en planes de pago, así que el disparo se
+# hace desde aquí cada 15 minutos: el endpoint decide si corresponde enviar
+# (día/hora de Perú) o responde "inactivo/fuera_de_programacion".
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Disparar /api/boletines?auto=1
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          codigo=$(curl -sS -o respuesta.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://vigilancia-epidemiologica-ecru.vercel.app/api/boletines?auto=1")
+          echo "HTTP ${codigo}"
+          cat respuesta.json
+          echo
+          if [ "${codigo}" != "200" ]; then
+            echo "El endpoint no respondió 200 (revisar CRON_SECRET o el módulo)."
+            exit 1
+          fi
