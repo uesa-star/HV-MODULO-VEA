@@ -82,15 +82,6 @@
     font-size: .8rem; font-weight: 600; line-height: 1.55; text-align: left;
   }
   .pendBox strong.t { display: block; font-size: .88rem; color: #a40e26; margin-bottom: .3rem; }
-  .btnWa {
-    display: flex; align-items: center; justify-content: center; gap: .45rem;
-    width: 100%; margin-top: .7rem; padding: .7rem .8rem; border: 0; border-radius: .55rem;
-    background: #128c7e; color: #fff; font-size: .86rem; font-weight: 800; cursor: pointer;
-    text-decoration: none; box-shadow: 0 3px 12px rgba(18,140,126,.3);
-  }
-  .btnWa:hover { background: #0e7a6d; }
-  .btnWa[disabled] { opacity: .6; cursor: not-allowed; }
-  .pendNota { display: block; margin-top: .55rem; font-size: .72rem; font-weight: 500; color: #6e7781; }
   .avisoEnviado {
     display: none; margin: .2rem 0 1rem; padding: .8rem .9rem; border-radius: .5rem;
     background: #dafbe1; border: 1px solid #2da44e; color: #116329;
@@ -372,9 +363,12 @@
 
   function enviar(ruta, datos, boton, alOk, alError) {
     boton.disabled = true;
+    if (!boton.dataset.texto0) boton.dataset.texto0 = boton.textContent;
+    boton.textContent = 'Enviando…';
     msgForm.style.display = 'none';
     msgOk.style.display = 'none';
     document.getElementById('pendBox').style.display = 'none';
+    document.getElementById('avisoEnviado').style.display = 'none';
     fetch(ruta, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -395,101 +389,27 @@
         if (alError && e && e.datos) { alError(e.datos, e); return; }
         error(e.message || 'No se pudo completar la operación.');
       })
-      .then(function () { if (boton.dataset.enviado !== 'true') boton.disabled = false; });
+      .then(function () {
+        if (boton.dataset.enviado !== 'true') boton.disabled = false;
+        if (boton.dataset.texto0) boton.textContent = boton.dataset.texto0;
+      });
   }
 
-  /* ===== Cuenta desactivada: mensaje + botón único de WhatsApp ===== */
-  function esc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
-    });
-  }
-
+  /* ===== Cuenta desactivada: solo mensaje — el aviso al ADM es automático ===== */
   function pintarPendiente(d) {
     msgForm.style.display = 'none';
     msgOk.style.display = 'none';
-    var html = '<strong class="t">⛔ Cuenta desactivada</strong>' +
-      'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.' +
-      '<button type="button" class="btnWa" id="btnWa">📱 Activar mi usuario (WhatsApp)</button>' +
-      '<span class="pendNota">Le escribirá a la administración con su nombre, correo y el enlace para activar su cuenta.</span>';
     var caja = document.getElementById('pendBox');
-    caja.innerHTML = html;
+    caja.innerHTML = '<strong class="t">⛔ Cuenta desactivada</strong>' +
+      'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.';
     caja.style.display = 'block';
-    var b = document.getElementById('btnWa');
-    if (b) b.addEventListener('click', solicitarWa);
-  }
-
-  function solicitarWa() {
-    var btn = document.getElementById('btnWa');
-    if (!btn) return;
-    var email = document.getElementById('lgUsuario').value.trim().toLowerCase();
-    var clave = document.getElementById('lgClave').value;
-    if (!email || !clave) { error('Escriba su correo y su contraseña para solicitar la activación.'); return; }
-    btn.disabled = true;
-    btn.textContent = 'Preparando mensaje…';
-    // Se abre YA, dentro del gesto del clic: si el navegador bloquea ventanas, se cae al ancla.
-    var v = window.open('', '_blank');
-    fetch('/api/auth/cuentas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'solicitar_activacion', email: email, clave: clave })
-    })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (j) { return { est: r.status, j: j }; });
-      })
-      .then(function (x) {
-        var j = x.j || {};
-        if (x.est === 200 && j.ok) {
-          if (j.activa) {
-            document.getElementById('pendBox').style.display = 'none';
-            msgOk.textContent = 'Su cuenta ya está activada. Intente ingresar normalmente.';
-            msgOk.style.display = 'block';
-            return;
-          }
-          var nombre = j.nombre || email;
-          var quien = nombre + (j.institucion ? ' (' + j.institucion + ')' : '');
-          var texto = 'Hola, soy ' + quien + ', con el correo ' + email +
-            '. Mi cuenta del módulo VEA está desactivada, ¿puedes activarla?' +
-            '\n\nEnlace de activación (vale 24 horas):\n' + (j.link || '');
-          var url = 'https://wa.me/' + (j.wa || '') + '?text=' + encodeURIComponent(texto);
-          var enPestanaNueva = Boolean(url) && v && !v.closed;
-          if (enPestanaNueva) {
-            v.location.href = url;
-            document.getElementById('pendBox').style.display = 'none';
-          } else if (url) {
-            // Sin ventana nueva: queda un enlace visible para abrir WhatsApp a mano.
-            var a = document.createElement('a');
-            a.href = url; a.target = '_blank'; a.rel = 'noopener';
-            a.className = 'btnWa'; a.id = 'btnWa';
-            a.textContent = '📱 Abrir WhatsApp';
-            btn.replaceWith(a);
-          } else {
-            document.getElementById('pendBox').style.display = 'none';
-          }
-          var aviso = document.getElementById('avisoEnviado');
-          aviso.innerHTML = '<strong>✅ Solicitud enviada a la administración.</strong> ' +
-            'Su cuenta está pendiente de activación: espere la confirmación; en cuanto la activen ya podrá ingresar. ' +
-            (j.correo ? 'También le llegó un correo al administrador con el enlace de activación.' : '');
-          aviso.style.display = 'block';
-        } else {
-          if (v && !v.closed) { try { v.close(); } catch (_) {} }
-          if (j.activa) {
-            document.getElementById('pendBox').style.display = 'none';
-            msgOk.textContent = 'Su cuenta ya está activada. Intente ingresar normalmente.';
-            msgOk.style.display = 'block';
-          } else {
-            error(j.error || 'No se pudo preparar el mensaje. Intente nuevamente.');
-          }
-        }
-      })
-      .catch(function () {
-        if (v && !v.closed) { try { v.close(); } catch (_) {} }
-        error('No se pudo contactar con el servidor. Intente nuevamente.');
-      })
-      .then(function () {
-        var b2 = document.getElementById('btnWa');
-        if (b2 && b2.tagName === 'BUTTON') { b2.disabled = false; b2.textContent = '📱 Activar mi usuario (WhatsApp)'; }
-      });
+    var aviso = document.getElementById('avisoEnviado');
+    aviso.innerHTML = (d && d.correo === false)
+      ? '<strong>✅ Ya enviamos su solicitud hace unos minutos.</strong> ' +
+        'Pronto la administración se comunicará con usted; espere la confirmación por correo.'
+      : '<strong>✅ Ya se envió el mensaje a la administración.</strong> ' +
+        'Pronto se comunicarán con usted; espere la confirmación por correo para poder ingresar.';
+    aviso.style.display = 'block';
   }
 
   formLogin.addEventListener('submit', function (ev) {

@@ -7,12 +7,11 @@
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  *        Si la cuenta tiene debe_cambiar (clave temporal puesta por el ADM),
  *        responde { debe_cambiar: true } y el cliente obliga a cambiarla.
- *        Cuenta inactiva → 403 { pendiente:true, wa, nombre, institucion }:
- *        el login muestra «Cuenta desactivada» con el botón de WhatsApp.
- *   { accion: 'solicitar_activacion', email, clave } → el usuario con cuenta
- *        desactivada pide activarse: firma un enlace de activación (24 h),
- *        avisa al ADM por correo (cfg.adm_email, máx. 1 cada 10 min) y devuelve
- *        { link, wa } para abrir WhatsApp con el mensaje y el enlace listos.
+ *        Cuenta inactiva → 403 { pendiente:true, correo, nombre, institucion }:
+ *        el servidor avisa AUTÁMATICAMENTE al ADM por correo (cfg.adm_email,
+ *        máx. 1 cada 10 min por cuenta, con enlace de activación) y el login
+ *        muestra «Cuenta desactivada» + «Ya se envió el mensaje a la
+ *        administración…», sin botones.
  *   GET  /api/auth/cuentas?activar=<token> → activa la cuenta al instante
  *        (firma HMAC + caduca 24 h), avisa por correo al usuario y devuelve
  *        una página de confirmación.
@@ -29,9 +28,6 @@
  *   { accion: 'estado', email, activo } → el ADM activa o desactiva
  *        una cuenta (desactivada no puede ingresar; requiere sesión ADM).
  *        Al activarla avisa por correo al usuario.
- *   { accion: 'contacto', wa? } → el ADM lee/guarda su WhatsApp de contacto
- *        (config contacto_wa) que usan los usuarios desactivados para pedir
- *        activación desde el login (POST sin wa solo lee).
  *   { accion: 'eliminar', email } → el ADM elimina una cuenta
  *        (requiere sesión ADM; el historial del log se conserva).
  */
@@ -59,7 +55,6 @@ const NACIONALIDADES_VALIDAS = new Set(['Peruana', 'Venezolana', 'Colombiana', '
 const TERMINOS_VERSION = 'VEA-REGISTRO-2026-01';
 const BASE_URL = 'https://vigilancia-epidemiologica-ecru.vercel.app';
 const LLAVE_ADM_EMAIL = 'adm_email';
-const LLAVE_WA = 'contacto_wa';
 const LLAVE_SOL = 'activacion_sol';
 const ACT_VENCE_MS = 24 * 60 * 60 * 1000;  // el enlace de activación vive 24 h
 const SOL_REENVIO_MS = 10 * 60 * 1000;     // 1 correo al ADM cada 10 min por cuenta
@@ -86,12 +81,6 @@ function leerTokenActivacion(token) {
   try { email = Buffer.from(partes[1], 'base64url').toString('utf8'); } catch (_) { return null; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return null;
   return email.toLowerCase();
-}
-
-/* WhatsApp del ADM: dígitos con opcional + (config contacto_wa). */
-function normalizarWa(v) {
-  const d = String(v || '').replace(/[^\d]/g, '');
-  return d.length >= 7 && d.length <= 15 ? d : null;
 }
 
 function validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento) {
@@ -442,19 +431,20 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   }
 
   if (!activo) {
+    // Aviso automático al ADM (correo con enlace de activación, 1 cada 10 min).
+    const aviso = await avisarActivacion(usuario, fila.nombre || '', fila.institucion || '', claves);
     await registrarAcceso({
       email: `registro:${textoSeguro(usuario, 60) || '(vacío)'}`,
-      nombre: 'Cuenta pendiente de activación',
+      nombre: aviso.correo ? 'Cuenta pendiente de activación (aviso al ADM)' : 'Cuenta pendiente de activación',
       proveedor: 'registro',
       ip: ipDe(req),
       user_agent: userAgentDe(req),
       exito: false
     });
-    const cfgWa = await leerConfig([LLAVE_WA]);
     return res.status(403).json({
       error: 'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.',
       pendiente: true,
-      wa: normalizarWa(cfgWa.cfg && cfgWa.cfg[LLAVE_WA]),
+      correo: aviso.correo,
       nombre: fila.nombre || '',
       institucion: fila.institucion || ''
     });
@@ -1035,7 +1025,7 @@ async function eliminarUsuario(req, res, cuerpo, claves, intento) {
   return res.status(200).json({ ok: true, usuario: email });
 }
 
-/* ---------- Solicitar activación (botón de WhatsApp en el login) ---------- */
+/* ---------- Aviso automático de activación al ADM (sin botones en el login) ---------- */
 function escHtml(t) {
   return String(t || '').replace(/[&<>"]/g, function (c) {
     return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
@@ -1091,34 +1081,16 @@ function paginaActivacion(ok, titulo, texto) {
     '</main></body></html>';
 }
 
-async function solicitarActivacion(req, res, cuerpo, claves) {
-  const email = String(cuerpo.email || '').trim().toLowerCase();
-  const clave = String(cuerpo.clave || '');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'Correo inválido.' });
-  if (!clave) return res.status(400).json({ error: 'Falta la contraseña.' });
+/* Aviso automático al ADM cuando alguien con cuenta inactiva intenta ingresar:
+   correo con enlace de activación (24 h), máx. 1 cada 10 min por cuenta. */
+async function avisarActivacion(email, nombre, institucion, claves) {
+  const correo = String(email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)) return { correo: false };
 
-  let r;
-  try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,institucion,activo,password_hash&limit=1`, {
-      headers: claves,
-      cache: 'no-store'
-    });
-  } catch (_) {
-    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
-  }
-  const filas = await r.json().catch(() => []);
-  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
-  // Respuesta idéntica si no existe o la clave no coincide (evita adivinar cuentas).
-  if (!fila || !verificarClave(clave, fila.password_hash)) {
-    return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
-  }
-  if (fila.activo !== false) return res.status(200).json({ ok: true, activa: true });
-
-  const lectura = await leerConfig([LLAVE_ADM_EMAIL, LLAVE_WA, LLAVE_SOL]);
+  const lectura = await leerConfig([LLAVE_ADM_EMAIL, LLAVE_SOL]);
   const cfg = lectura.cfg || {};
-  const link = BASE_URL + '/api/auth/cuentas?activar=' + tokenActivacion(email);
+  const link = BASE_URL + '/api/auth/cuentas?activar=' + tokenActivacion(correo);
 
-  // Aviso al ADM: máx. 1 correo cada 10 min por cuenta (registro en config).
   let sol = {};
   try { sol = JSON.parse(cfg[LLAVE_SOL] || '{}') || {}; } catch (_) { sol = {}; }
   const ahora = Date.now();
@@ -1126,42 +1098,25 @@ async function solicitarActivacion(req, res, cuerpo, claves) {
     if (!Number(sol[k]) || ahora - Number(sol[k]) > ACT_VENCE_MS) delete sol[k];
   });
   const admEmail = String(cfg[LLAVE_ADM_EMAIL] || '').trim().toLowerCase();
-  const debeCorreo = (!Number(sol[email]) || ahora - Number(sol[email]) > SOL_REENVIO_MS) &&
+  const debeCorreo = (!Number(sol[correo]) || ahora - Number(sol[correo]) > SOL_REENVIO_MS) &&
     /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(admEmail);
+  if (!debeCorreo) return { correo: false };
+
   let correoOk = false;
-  if (debeCorreo) {
-    try {
-      const rc = await enviarCorreo({
-        para: admEmail,
-        asunto: 'VEA - Activar usuario - ' + email,
-        html: plantillaCorreoAdm(email, fila.nombre, fila.institucion, link)
-      });
-      correoOk = !rc.error;
-      if (rc.error) console.error('correo: fallo aviso de activación →', rc.error, rc.detalle || '');
-    } catch (e) {
-      console.error('correo: excepción en aviso de activación →', e && e.message);
-    }
-    sol[email] = String(ahora);
-    await guardarConfig({ [LLAVE_SOL]: JSON.stringify(sol) });
+  try {
+    const rc = await enviarCorreo({
+      para: admEmail,
+      asunto: 'VEA - Activar usuario - ' + correo,
+      html: plantillaCorreoAdm(correo, nombre, institucion, link)
+    });
+    correoOk = !rc.error;
+    if (rc.error) console.error('correo: fallo aviso de activación →', rc.error, rc.detalle || '');
+  } catch (e) {
+    console.error('correo: excepción en aviso de activación →', e && e.message);
   }
-
-  await registrarAcceso({
-    email: `activacion:${email}`,
-    nombre: 'Solicitud de activación vía WhatsApp' + (correoOk ? ' (correo al ADM)' : ''),
-    proveedor: 'registro',
-    ip: ipDe(req),
-    user_agent: userAgentDe(req),
-    exito: true
-  });
-
-  return res.status(200).json({
-    ok: true,
-    link: link,
-    wa: normalizarWa(cfg[LLAVE_WA]),
-    correo: correoOk,
-    nombre: fila.nombre || '',
-    institucion: fila.institucion || ''
-  });
+  sol[correo] = String(ahora);
+  await guardarConfig({ [LLAVE_SOL]: JSON.stringify(sol) });
+  return { correo: correoOk };
 }
 
 /* GET /api/auth/cuentas?activar=<token> — activa la cuenta al instante. */
@@ -1233,37 +1188,6 @@ async function activarConToken(req, res, token) {
   return res.status(200).send(paginaActivacion(true, 'Cuenta activada', 'La cuenta ' + email + ' quedó activada. Ya puede iniciar sesión con su correo y contraseña.'));
 }
 
-/* ---------- Contacto WhatsApp del ADM (configurable desde el panel) ---------- */
-async function contactoAdm(req, res, cuerpo, claves) {
-  const adm = await admActivo(req);
-  if (!adm) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
-
-  if (Object.prototype.hasOwnProperty.call(cuerpo, 'wa')) {
-    const bruto = String(cuerpo.wa || '').trim();
-    if (bruto) {
-      const d = bruto.replace(/[^\d]/g, '');
-      if (d.length < 7 || d.length > 15) {
-        return res.status(400).json({ error: 'Número inválido: escriba el código de país sin signos, ej: 51999888777.' });
-      }
-      const ok = await guardarConfig({ [LLAVE_WA]: d });
-      if (!ok) return res.status(502).json({ error: 'No se pudo guardar el contacto. Intente nuevamente.' });
-      await registrarAcceso({
-        email: 'adm:guardó WhatsApp de contacto → ' + d,
-        nombre: String(adm.email || 'ADM'),
-        proveedor: 'adm',
-        ip: ipDe(req),
-        user_agent: userAgentDe(req),
-        exito: true
-      });
-    } else {
-      await guardarConfig({ [LLAVE_WA]: '' });
-    }
-  }
-
-  const lectura = await leerConfig([LLAVE_WA]);
-  return res.status(200).json({ ok: true, wa: normalizarWa((lectura.cfg || {})[LLAVE_WA]) });
-}
-
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -1307,7 +1231,5 @@ module.exports = async function handler(req, res) {
   if (accion === 'editar') return editarUsuario(req, res, cuerpo, claves);
   if (accion === 'estado') return cambiarEstadoUsuario(req, res, cuerpo, claves);
   if (accion === 'eliminar') return eliminarUsuario(req, res, cuerpo, claves);
-  if (accion === 'solicitar_activacion') return solicitarActivacion(req, res, cuerpo, claves);
-  if (accion === 'contacto') return contactoAdm(req, res, cuerpo, claves);
   return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado" o "eliminar").' });
 };
