@@ -7,6 +7,15 @@
  *   { accion: 'ingreso', usuario, clave } → valida y devuelve vea_session (12 h).
  *        Si la cuenta tiene debe_cambiar (clave temporal puesta por el ADM),
  *        responde { debe_cambiar: true } y el cliente obliga a cambiarla.
+ *        Cuenta inactiva → 403 { pendiente:true, wa, nombre, institucion }:
+ *        el login muestra «Cuenta desactivada» con el botón de WhatsApp.
+ *   { accion: 'solicitar_activacion', email, clave } → el usuario con cuenta
+ *        desactivada pide activarse: firma un enlace de activación (24 h),
+ *        avisa al ADM por correo (cfg.adm_email, máx. 1 cada 10 min) y devuelve
+ *        { link, wa } para abrir WhatsApp con el mensaje y el enlace listos.
+ *   GET  /api/auth/cuentas?activar=<token> → activa la cuenta al instante
+ *        (firma HMAC + caduca 24 h), avisa por correo al usuario y devuelve
+ *        una página de confirmación.
  *   { accion: 'cambiarPropia', claveActual, claveNueva } → el usuario con
  *        sesión propia cambia su contraseña y quita la marca debe_cambiar.
  *   { accion: 'enviarCodigoUsuario', email } → envía código de 6 dígitos al
@@ -19,6 +28,10 @@
  *        La sesión que use el correo antiguo se cierra sola al no encontrarlo.
  *   { accion: 'estado', email, activo } → el ADM activa o desactiva
  *        una cuenta (desactivada no puede ingresar; requiere sesión ADM).
+ *        Al activarla avisa por correo al usuario.
+ *   { accion: 'contacto', wa? } → el ADM lee/guarda su WhatsApp de contacto
+ *        (config contacto_wa) que usan los usuarios desactivados para pedir
+ *        activación desde el login (POST sin wa solo lee).
  *   { accion: 'eliminar', email } → el ADM elimina una cuenta
  *        (requiere sesión ADM; el historial del log se conserva).
  */
@@ -27,7 +40,7 @@ const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = r
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
-const { admActivo, leerConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro } = require('../../lib/control');
+const { admActivo, leerConfig, guardarConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a los 10 min
@@ -44,6 +57,42 @@ const PROFESIONES_VALIDAS = new Set([
 const TIPOS_DOCUMENTO = new Set(['DNI', 'CE', 'PASAPORTE']);
 const NACIONALIDADES_VALIDAS = new Set(['Peruana', 'Venezolana', 'Colombiana', 'Ecuatoriana', 'Boliviana', 'Otra']);
 const TERMINOS_VERSION = 'VEA-REGISTRO-2026-01';
+const BASE_URL = 'https://vigilancia-epidemiologica-ecru.vercel.app';
+const LLAVE_ADM_EMAIL = 'adm_email';
+const LLAVE_WA = 'contacto_wa';
+const LLAVE_SOL = 'activacion_sol';
+const ACT_VENCE_MS = 24 * 60 * 60 * 1000;  // el enlace de activación vive 24 h
+const SOL_REENVIO_MS = 10 * 60 * 1000;     // 1 correo al ADM cada 10 min por cuenta
+
+/* Enlace de activación firmado: <expira>.<email en base64url>.<HMAC-SHA256>. */
+function tokenActivacion(email) {
+  const exp = Date.now() + ACT_VENCE_MS;
+  const cuerpo = exp + '.' + Buffer.from(String(email).toLowerCase(), 'utf8').toString('base64url');
+  const firma = crypto.createHmac('sha256', process.env.VEA_AUTH_SECRET).update('vea-activar:' + cuerpo).digest('base64url');
+  return cuerpo + '.' + firma;
+}
+
+function leerTokenActivacion(token) {
+  const partes = String(token || '').split('.');
+  if (partes.length !== 3) return null;
+  const cuerpo = partes[0] + '.' + partes[1];
+  const espera = crypto.createHmac('sha256', process.env.VEA_AUTH_SECRET).update('vea-activar:' + cuerpo).digest('base64url');
+  const a = Buffer.from(partes[2]);
+  const b = Buffer.from(espera);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const exp = Number(partes[0]);
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
+  let email = '';
+  try { email = Buffer.from(partes[1], 'base64url').toString('utf8'); } catch (_) { return null; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return null;
+  return email.toLowerCase();
+}
+
+/* WhatsApp del ADM: dígitos con opcional + (config contacto_wa). */
+function normalizarWa(v) {
+  const d = String(v || '').replace(/[^\d]/g, '');
+  return d.length >= 7 && d.length <= 15 ? d : null;
+}
 
 function validarRegistro(nombre, email, celular, profesion, institucion, tipoDocumento, numeroDocumento) {
   if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) {
@@ -359,7 +408,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   let r;
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=nombre,password_hash,activo,debe_cambiar,sesion_v&limit=1`,
+      `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(usuario)}&select=nombre,institucion,password_hash,activo,debe_cambiar,sesion_v&limit=1`,
       { headers: claves, cache: 'no-store' }
     );
   } catch (_) {
@@ -401,7 +450,14 @@ async function ingresar(req, res, cuerpo, claves, intento) {
       user_agent: userAgentDe(req),
       exito: false
     });
-    return res.status(403).json({ error: 'Su cuenta está pendiente de activación por el administrador. Contáctelo para que la active.' });
+    const cfgWa = await leerConfig([LLAVE_WA]);
+    return res.status(403).json({
+      error: 'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.',
+      pendiente: true,
+      wa: normalizarWa(cfgWa.cfg && cfgWa.cfg[LLAVE_WA]),
+      nombre: fila.nombre || '',
+      institucion: fila.institucion || ''
+    });
   }
 
   const sidIng = nuevoSid();
@@ -864,6 +920,21 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
   }
   const activo = cuerpo.activo === true;
 
+  // Estado anterior: si la activamos desde el panel, avisamos al usuario.
+  let g;
+  try {
+    g = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,activo&limit=1`, {
+      headers: claves,
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  const antes = (await g.json().catch(() => []))[0] || null;
+  if (!antes) {
+    return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
   let r;
   try {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
@@ -900,6 +971,18 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
     user_agent: userAgentDe(req),
     exito: true
   });
+
+  if (activo && antes.activo === false) {
+    try {
+      await enviarCorreo({
+        para: email,
+        asunto: 'VEA - Su cuenta esta activada',
+        html: plantillaUsuarioActivada(antes.nombre || '')
+      });
+    } catch (e) {
+      console.error('correo: fallo aviso de cuenta activada →', e && e.message);
+    }
+  }
 
   return res.status(200).json({ ok: true, usuario: email, activo: activo });
 }
@@ -952,8 +1035,245 @@ async function eliminarUsuario(req, res, cuerpo, claves, intento) {
   return res.status(200).json({ ok: true, usuario: email });
 }
 
+/* ---------- Solicitar activación (botón de WhatsApp en el login) ---------- */
+function escHtml(t) {
+  return String(t || '').replace(/[&<>"]/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+  });
+}
+
+function plantillaCorreoAdm(email, nombre, institucion, link) {
+  const fecha = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' });
+  return '<div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;padding:28px;color:#e2e8f0;border-radius:14px">' +
+    '<p style="font-size:12px;letter-spacing:2px;color:#f59e0b;font-weight:800;margin:0 0 12px">MÓDULO VEA — ACTIVACIÓN DE CUENTA</p>' +
+    '<p style="font-size:14px;margin:0 0 14px">Un usuario con cuenta desactivada solicita poder ingresar:</p>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:0 0 16px">' +
+    '<tr><td style="padding:7px 9px;border:1px solid #334155;background:#1e293b;font-weight:700;color:#cbd5e1">Usuario</td><td style="padding:7px 9px;border:1px solid #334155">' + escHtml(nombre || '(sin nombre)') + '</td></tr>' +
+    '<tr><td style="padding:7px 9px;border:1px solid #334155;background:#1e293b;font-weight:700;color:#cbd5e1">Correo</td><td style="padding:7px 9px;border:1px solid #334155">' + escHtml(email) + '</td></tr>' +
+    '<tr><td style="padding:7px 9px;border:1px solid #334155;background:#1e293b;font-weight:700;color:#cbd5e1">Institución</td><td style="padding:7px 9px;border:1px solid #334155">' + escHtml(institucion || '—') + '</td></tr>' +
+    '<tr><td style="padding:7px 9px;border:1px solid #334155;background:#1e293b;font-weight:700;color:#cbd5e1">Solicitado</td><td style="padding:7px 9px;border:1px solid #334155">' + escHtml(fecha) + ' (hora Perú)</td></tr>' +
+    '</table>' +
+    '<p style="text-align:center;margin:6px 0 4px"><a href="' + link + '" style="display:inline-block;background:#0969da;color:#fff;font-weight:800;font-size:15px;text-decoration:none;border-radius:10px;padding:13px 26px">✅ Activar ahora</a></p>' +
+    '<p style="text-align:center;margin:14px 0 4px"><a href="' + BASE_URL + '/?adm=1" style="color:#7dd3fc;font-size:13px">Abrir en el panel → Gestión de Usuarios</a></p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:14px 0 0;text-align:center">El enlace caduca en 24 horas y solo activa esta cuenta.<br>También puede activarla desde el panel: Gestión de Usuarios → Activar.</p>' +
+    '</div>';
+}
+
+function plantillaUsuarioActivada(nombre) {
+  return '<div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;padding:28px;color:#e2e8f0;border-radius:14px">' +
+    '<p style="font-size:12px;letter-spacing:2px;color:#4ade80;font-weight:800;margin:0 0 12px">MÓDULO VEA — CUENTA ACTIVADA</p>' +
+    '<p style="font-size:15px;margin:0 0 10px">Hola ' + escHtml(nombre || '') + ', su cuenta ya fue <b style="color:#4ade80">activada</b>. Ya puede iniciar sesión con su correo y contraseña.</p>' +
+    '<p style="text-align:center;margin:20px 0 4px"><a href="' + BASE_URL + '/login.html" style="display:inline-block;background:#16a34a;color:#fff;font-weight:800;font-size:14px;text-decoration:none;border-radius:10px;padding:12px 24px">Ir al inicio de sesión</a></p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:16px 0 0;text-align:center">Si usted no esperaba este aviso, no comparta este correo.</p>' +
+    '</div>';
+}
+
+/* Página de confirmación del enlace de activación (GET ?activar=). */
+function paginaActivacion(ok, titulo, texto) {
+  const color = ok ? '#16a34a' : '#dc2626';
+  return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>' + escHtml(titulo) + ' · VEA</title><style>' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f7f9fc;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;color:#1f2328}' +
+    '.c{width:100%;max-width:23rem;background:#fff;border:1px solid #e3e8ef;border-top:5px solid ' + color + ';border-radius:14px;padding:26px 22px;box-shadow:0 8px 26px rgba(15,23,42,.08);text-align:center}' +
+    '.m{width:3.1rem;height:3.1rem;border-radius:50%;background:#0f172a;color:#f87171;display:grid;place-items:center;margin:0 auto 14px;font-weight:900;font-size:.9rem;border:3px solid #e7ecf3}' +
+    'h1{font-size:1.18rem;margin-bottom:10px;color:' + color + '}' +
+    'p{font-size:.86rem;line-height:1.65;color:#4b5563;word-break:break-word}' +
+    'a.b{display:inline-block;margin-top:18px;background:' + color + ';color:#fff;text-decoration:none;font-weight:800;font-size:.9rem;padding:12px 22px;border-radius:9px}' +
+    '.pie{margin-top:16px;font-size:.7rem;color:#8b949e;line-height:1.6}' +
+    '</style></head><body><main class="c">' +
+    '<div class="m">VEA</div>' +
+    '<h1>' + escHtml(titulo) + '</h1>' +
+    '<p>' + escHtml(texto) + '</p>' +
+    '<a class="b" href="/login.html">Ir al inicio de sesión</a>' +
+    '<p class="pie">Sistema de vigilancia epidemiológica · Información sujeta a validación oficial.</p>' +
+    '</main></body></html>';
+}
+
+async function solicitarActivacion(req, res, cuerpo, claves) {
+  const email = String(cuerpo.email || '').trim().toLowerCase();
+  const clave = String(cuerpo.clave || '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'Correo inválido.' });
+  if (!clave) return res.status(400).json({ error: 'Falta la contraseña.' });
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,institucion,activo,password_hash&limit=1`, {
+      headers: claves,
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  const filas = await r.json().catch(() => []);
+  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
+  // Respuesta idéntica si no existe o la clave no coincide (evita adivinar cuentas).
+  if (!fila || !verificarClave(clave, fila.password_hash)) {
+    return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+  }
+  if (fila.activo !== false) return res.status(200).json({ ok: true, activa: true });
+
+  const lectura = await leerConfig([LLAVE_ADM_EMAIL, LLAVE_WA, LLAVE_SOL]);
+  const cfg = lectura.cfg || {};
+  const link = BASE_URL + '/api/auth/cuentas?activar=' + tokenActivacion(email);
+
+  // Aviso al ADM: máx. 1 correo cada 10 min por cuenta (registro en config).
+  let sol = {};
+  try { sol = JSON.parse(cfg[LLAVE_SOL] || '{}') || {}; } catch (_) { sol = {}; }
+  const ahora = Date.now();
+  Object.keys(sol).forEach(function (k) {
+    if (!Number(sol[k]) || ahora - Number(sol[k]) > ACT_VENCE_MS) delete sol[k];
+  });
+  const admEmail = String(cfg[LLAVE_ADM_EMAIL] || '').trim().toLowerCase();
+  const debeCorreo = (!Number(sol[email]) || ahora - Number(sol[email]) > SOL_REENVIO_MS) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(admEmail);
+  let correoOk = false;
+  if (debeCorreo) {
+    try {
+      const rc = await enviarCorreo({
+        para: admEmail,
+        asunto: 'VEA - Activar usuario - ' + email,
+        html: plantillaCorreoAdm(email, fila.nombre, fila.institucion, link)
+      });
+      correoOk = !rc.error;
+      if (rc.error) console.error('correo: fallo aviso de activación →', rc.error, rc.detalle || '');
+    } catch (e) {
+      console.error('correo: excepción en aviso de activación →', e && e.message);
+    }
+    sol[email] = String(ahora);
+    await guardarConfig({ [LLAVE_SOL]: JSON.stringify(sol) });
+  }
+
+  await registrarAcceso({
+    email: `activacion:${email}`,
+    nombre: 'Solicitud de activación vía WhatsApp' + (correoOk ? ' (correo al ADM)' : ''),
+    proveedor: 'registro',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({
+    ok: true,
+    link: link,
+    wa: normalizarWa(cfg[LLAVE_WA]),
+    correo: correoOk,
+    nombre: fila.nombre || '',
+    institucion: fila.institucion || ''
+  });
+}
+
+/* GET /api/auth/cuentas?activar=<token> — activa la cuenta al instante. */
+async function activarConToken(req, res, token) {
+  if (!process.env.VEA_AUTH_SECRET) {
+    return res.status(503).send(paginaActivacion(false, 'Servicio no configurado', 'Falta VEA_AUTH_SECRET en Vercel. Contacte al soporte del sistema.'));
+  }
+  const email = leerTokenActivacion(token);
+  if (!email) {
+    return res.status(400).send(paginaActivacion(false, 'Enlace no válido', 'El enlace no es válido o venció (dura 24 horas). Solicite la activación de nuevo desde el módulo.'));
+  }
+  const claves = clavesSupabase();
+  if (!claves) {
+    return res.status(503).send(paginaActivacion(false, 'Servicio no disponible', 'Base de datos no configurada. Intente más tarde.'));
+  }
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,activo&limit=1`, {
+      headers: claves,
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).send(paginaActivacion(false, 'No se pudo verificar', 'No se pudo contactar con la base de datos. Intente más tarde.'));
+  }
+  const filas = await r.json().catch(() => []);
+  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
+  if (!fila) {
+    return res.status(404).send(paginaActivacion(false, 'Cuenta no encontrada', 'No existe ninguna cuenta con ese correo.'));
+  }
+  if (fila.activo !== false) {
+    return res.status(200).send(paginaActivacion(true, 'La cuenta ya estaba activada', 'La cuenta ' + email + ' ya puede ingresar normalmente.'));
+  }
+
+  let p;
+  try {
+    p = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ activo: true }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).send(paginaActivacion(false, 'No se pudo activar', 'No se pudo contactar con la base de datos. Intente más tarde.'));
+  }
+  if (!p.ok) {
+    return res.status(502).send(paginaActivacion(false, 'No se pudo activar', 'Ocurrió un error al activar la cuenta. Intente más tarde.'));
+  }
+
+  await registrarAcceso({
+    email: `activacion:${email}`,
+    nombre: 'Cuenta activada por enlace del correo',
+    proveedor: 'registro',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  try {
+    await enviarCorreo({
+      para: email,
+      asunto: 'VEA - Su cuenta esta activada',
+      html: plantillaUsuarioActivada(fila.nombre)
+    });
+  } catch (e) {
+    console.error('correo: fallo aviso de cuenta activada →', e && e.message);
+  }
+
+  return res.status(200).send(paginaActivacion(true, 'Cuenta activada', 'La cuenta ' + email + ' quedó activada. Ya puede iniciar sesión con su correo y contraseña.'));
+}
+
+/* ---------- Contacto WhatsApp del ADM (configurable desde el panel) ---------- */
+async function contactoAdm(req, res, cuerpo, claves) {
+  const adm = await admActivo(req);
+  if (!adm) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  if (Object.prototype.hasOwnProperty.call(cuerpo, 'wa')) {
+    const bruto = String(cuerpo.wa || '').trim();
+    if (bruto) {
+      const d = bruto.replace(/[^\d]/g, '');
+      if (d.length < 7 || d.length > 15) {
+        return res.status(400).json({ error: 'Número inválido: escriba el código de país sin signos, ej: 51999888777.' });
+      }
+      const ok = await guardarConfig({ [LLAVE_WA]: d });
+      if (!ok) return res.status(502).json({ error: 'No se pudo guardar el contacto. Intente nuevamente.' });
+      await registrarAcceso({
+        email: 'adm:guardó WhatsApp de contacto → ' + d,
+        nombre: String(adm.email || 'ADM'),
+        proveedor: 'adm',
+        ip: ipDe(req),
+        user_agent: userAgentDe(req),
+        exito: true
+      });
+    } else {
+      await guardarConfig({ [LLAVE_WA]: '' });
+    }
+  }
+
+  const lectura = await leerConfig([LLAVE_WA]);
+  return res.status(200).json({ ok: true, wa: normalizarWa((lectura.cfg || {})[LLAVE_WA]) });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+
+  if (req.method === 'GET') {
+    let tk = '';
+    try { tk = new URL(req.url, 'http://local').searchParams.get('activar') || ''; } catch (_) { tk = ''; }
+    if (tk) return activarConToken(req, res, tk);
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -987,5 +1307,7 @@ module.exports = async function handler(req, res) {
   if (accion === 'editar') return editarUsuario(req, res, cuerpo, claves);
   if (accion === 'estado') return cambiarEstadoUsuario(req, res, cuerpo, claves);
   if (accion === 'eliminar') return eliminarUsuario(req, res, cuerpo, claves);
+  if (accion === 'solicitar_activacion') return solicitarActivacion(req, res, cuerpo, claves);
+  if (accion === 'contacto') return contactoAdm(req, res, cuerpo, claves);
   return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado" o "eliminar").' });
 };
