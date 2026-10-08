@@ -28,6 +28,8 @@
  *   { accion: 'estado', email, activo } → el ADM activa o desactiva
  *        una cuenta (desactivada no puede ingresar; requiere sesión ADM).
  *        Al activarla avisa por correo al usuario.
+ *   { accion: 'avisar', email } → reenvía al usuario el correo «Su cuenta
+ *        está activada» (requiere sesión ADM; solo cuentas activas).
  *   { accion: 'eliminar', email } → el ADM elimina una cuenta
  *        (requiere sesión ADM; el historial del log se conserva).
  */
@@ -977,6 +979,59 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
   return res.status(200).json({ ok: true, usuario: email, activo: activo });
 }
 
+/* Aviso manual del ADM: reenvía al usuario el correo «Su cuenta está activada». */
+async function avisarUsuario(req, res, cuerpo, claves) {
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,activo&limit=1`, {
+      headers: claves,
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+  const filas = await r.json().catch(() => []);
+  const fila = Array.isArray(filas) && filas.length ? filas[0] : null;
+  if (!fila) return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  if (fila.activo === false) {
+    return res.status(400).json({ error: 'La cuenta está desactivada: actívela primero para avisarle.' });
+  }
+
+  let fallo = null;
+  try {
+    const rc = await enviarCorreo({
+      para: email,
+      asunto: 'VEA - Su cuenta esta activada',
+      html: plantillaUsuarioActivada(fila.nombre || '')
+    });
+    if (rc.error) fallo = rc.error;
+  } catch (e) {
+    fallo = e && e.message;
+  }
+  if (fallo) {
+    console.error('correo: fallo aviso manual de activación →', fallo);
+    return res.status(502).json({ error: 'No se pudo enviar el correo de aviso. Intente nuevamente.' });
+  }
+
+  const adm = await admActivo(req);
+  await registrarAcceso({
+    email: `adm:avisó activación → ${email}`,
+    nombre: String((adm || {}).email || 'ADM'),
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+  return res.status(200).json({ ok: true, usuario: email });
+}
+
 async function eliminarUsuario(req, res, cuerpo, claves, intento) {
   intento = intento || 0;
   if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
@@ -1230,6 +1285,7 @@ module.exports = async function handler(req, res) {
   if (accion === 'restaurarConCodigoUsuario') return restaurarConCodigoUsuario(req, res, cuerpo, claves);
   if (accion === 'editar') return editarUsuario(req, res, cuerpo, claves);
   if (accion === 'estado') return cambiarEstadoUsuario(req, res, cuerpo, claves);
+  if (accion === 'avisar') return avisarUsuario(req, res, cuerpo, claves);
   if (accion === 'eliminar') return eliminarUsuario(req, res, cuerpo, claves);
   return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado" o "eliminar").' });
 };
