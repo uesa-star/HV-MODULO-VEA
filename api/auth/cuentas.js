@@ -89,8 +89,8 @@ function validarRegistro(nombre, email, celular, profesion, institucion, tipoDoc
   if (!/^[\p{L}]+(?:[ .'-][\p{L}]+)+$/u.test(nombre)) {
     return 'Escriba nombres y apellidos reales, usando solo letras (por ejemplo: Ana Pérez).';
   }
-  if (celular && !/^9\d{8}$/.test(celular)) {
-    return 'El celular debe tener 9 dígitos y comenzar con 9.';
+  if (!/^9\d{8}$/.test(celular)) {
+    return 'El celular es obligatorio: debe tener 9 dígitos y comenzar con 9.';
   }
   if (!PROFESIONES_VALIDAS.has(profesion)) {
     return 'Seleccione una profesión válida de la lista.';

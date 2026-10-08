@@ -127,33 +127,33 @@
     </form>
 
     <form id="formRegistro" class="formulario" autocomplete="on">
-      <label class="campo"><span>Nombre completo</span>
+      <label class="campo"><span>Nombre completo <span style="color:#f87171">*</span></span>
         <input id="rgNombre" type="text" autocomplete="name" maxlength="80" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü .'-]{5,80}" title="Ingrese nombres y apellidos reales" required>
       </label>
-      <label class="campo"><span>Nacionalidad</span>
+      <label class="campo"><span>Nacionalidad <span style="color:#f87171">*</span></span>
         <select id="rgNacionalidad" required>
           <option value="">Seleccione su nacionalidad…</option>
           <option>Peruana</option><option>Venezolana</option><option>Colombiana</option>
           <option>Ecuatoriana</option><option>Boliviana</option><option>Otra</option>
         </select>
       </label>
-      <label class="campo"><span>Tipo de documento</span>
+      <label class="campo"><span>Tipo de documento <span style="color:#f87171">*</span></span>
         <select id="rgTipoDocumento" required>
           <option value="DNI">DNI peruano</option>
           <option value="CE">Carné de extranjería</option>
           <option value="PASAPORTE">Pasaporte</option>
         </select>
       </label>
-      <label class="campo"><span>Número de documento</span>
+      <label class="campo"><span>Número de documento <span style="color:#f87171">*</span></span>
         <input id="rgNumeroDocumento" type="text" inputmode="numeric" autocomplete="off" maxlength="12" title="Ingrese su número de documento" placeholder="ej: 12345678" required>
       </label>
       <label class="campo"><span>Correo electrónico</span>
         <input id="rgEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="ej: usuario@correo.com" required>
       </label>
-      <label class="campo"><span>Celular (opcional, para avisos y recuperación)</span>
-        <input id="rgCelular" type="tel" autocomplete="tel" inputmode="numeric" pattern="9[0-9]{8}" maxlength="9" title="Ingrese 9 dígitos, comenzando con 9" placeholder="ej: 987654321">
+      <label class="campo"><span>Celular <span style="color:#f87171">*</span> (obligatorio: 9 dígitos, para avisos y recuperación)</span>
+        <input id="rgCelular" type="tel" autocomplete="tel" inputmode="numeric" pattern="9[0-9]{8}" maxlength="9" title="Obligatorio: 9 dígitos, comenzando con 9" placeholder="ej: 987654321" required>
       </label>
-      <label class="campo"><span>Profesión</span>
+      <label class="campo"><span>Profesión <span style="color:#f87171">*</span></span>
         <select id="rgProfesion" required>
           <option value="">Seleccione su profesión…</option>
           <option>Médico</option>
@@ -169,7 +169,7 @@
           <option>Otro</option>
         </select>
       </label>
-      <label class="campo"><span>Establecimiento donde labora</span>
+      <label class="campo"><span>Establecimiento donde labora <span style="color:#f87171">*</span></span>
         <select id="rgInstitucion" required>
           <option value="">Seleccione su establecimiento…</option>
           <option>Hospital de Ventanilla</option>
@@ -182,12 +182,12 @@
       </label>
       <label class="campo" style="display:flex;gap:.5rem;align-items:flex-start;margin-top:1rem;">
         <input id="rgTerminos" type="checkbox" style="width:auto;margin-top:.15rem" required>
-        <span style="margin:0;font-weight:400">Acepto los términos de uso y la política de privacidad del módulo VEA.</span>
+        <span style="margin:0;font-weight:400"><span style="color:#f87171">*</span> Acepto los términos de uso y la política de privacidad del módulo VEA.</span>
       </label>
-      <label class="campo"><span>Crear contraseña (mínimo 8 caracteres)</span>
+      <label class="campo"><span>Crear contraseña (mínimo 8 caracteres) <span style="color:#f87171">*</span></span>
         <input id="rgClave" type="password" autocomplete="new-password" required>
       </label>
-      <label class="campo"><span>Repetir contraseña</span>
+      <label class="campo"><span>Repetir contraseña <span style="color:#f87171">*</span></span>
         <input id="rgConfirm" type="password" autocomplete="new-password" required>
       </label>
       <button type="submit" id="btnCrear" class="btnPrimario">Crear cuenta</button>
@@ -517,7 +517,7 @@
     var numeroDocumento = document.getElementById('rgNumeroDocumento').value.trim().toUpperCase().replace(/[\s-]/g, '');
     var nacionalidad = document.getElementById('rgNacionalidad').value;
     var email = document.getElementById('rgEmail').value.trim().toLowerCase();
-    var celular = document.getElementById('rgCelular').value.trim();
+    var celular = document.getElementById('rgCelular').value.replace(/[\s()-]/g, '');
     var profesion = document.getElementById('rgProfesion').value;
     var institucion = document.getElementById('rgInstitucion').value.trim();
     var clave = document.getElementById('rgClave').value;
@@ -527,7 +527,7 @@
     if (tipoDocumento === 'CE' && !/^\d{9}$/.test(numeroDocumento)) return error('El carné de extranjería debe tener 9 dígitos.');
     if (tipoDocumento === 'PASAPORTE' && !/^[A-Z0-9]{6,12}$/.test(numeroDocumento)) return error('El pasaporte debe tener entre 6 y 12 caracteres.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return error('Escriba un correo electrónico válido.');
-    if (celular && !/^9\d{8}$/.test(celular)) return error('El celular debe tener 9 dígitos y comenzar con 9.');
+    if (!/^9\d{8}$/.test(celular)) return error('El celular es obligatorio: 9 dígitos comenzando con 9.');
     if (!profesion) return error('Seleccione una profesión válida.');
     if (!nacionalidad) return error('Seleccione su nacionalidad.');
     if (!/^[\p{L}0-9][\p{L}0-9 .,'&/()-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
