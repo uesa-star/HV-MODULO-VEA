@@ -17,10 +17,13 @@
  * ADM (sesión obligatoria, fail-closed 401):
  *   GET  /api/boletines?adm=1     → { correo, correoCc, correoCambio, auto, autoProximo }
  *   POST /api/boletines           → acciones:
+ *     { accion:'guardar_todo', correo, correoCc, activo, dia, hora }
+ *          Guarda TODO de la tarjeta en una sola llamada: Para (máx. 3),
+ *          Cc (máx. 7, 10 en total) y la programación del automático.
  *     { accion:'guardar_correo', correo:'a@b.c', correoCc:'d@e.f' }
- *          Guarda Para (máx. 3) y Cc (máx. 7, 10 en total), editable en todo momento.
+ *          Guarda solo Para y Cc (compatibilidad con versiones previas).
  *     { accion:'guardar_auto', activo, dia (0=domingo), hora:'HH:MM', correoCc? }
- *          Programación del envío automático semanal (hora de Perú).
+ *          Guarda solo la programación (compatibilidad con versiones previas).
  *     { accion:'enviar_prueba' }
  *          Envía la circular real al último boletín publicado (Para + Cc).
  *     { accion:'publicar', anio, se, titulo, resumen, html, pdf_b64,
@@ -273,6 +276,34 @@ async function atenderAdm(req, res) {
     });
     if (!guardado) return res.status(502).json({ error: 'No se pudo guardar la configuración.' });
     return res.status(200).json({ ok: true, correo: para.join(', '), correoCc: cc.join(', ') });
+  }
+
+  /* ---------- guardar TODO de la tarjeta en una sola llamada (Para + Cc + programación) ---------- */
+  if (accion === 'guardar_todo') {
+    const para = parseCorreos(body.correo);
+    const cc = parseCorreos(body.correoCc);
+    const dia = Number(body.dia);
+    const hora = String(body.hora || '');
+    const error = errorFormatoCorreos(para, cc);
+    if (error) return res.status(400).json({ error });
+    if (!Number.isInteger(dia) || dia < 0 || dia > 6) return res.status(400).json({ error: 'Día inválido (0 = domingo … 6 = sábado).' });
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return res.status(400).json({ error: 'Hora inválida (formato HH:MM, hora de Perú).' });
+
+    const lectura = await leerConfig([CLAVE_AUTO]);
+    if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });
+    const previo = leerAuto((lectura.cfg || {})[CLAVE_AUTO]);
+
+    const auto = { activo: body.activo === true, dia, hora };
+    if (previo && previo.ultimo) auto.ultimo = previo.ultimo;
+
+    const guardado = await guardarConfig({
+      [CLAVE_CORREO]: para.join(', '),
+      [CLAVE_CORREO_CC]: cc.join(', '),
+      [CLAVE_CORREO_CAMBIO]: `${textoSeguro(adm.email || '', 80)} · ${new Date().toISOString()}`,
+      [CLAVE_AUTO]: JSON.stringify(auto)
+    });
+    if (!guardado) return res.status(502).json({ error: 'No se pudo guardar la configuración.' });
+    return res.status(200).json({ ok: true, correo: para.join(', '), correoCc: cc.join(', '), auto, autoProximo: proximoEnvioTexto(auto) });
   }
 
   /* ---------- programación del envío automático ---------- */

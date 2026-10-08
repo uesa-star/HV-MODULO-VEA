@@ -118,7 +118,7 @@ await check('GET /api/boletines?adm=1 (correo ADM) sin sesión → 401', async (
   return '401';
 });
 
-for (const accion of ['guardar_correo', 'publicar', 'guardar_auto', 'enviar_prueba']) {
+for (const accion of ['guardar_todo', 'guardar_correo', 'publicar', 'guardar_auto', 'enviar_prueba']) {
   await check(`POST /api/boletines (${accion}) sin sesión → 401`, async () => {
     const { r, texto } = await pedir(`${BASE}/api/boletines`, {
       method: 'POST',
