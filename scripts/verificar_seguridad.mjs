@@ -9,10 +9,12 @@
  *   4. La llave pública NO puede leer tablas de vigilancia (privilegios revocados).
  *   5. La función de firma vea_firma_tabla sigue disponible (el módulo la usa).
  *   6. Cabeceras de seguridad presentes (HSTS, nosniff, frame, CSP).
- *   7. /api/boletines?adm=1 y POST /api/boletines (publicar boletín) exigen sesión ADM → 401.
+ *   7. /api/boletines?adm=1 y POST /api/boletines (guardar/publicar/prueba)
+ *      exigen sesión ADM → 401.
  *   8. /api/boletines es público pero solo expone metadatos (sin HTML/PDF/correos).
  *   9. /api/auth/log (registro de accesos con país/VPN) exige sesión ADM → 401.
  *  10. /api/alerts (legacy) sigue respondiendo vía rewrite a vea-data → 401 sin sesión.
+ *  11. /api/boletines?auto=1 (cron del envío automático) sin CRON_SECRET → 401/503.
  *
  * Sale con código 1 si algo falla → GitHub Actions avisa por correo.
  * Uso:  node scripts/verificar_seguridad.mjs
@@ -116,17 +118,23 @@ await check('GET /api/boletines?adm=1 (correo ADM) sin sesión → 401', async (
   return '401';
 });
 
-for (const accion of ['guardar_correo', 'publicar']) {
+for (const accion of ['guardar_correo', 'publicar', 'guardar_auto', 'enviar_prueba']) {
   await check(`POST /api/boletines (${accion}) sin sesión → 401`, async () => {
     const { r, texto } = await pedir(`${BASE}/api/boletines`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion, anio: 2026, se: 1, titulo: 'x', resumen: '', html: '', pdf_b64: '', publicar: false, enviar: false })
+      body: JSON.stringify({ accion, anio: 2026, se: 1, titulo: 'x', resumen: '', html: '', pdf_b64: '', publicar: false, enviar: false, dia: 4, hora: '18:00' })
     });
     espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
     return '401';
   });
 }
+
+await check('GET /api/boletines?auto=1 (cron) sin secreto → 401/503', async () => {
+  const { r, texto } = await pedir(`${BASE}/api/boletines?auto=1`);
+  espera(r.status === 401 || r.status === 503, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
+  return `${r.status} (nunca 200 sin CRON_SECRET)`;
+});
 
 await check('GET /api/alerts (legacy → vea-data) sin sesión → 401', async () => {
   const { r, texto } = await pedir(`${BASE}/api/alerts`);

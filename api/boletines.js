@@ -9,26 +9,47 @@
  *                                    origen opaco — no tocan cookies ni API).
  *   GET /api/boletines?i=<id>&pdf=1 → PDF descargable (si se adjuntó al publicar).
  *
+ * CRON (Vercel Cron, Authorization: Bearer CRON_SECRET):
+ *   GET /api/boletines?auto=1     → envío automático semanal programado en el
+ *                                    panel ADM: circular si el último boletín
+ *                                    está publicado, recordatorio si no.
+ *
  * ADM (sesión obligatoria, fail-closed 401):
- *   GET  /api/boletines?adm=1     → { correo }  configuración vigente
+ *   GET  /api/boletines?adm=1     → { correo, correoCc, correoCambio, auto, autoProximo }
  *   POST /api/boletines           → acciones:
- *     { accion:'guardar_correo', correo:'a@b.c, d@e.f' }
- *          Guarda (editable en todo momento) el correo del responsable de la web.
+ *     { accion:'guardar_correo', correo:'a@b.c', correoCc:'d@e.f' }
+ *          Guarda Para (máx. 3) y Cc (máx. 7, 10 en total), editable en todo momento.
+ *     { accion:'guardar_auto', activo, dia (0=domingo), hora:'HH:MM', correoCc? }
+ *          Programación del envío automático semanal (hora de Perú).
+ *     { accion:'enviar_prueba' }
+ *          Envía la circular real al último boletín publicado (Para + Cc).
  *     { accion:'publicar', anio, se, titulo, resumen, html, pdf_b64,
  *       publicar:true, enviar:true }
  *          · publicar → sube/actualiza el boletín en el listado público (vea_boletines)
- *          · enviar   → correo formal al editor de gob.pe con el PDF adjunto (si existe)
+ *          · enviar   → circular aprobada a Para + Cc; PDF ≤ 700 KB adjunto,
+ *                       si pesa más va botón «Descargar PDF» (Gmail oculta el
+ *                       cuerpo cuando el adjunto es muy pesado)
  *
  * Solo el ADM publicó explícitamente: el listado nunca expone HTML/PDF/correos.
  */
 const { admActivo, clavesSupabase, errorTabla, leerConfig, guardarConfig, textoSeguro } = require('../lib/control');
 const { enviarCorreo } = require('../lib/correo');
 const { asegurarTablas } = require('../lib/tablas');
+const {
+  LIMITE_ADJUNTO_BYTES, asuntoCircular, nombreArchivo,
+  listoParaDisparar, proximoEnvioTexto, plantillaCircular, plantillaRecordatorio
+} = require('../lib/circular');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const BASE_URL = String(process.env.VEA_BASE_URL || 'https://vigilancia-epidemiologica-ecru.vercel.app').replace(/\/+$/, '');
-const CLAVE_CORREO = 'boletin_correo';
+const CLAVE_CORREO = 'boletin_correo';           // Para (destinos principales)
+const CLAVE_CORREO_CC = 'boletin_correo_cc';     // Cc (copias)
 const CLAVE_CORREO_CAMBIO = 'boletin_correo_cambio';
+const CLAVE_AUTO = 'boletin_auto';               // JSON {activo,dia,hora,ultimo}
+const CLAVE_ENVIO_N = 'boletin_envio_n';         // contador «Envío N°» del pie
+const MAX_PARA = 3;
+const MAX_CC = 7;
+const MAX_TOTAL = 10;
 const MAX_HTML = 1600000;      // ~1.6 MB (el boletín V17 pesa ~250 KB)
 const MAX_PDF_B64 = 3400000;   // ~2.5 MB binarios: deja holgura bajo el límite de 4.5 MB de Vercel
 const RE_CORREO = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/;
@@ -62,6 +83,28 @@ function parseCorreos(valor) {
 function claves() {
   const k = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
   return k ? { apikey: k, Authorization: `Bearer ${k}`, 'Content-Type': 'application/json' } : null;
+}
+
+/* Formato de los destinos: ≤3 en Para, ≤7 en Cc, 10 en total. Devuelve el error o null. */
+function errorFormatoCorreos(para, cc) {
+  if (para.length > MAX_PARA) return `Máximo ${MAX_PARA} correos en Para.`;
+  if (cc.length > MAX_CC) return `Máximo ${MAX_CC} correos en Cc.`;
+  if (para.length + cc.length > MAX_TOTAL) return `Máximo ${MAX_TOTAL} correos en total (${MAX_PARA} en Para y ${MAX_CC} en Cc).`;
+  for (const c of para.concat(cc)) {
+    if (c.length > 120 || !RE_CORREO.test(c)) return 'Correo inválido: ' + textoSeguro(c, 60);
+  }
+  return null;
+}
+
+function remitenteActual(adm) {
+  return String(process.env.GMAIL_USER || (adm && adm.email) || 'Modulo VEA').trim();
+}
+
+function leerAuto(valor) {
+  try {
+    const a = JSON.parse(String(valor || 'null'));
+    return a && typeof a === 'object' ? a : null;
+  } catch (_) { return null; }
 }
 
 async function leerIdExistente(k, anio, se) {
@@ -122,24 +165,64 @@ async function marcarEnvio(id, campos) {
   } catch (_) { /* la auditoría nunca bloquea la operación */ }
 }
 
-function plantillaCorreo({ titulo, resumen, anio, se, enlace, conAdjunto, remitente }) {
-  const fecha = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
-  return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#1e293b">
-  <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0">
-    <div style="background:#0056ac;padding:18px 24px">
-      <div style="color:#ffffff;font-size:13px;letter-spacing:1px">HOSPITAL DE VENTANILLA · UNIDAD DE EPIDEMIOLOGÍA Y SALUD PÚBLICA</div>
-      <div style="color:#ffffff;font-size:19px;font-weight:bold;margin-top:4px">Boletín epidemiológico — S.E. ${String(se).padStart(2, '0')} · ${anio}</div>
-    </div>
-    <div style="padding:22px 24px">
-      <p style="font-size:15px;font-weight:bold;margin:0 0 8px">${titulo}</p>
-      <p style="font-size:14px;line-height:1.6;color:#334155;margin:0 0 18px">${resumen}</p>
-      <p style="margin:0 0 6px"><a href="${enlace}" style="display:inline-block;background:#0056ac;color:#ffffff;text-decoration:none;font-weight:bold;padding:11px 20px;border-radius:6px">Ver boletín en línea</a></p>
-      <p style="font-size:13px;color:#64748b;margin:18px 0 0">${conAdjunto ? 'Adjunto encontrará el boletín en PDF para su publicación en' : 'El boletín queda disponible en'} gob.pe/hdv → «Informes, publicaciones e informes».</p>
-      <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
-      <p style="font-size:12px;color:#94a3b8;margin:0">Generado por el Módulo VEA (${remitente || 'Unidad de Epidemiología'}) el ${fecha}, tras la validación epidemiológica de la semana.</p>
-    </div>
-  </div>
-</body></html>`;
+async function cargarPdfGuardado(id) {
+  const k = claves();
+  if (!k || !id) return { pdf: '', tienePdf: false };
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/vea_boletines?select=pdf_base64,tiene_pdf&id=eq.${id}&limit=1`, {
+      headers: k, cache: 'no-store'
+    });
+    const filas = r.ok ? await r.json().catch(() => []) : [];
+    const f = Array.isArray(filas) && filas.length ? filas[0] : null;
+    const pdf = f ? String(f.pdf_base64 || '').replace(/\s+/g, '') : '';
+    return { pdf, tienePdf: Boolean(f && f.tiene_pdf) || !!pdf };
+  } catch (_) {
+    return { pdf: '', tienePdf: false };
+  }
+}
+
+async function ultimoBoletin() {
+  const r = await consultar('vea_boletines?select=id,anio,se,tiene_pdf,pdf_base64,creado_en&order=anio.desc,se.desc&limit=1');
+  if (r.error || !Array.isArray(r.datos) || !r.datos.length) return null;
+  return r.datos[0];
+}
+
+/**
+ * Envía la circular aprobada a Para + Cc (un solo mensaje: todos ven las
+ * cabeceras). Regla de tamaño: PDF ≤ 700 KB adjunto; si pesa más se guarda
+ * (si hace falta) y va el botón «Descargar PDF» — el texto SIEMPRE llega.
+ */
+async function enviarCircular(o) {
+  const enlace = `${BASE_URL}/boletines/${o.id}`;
+  const pdf = o.pdf || '';
+  const bytes = pdf ? Math.ceil(pdf.length * 3 / 4) : 0;
+  const hayPdf = !!pdf || !!o.tienePdf;
+  const adjuntar = !!pdf && bytes <= LIMITE_ADJUNTO_BYTES;
+  const boton = !adjuntar && hayPdf;
+  if (pdf && !adjuntar && o.id) {
+    // Se asegura de que el PDF exista en el servidor para que el botón no 404.
+    await marcarEnvio(o.id, { pdf_base64: pdf, tiene_pdf: true });
+  }
+  const n = (Number(o.envioN) || 0) + 1;
+  const nombre = nombreArchivo(o.se, o.anio);
+  const html = plantillaCircular({
+    se: o.se, anio: o.anio, enlace, hayPdf, adjuntar, boton,
+    pesoBytes: bytes,
+    pdfUrl: `${BASE_URL}/api/boletines?i=${o.id}&pdf=1`,
+    nombre, remitente: o.remitente, envioN: n
+  });
+  const adjuntos = adjuntar ? [{ nombre, base64: pdf, tipo: 'application/pdf' }] : [];
+  const destinos = o.para.concat(o.cc);
+  const r = await enviarCorreo({ para: o.para, cc: o.cc, asunto: asuntoCircular(o.se, o.anio), html, adjuntos });
+  if (r.ok) {
+    await guardarConfig({ [CLAVE_ENVIO_N]: String(n) });
+    return { ok: true, adjunto: adjuntar, boton, enlace, destinos };
+  }
+  const detalle = textoSeguro(String(r.detalle || r.error || 'error'), 80);
+  return {
+    ok: false, adjunto: false, boton: false, enlace, destinos: [],
+    fallos: [{ correo: destinos.join(', '), error: detalle }]
+  };
 }
 
 /* ============================ SOLO ADM ============================ */
@@ -156,11 +239,16 @@ async function atenderAdm(req, res) {
   if (!adm) return res.status(401).json({ error: 'Se requiere sesión de administrador' });
 
   if (req.method === 'GET') {
-    const lectura = await leerConfig([CLAVE_CORREO, CLAVE_CORREO_CAMBIO]);
+    const lectura = await leerConfig([CLAVE_CORREO, CLAVE_CORREO_CC, CLAVE_CORREO_CAMBIO, CLAVE_AUTO, CLAVE_ENVIO_N]);
     if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });
+    const cfg = lectura.cfg || {};
+    const auto = leerAuto(cfg[CLAVE_AUTO]);
     return res.status(200).json({
-      correo: (lectura.cfg && lectura.cfg[CLAVE_CORREO]) || '',
-      correoCambio: (lectura.cfg && lectura.cfg[CLAVE_CORREO_CAMBIO]) || ''
+      correo: cfg[CLAVE_CORREO] || '',
+      correoCc: cfg[CLAVE_CORREO_CC] || '',
+      correoCambio: cfg[CLAVE_CORREO_CAMBIO] || '',
+      auto: auto,
+      autoProximo: proximoEnvioTexto(auto)
     });
   }
 
@@ -172,21 +260,73 @@ async function atenderAdm(req, res) {
   }
   const accion = String(body.accion || '');
 
-  /* ---------- guardar el correo del responsable de la web (editable) ---------- */
+  /* ---------- guardar los destinos (Para + Cc) ---------- */
   if (accion === 'guardar_correo') {
-    const correos = parseCorreos(body.correo);
-    if (correos.length > 5) return res.status(400).json({ error: 'Máximo 5 correos destino.' });
-    for (const c of correos) {
-      if (c.length > 120 || !RE_CORREO.test(c)) {
-        return res.status(400).json({ error: 'Correo inválido: ' + textoSeguro(c, 60) });
-      }
-    }
+    const para = parseCorreos(body.correo);
+    const cc = parseCorreos(body.correoCc);
+    const error = errorFormatoCorreos(para, cc);
+    if (error) return res.status(400).json({ error });
     const guardado = await guardarConfig({
-      [CLAVE_CORREO]: correos.join(', '),
+      [CLAVE_CORREO]: para.join(', '),
+      [CLAVE_CORREO_CC]: cc.join(', '),
       [CLAVE_CORREO_CAMBIO]: `${textoSeguro(adm.email || '', 80)} · ${new Date().toISOString()}`
     });
     if (!guardado) return res.status(502).json({ error: 'No se pudo guardar la configuración.' });
-    return res.status(200).json({ ok: true, correo: correos.join(', ') });
+    return res.status(200).json({ ok: true, correo: para.join(', '), correoCc: cc.join(', ') });
+  }
+
+  /* ---------- programación del envío automático ---------- */
+  if (accion === 'guardar_auto') {
+    const dia = Number(body.dia);
+    const hora = String(body.hora || '');
+    if (!Number.isInteger(dia) || dia < 0 || dia > 6) return res.status(400).json({ error: 'Día inválido (0 = domingo … 6 = sábado).' });
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return res.status(400).json({ error: 'Hora inválida (formato HH:MM, hora de Perú).' });
+
+    const lectura = await leerConfig([CLAVE_AUTO, CLAVE_CORREO, CLAVE_CORREO_CC]);
+    if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });
+    const cfg = lectura.cfg || {};
+    const previo = leerAuto(cfg[CLAVE_AUTO]);
+
+    const cambios = {};
+    if (typeof body.correoCc === 'string') {
+      const para = parseCorreos(cfg[CLAVE_CORREO]);
+      const cc = parseCorreos(body.correoCc);
+      const error = errorFormatoCorreos(para, cc);
+      if (error) return res.status(400).json({ error });
+      cambios[CLAVE_CORREO_CC] = cc.join(', ');
+    }
+    const auto = { activo: body.activo === true, dia, hora };
+    if (previo && previo.ultimo) auto.ultimo = previo.ultimo;
+    cambios[CLAVE_AUTO] = JSON.stringify(auto);
+    const guardado = await guardarConfig(cambios);
+    if (!guardado) return res.status(502).json({ error: 'No se pudo guardar la programación.' });
+    return res.status(200).json({ ok: true, auto, autoProximo: proximoEnvioTexto(auto) });
+  }
+
+  /* ---------- enviar prueba (circular real al último publicado) ---------- */
+  if (accion === 'enviar_prueba') {
+    const lectura = await leerConfig([CLAVE_CORREO, CLAVE_CORREO_CC, CLAVE_ENVIO_N]);
+    if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });
+    const cfg = lectura.cfg || {};
+    const para = parseCorreos(cfg[CLAVE_CORREO]);
+    const cc = parseCorreos(cfg[CLAVE_CORREO_CC]);
+    if (!para.length) return res.status(400).json({ error: 'Sin correo en Para: guarde los destinos antes de enviar la prueba.' });
+
+    const fila = await ultimoBoletin();
+    if (!fila) return res.status(400).json({ error: 'Publique al menos un boletín: la prueba usa el último publicado.' });
+    let pdf = String(fila.pdf_base64 || '').replace(/\s+/g, '');
+    if (!pdf) {
+      const g = await cargarPdfGuardado(Number(fila.id));
+      pdf = g.pdf;
+    }
+    const r = await enviarCircular({
+      para, cc,
+      anio: Number(fila.anio), se: Number(fila.se), id: Number(fila.id),
+      pdf: pdf || null, tienePdf: !!fila.tiene_pdf || !!pdf,
+      envioN: cfg[CLAVE_ENVIO_N], remitente: remitenteActual(adm)
+    });
+    if (!r.ok) return res.status(502).json({ ok: false, error: 'No se pudo enviar la prueba: ' + (r.fallos[0] ? r.fallos[0].error : 'error') });
+    return res.status(200).json({ ok: true, enviado: true, adjunto: r.adjunto, boton: r.boton, destinos: r.destinos, enlace: r.enlace });
   }
 
   /* ---------- publicar y/o enviar el boletín ---------- */
@@ -216,14 +356,19 @@ async function atenderAdm(req, res) {
     const publicar = body.publicar !== false;
     const enviar = body.enviar === true;
 
-    // El envío exige el correo configurado (editable en este mismo panel).
-    let destinos = [];
+    // El envío exige los destinos Para configurados (editable en este mismo panel).
+    let para = [];
+    let cc = [];
+    let envioN = null;
     if (enviar) {
-      const lectura = await leerConfig([CLAVE_CORREO]);
+      const lectura = await leerConfig([CLAVE_CORREO, CLAVE_CORREO_CC, CLAVE_ENVIO_N]);
       if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });
-      destinos = parseCorreos((lectura.cfg || {})[CLAVE_CORREO]);
-      if (!destinos.length) {
-        return res.status(400).json({ error: 'Sin correo configurado: guarde el correo del responsable de la web antes de enviar.' });
+      const cfg = lectura.cfg || {};
+      para = parseCorreos(cfg[CLAVE_CORREO]);
+      cc = parseCorreos(cfg[CLAVE_CORREO_CC]);
+      envioN = cfg[CLAVE_ENVIO_N];
+      if (!para.length) {
+        return res.status(400).json({ error: 'Sin correo destino (Para): guarde los destinatarios antes de enviar.' });
       }
     }
 
@@ -248,46 +393,41 @@ async function atenderAdm(req, res) {
       if (!id) return res.status(400).json({ error: 'Primero publique el boletín (no existe en el listado).' });
     }
 
-    const enlace = `${BASE_URL}/boletines/${id}`;
-    const respuesta = { ok: true, id, enlace, enviado: false, adjunto: !!pdf };
+    const respuesta = { ok: true, id, enlace: `${BASE_URL}/boletines/${id}`, enviado: false, adjunto: false, boton: false };
 
     if (enviar) {
-      const asunto = `BOLETÍN EPIDEMIOLÓGICO SE-${String(se).padStart(2, '0')}-${anio} · Hospital de Ventanilla`;
-      const correoHtml = plantillaCorreo({
-        titulo: titulo || `Boletín epidemiológico — S.E. ${String(se).padStart(2, '0')} · ${anio}`,
-        resumen: resumen || `Boletín epidemiológico de la S.E. ${String(se).padStart(2, '0')} · ${anio} del Hospital de Ventanilla.`,
-        anio, se, enlace, conAdjunto: !!pdf, remitente: adm.email || ''
-      });
-      const adjuntos = pdf ? [{
-        nombre: `Boletin_Epidemiologico_SE${String(se).padStart(2, '0')}_${anio}.pdf`,
-        base64: pdf,
-        tipo: 'application/pdf'
-      }] : [];
-      const enviados = [];
-      const fallos = [];
-      for (const destino of destinos) {
-        const r = await enviarCorreo({ para: destino, asunto, html: correoHtml, adjuntos });
-        if (r.ok) enviados.push(destino);
-        else fallos.push({ correo: destino, error: textoSeguro(String(r.error || r.detalle || 'error'), 80) });
+      let pdfEfectivo = pdf;
+      let tienePdf = !!pdf;
+      if (!pdfEfectivo) {
+        const g = await cargarPdfGuardado(id);
+        pdfEfectivo = g.pdf;
+        tienePdf = g.tienePdf;
       }
-      respuesta.enviado = enviados.length > 0;
-      respuesta.destinos = enviados;
-      respuesta.fallos = fallos;
-      respuesta.adjunto = respuesta.adjunto && enviados.length > 0;
+      const r = await enviarCircular({
+        para, cc, anio, se, id,
+        pdf: pdfEfectivo || null, tienePdf,
+        envioN, remitente: remitenteActual(adm)
+      });
+      respuesta.enviado = r.ok;
+      respuesta.destinos = r.destinos;
+      respuesta.fallos = r.fallos || [];
+      respuesta.adjunto = r.adjunto;
+      respuesta.boton = r.boton;
+      if (r.ok) respuesta.enlace = r.enlace;
       await marcarEnvio(id, {
-        correo_destino: textoSeguro(destinos.join(', '), 300),
-        enviado: enviados.length > 0,
+        correo_destino: textoSeguro(para.concat(cc).join(', '), 300),
+        enviado: r.ok,
         enviado_detalle: textoSeguro(
-          enviados.length
-            ? `enviado a ${enviados.join(', ')}${fallos.length ? ` · falló: ${fallos.map(f => f.correo).join(', ')}` : ''}`
-            : `falló en ${fallos.map(f => f.correo).join(', ')}`,
+          r.ok
+            ? `enviado a ${r.destinos.join(', ')}${r.adjunto ? ' (PDF adjunto)' : (r.boton ? ' (botón de descarga)' : '')}`
+            : `falló: ${(r.fallos[0] ? r.fallos[0].error : 'sin detalle')}`,
           500
         )
       });
-      if (!enviados.length) {
+      if (!r.ok) {
         return res.status(502).json({
-          ok: false, publicado: true, id, enlace, enviado: false, adjunto: false,
-          error: 'Boletín publicado pero el correo no pudo enviarse: ' + (fallos[0] ? fallos[0].error : 'sin detalle') +
+          ok: false, publicado: true, id, enlace: respuesta.enlace, enviado: false, adjunto: false,
+          error: 'Boletín publicado pero el correo no pudo enviarse: ' + (r.fallos[0] ? r.fallos[0].error : 'sin detalle') +
             '. Verifique la configuración de correo en Vercel.'
         });
       }
@@ -299,7 +439,88 @@ async function atenderAdm(req, res) {
   return res.status(400).json({ error: 'Acción no reconocida.' });
 }
 
+/* ====================== CRON · ENVÍO AUTOMÁTICO ====================== */
+async function atenderAuto(req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  // Falla cerrada: sin CRON_SECRET configurado o sin la cabecera exacta, nada.
+  const secreto = String(process.env.CRON_SECRET || '').trim();
+  const auth = String((req.headers && req.headers.authorization) || '');
+  if (!secreto) return res.status(503).json({ error: 'CRON_SECRET no configurado en Vercel.' });
+  if (auth !== 'Bearer ' + secreto) return res.status(401).json({ error: 'Cron no autorizado' });
+
+  const lectura = await leerConfig([CLAVE_AUTO, CLAVE_CORREO, CLAVE_CORREO_CC, CLAVE_ENVIO_N]);
+  if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });
+  const cfg = lectura.cfg || {};
+  const auto = leerAuto(cfg[CLAVE_AUTO]);
+  if (!auto || auto.activo !== true) return res.status(200).json({ ok: true, estado: 'inactivo' });
+
+  const ahora = new Date();
+  if (!listoParaDisparar(auto, ahora)) return res.status(200).json({ ok: true, estado: 'fuera_de_programacion' });
+  const iso = ahora.toISOString();
+  if (auto.ultimo && auto.ultimo.iso && (Date.now() - Date.parse(auto.ultimo.iso)) < 12 * 3600 * 1000) {
+    // Ya se disparó en esta ventana (el cron corre cada 15 minutos).
+    return res.status(200).json({ ok: true, estado: 'ya_disparado', ultimo: auto.ultimo });
+  }
+
+  const para = parseCorreos(cfg[CLAVE_CORREO]);
+  const cc = parseCorreos(cfg[CLAVE_CORREO_CC]);
+  const guardarUltimo = async function (ultimo) {
+    await guardarConfig({ [CLAVE_AUTO]: JSON.stringify(Object.assign({}, auto, { ultimo })) });
+  };
+
+  if (!para.length) {
+    await guardarUltimo({ iso, tipo: 'error', estado: 'sin_correos', detalle: 'Sin correo Para configurado' });
+    return res.status(200).json({ ok: false, estado: 'sin_correos' });
+  }
+
+  const remitente = remitenteActual(null);
+  const fila = await ultimoBoletin();
+  const fresco = Boolean(fila && fila.creado_en && (Date.now() - Date.parse(fila.creado_en)) <= 14 * 86400 * 1000);
+  let ok = false;
+  let tipo = 'recordatorio';
+  let detalle = '';
+
+  if (fresco) {
+    tipo = 'circular';
+    const pdf = String(fila.pdf_base64 || '').replace(/\s+/g, '');
+    const r = await enviarCircular({
+      para, cc,
+      anio: Number(fila.anio), se: Number(fila.se), id: Number(fila.id),
+      pdf: pdf || null, tienePdf: !!fila.tiene_pdf || !!pdf,
+      envioN: cfg[CLAVE_ENVIO_N], remitente
+    });
+    ok = r.ok;
+    detalle = r.ok
+      ? `circular S.E. ${fila.se}-${fila.anio} a ${r.destinos.join(', ')}${r.adjunto ? ' (adjunto)' : (r.boton ? ' (botón)' : '')}`
+      : (r.fallos[0] ? r.fallos[0].error : 'error de envío');
+  } else {
+    const n = (Number(cfg[CLAVE_ENVIO_N]) || 0) + 1;
+    const html = plantillaRecordatorio({ remitente, envioN: n, enlaceListado: `${BASE_URL}/boletines` });
+    const r = await enviarCorreo({
+      para, cc,
+      asunto: 'Recordatorio · Boletín epidemiológico · Hospital de Ventanilla',
+      html
+    });
+    ok = r.ok;
+    if (ok) await guardarConfig({ [CLAVE_ENVIO_N]: String(n) });
+    detalle = ok
+      ? `recordatorio a ${para.concat(cc).join(', ')} (sin boletín publicado)`
+      : textoSeguro(String(r.detalle || r.error || 'error'), 80);
+  }
+
+  await guardarUltimo({ iso, tipo, estado: ok ? 'enviado' : 'fallido', detalle: textoSeguro(detalle, 200) });
+  return res.status(200).json({ ok, estado: tipo, detalle });
+}
+
 module.exports = async function handler(req, res) {
+  if (String(req.query && req.query.auto != null ? req.query.auto : '') === '1') return atenderAuto(req, res);
+
   const esAdm = req.method === 'POST' || (req.query && String(req.query.adm || '') === '1');
   if (esAdm) return atenderAdm(req, res);
 
