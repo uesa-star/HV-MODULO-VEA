@@ -409,13 +409,9 @@
     msgForm.style.display = 'none';
     msgOk.style.display = 'none';
     var html = '<strong class="t">⛔ Cuenta desactivada</strong>' +
-      'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.';
-    if (d && d.wa) {
-      html += '<button type="button" class="btnWa" id="btnWa">📱 Activar mi usuario (WhatsApp)</button>' +
-        '<span class="pendNota">Le escribirá a la administración con su correo, institución y el enlace de activación para que active su cuenta.</span>';
-    } else {
-      html += '<span class="pendNota">Contacte a la administración del módulo para que active su cuenta.</span>';
-    }
+      'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.' +
+      '<button type="button" class="btnWa" id="btnWa">📱 Activar mi usuario (WhatsApp)</button>' +
+      '<span class="pendNota">Le escribirá a la administración con su nombre, correo y el enlace para activar su cuenta.</span>';
     var caja = document.getElementById('pendBox');
     caja.innerHTML = html;
     caja.style.display = 'block';
@@ -451,10 +447,11 @@
             return;
           }
           var nombre = j.nombre || email;
-          if (j.institucion) nombre += ', ' + j.institucion;
-          var texto = 'Hola, activa mi usuario: ' + email + ' (' + nombre + '). ' +
-            'Intenté ingresar al módulo VEA y sale "Cuenta desactivada". Actívela desde aquí: ' + j.link;
-          var url = j.wa ? 'https://wa.me/' + j.wa + '?text=' + encodeURIComponent(texto) : '';
+          var quien = nombre + (j.institucion ? ' (' + j.institucion + ')' : '');
+          var texto = 'Hola, soy ' + quien + ', con el correo ' + email +
+            '. Mi cuenta del módulo VEA está desactivada, ¿puedes activarla?' +
+            '\n\nEnlace de activación (vale 24 horas):\n' + (j.link || '');
+          var url = 'https://wa.me/' + (j.wa || '') + '?text=' + encodeURIComponent(texto);
           var enPestanaNueva = Boolean(url) && v && !v.closed;
           if (enPestanaNueva) {
             v.location.href = url;
