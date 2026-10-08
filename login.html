@@ -396,20 +396,13 @@
   }
 
   /* ===== Cuenta desactivada: solo mensaje — el aviso al ADM es automático ===== */
-  function pintarPendiente(d) {
+  function pintarPendiente() {
     msgForm.style.display = 'none';
     msgOk.style.display = 'none';
     var caja = document.getElementById('pendBox');
     caja.innerHTML = '<strong class="t">⛔ Cuenta desactivada</strong>' +
-      'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.';
+      'Su cuenta está desactivada. Pronto el administrador se comunicará con usted. Gracias.';
     caja.style.display = 'block';
-    var aviso = document.getElementById('avisoEnviado');
-    aviso.innerHTML = (d && d.correo === false)
-      ? '<strong>✅ Ya enviamos su solicitud hace unos minutos.</strong> ' +
-        'Pronto la administración se comunicará con usted; espere la confirmación por correo.'
-      : '<strong>✅ Ya se envió el mensaje a la administración.</strong> ' +
-        'Pronto se comunicarán con usted; espere la confirmación por correo para poder ingresar.';
-    aviso.style.display = 'block';
   }
 
   formLogin.addEventListener('submit', function (ev) {
@@ -431,7 +424,7 @@
         location.href = '/';
       },
       function (j) {
-        if (j && j.pendiente) { pintarPendiente(j); return; }
+        if (j && j.pendiente) { pintarPendiente(); return; }
         error((j && j.error) || 'No se pudo completar el ingreso. Intente nuevamente.');
       });
   });

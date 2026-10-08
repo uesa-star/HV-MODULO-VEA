@@ -10,8 +10,8 @@
  *        Cuenta inactiva → 403 { pendiente:true, correo, nombre, institucion }:
  *        el servidor avisa AUTÁMATICAMENTE al ADM por correo (cfg.adm_email,
  *        máx. 1 cada 10 min por cuenta, con enlace de activación) y el login
- *        muestra «Cuenta desactivada» + «Ya se envió el mensaje a la
- *        administración…», sin botones.
+ *        muestra un solo mensaje: «Su cuenta está desactivada. Pronto el
+ *        administrador se comunicará con usted. Gracias.» (sin botones).
  *   GET  /api/auth/cuentas?activar=<token> → activa la cuenta al instante
  *        (firma HMAC + caduca 24 h), avisa por correo al usuario y devuelve
  *        una página de confirmación.
@@ -442,7 +442,7 @@ async function ingresar(req, res, cuerpo, claves, intento) {
       exito: false
     });
     return res.status(403).json({
-      error: 'Su cuenta está pendiente de activación. En breve podrá ingresar; espere la confirmación por correo.',
+      error: 'Su cuenta está desactivada. Pronto el administrador se comunicará con usted. Gracias.',
       pendiente: true,
       correo: aviso.correo,
       nombre: fila.nombre || '',
