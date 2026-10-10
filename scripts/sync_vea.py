@@ -455,6 +455,21 @@ def main() -> int:
         if descartadas:
             print(f"{table}: {descartadas} fila(s) cabecera descartada(s)")
 
+    # Guard F6.41: una hoja presente pero vacía (0 filas válidas) no debe
+    # vaciar la tabla en Supabase. En 2026-10-09 el Master de Drive llegó
+    # con SOAT/VIH/TBC sin datos y el sync limpió las tablas exitosamente.
+    vacias = [table for table, rows in parsed.items() if not rows]
+    if vacias:
+        requeridas_vacias = [t for t in vacias if t in REQUIRED_SHEETS.values()]
+        if requeridas_vacias:
+            raise RuntimeError(
+                "Hojas obligatorias del Master sin filas válidas (se aborta "
+                "para no vaciar Supabase): " + ", ".join(requeridas_vacias)
+            )
+        for table in vacias:
+            print(f"AVISO: hoja opcional vacía; se omite {table} para conservar datos en Supabase")
+            del parsed[table]
+
     print(
         "Excel descargado y validado:",
         ", ".join(f"{k}={len(v)}" for k, v in parsed.items()),
