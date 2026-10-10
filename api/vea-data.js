@@ -30,7 +30,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const allowed = new Set(['edas', 'iras', 'febriles', 'individual']);
+  const allowed = new Set(['edas', 'iras', 'febriles', 'individual', 'soat', 'vih', 'tbc']);
   const table = String(req.query.table || '').toLowerCase();
   if (!allowed.has(table)) return res.status(400).json({ error: 'Tabla no permitida' });
 
