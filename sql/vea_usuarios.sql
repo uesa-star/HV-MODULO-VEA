@@ -37,6 +37,7 @@ alter table public.vea_usuarios add column if not exists terminos_aceptados_en t
 alter table public.vea_usuarios add column if not exists debe_cambiar boolean not null default false;
 alter table public.vea_usuarios add column if not exists profesion text not null default '';
 alter table public.vea_usuarios add column if not exists institucion text not null default '';
+alter table public.vea_usuarios add column if not exists puede_importar boolean not null default false;
 alter table public.vea_usuarios add column if not exists sesion_v integer not null default 0;
 alter table public.vea_usuarios add column if not exists clave_vence timestamptz;
 alter table public.vea_usuarios add column if not exists cod_hash text not null default '';

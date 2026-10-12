@@ -28,6 +28,9 @@
  *   { accion: 'estado', email, activo } → el ADM activa o desactiva
  *        una cuenta (desactivada no puede ingresar; requiere sesión ADM).
  *        Al activarla avisa por correo al usuario.
+ *   { accion: 'permisoImportar', email, valor } → el ADM habilita o quita
+ *        el botón «Importación de Datos» de esa cuenta final
+ *        (columna vea_usuarios.puede_importar; requiere sesión ADM).
  *   { accion: 'avisar', email } → reenvía al usuario el correo «Su cuenta
  *        está activada» (requiere sesión ADM; solo cuentas activas).
  *   { accion: 'eliminar', email } → el ADM elimina una cuenta
@@ -146,7 +149,7 @@ async function listarUsuarios(req, res, claves, intento) {
 
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,nacionalidad,dni,tipo_documento,numero_documento,celular,profesion,institucion,establecimiento,terminos_version,terminos_aceptados_en,activo,debe_cambiar,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,nacionalidad,dni,tipo_documento,numero_documento,celular,profesion,institucion,establecimiento,terminos_version,terminos_aceptados_en,activo,debe_cambiar,puede_importar,creado_en&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -979,6 +982,61 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
   return res.status(200).json({ ok: true, usuario: email, activo: activo });
 }
 
+/* Permiso «Importación de Datos»: el ADM habilita o quita que una cuenta
+   final vea y use el botón de ingesta Excel en la barra lateral
+   (vea_usuarios.puede_importar). Deja registro en el log de accesos. */
+async function permisoImportarUsuario(req, res, cuerpo, claves, intento) {
+  intento = intento || 0;
+  const adm = await admActivo(req);
+  if (!adm) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+
+  const email = String(cuerpo.email || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  if (cuerpo.valor !== true && cuerpo.valor !== false) {
+    return res.status(400).json({ error: 'Permiso inválido.' });
+  }
+  const valor = cuerpo.valor === true;
+
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ puede_importar: valor }),
+      cache: 'no-store'
+    });
+  } catch (_) {
+    return res.status(502).json({ error: 'No se pudo contactar con la base de datos. Intente nuevamente.' });
+  }
+
+  if (!r.ok) {
+    const texto = await r.text().catch(() => '');
+    if (r.status === 404 || errorTabla(texto)) {
+      if (intento === 0 && await asegurarTablas()) return permisoImportarUsuario(req, res, cuerpo, claves, 1);
+      return res.status(503).json({ error: 'La tabla vea_usuarios no existe o no tiene la columna puede_importar. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
+    return res.status(500).json({ error: 'No se pudo actualizar el permiso. Intente nuevamente.' });
+  }
+
+  const filas = await r.json().catch(() => []);
+  if (!Array.isArray(filas) || !filas.length) {
+    return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
+  await registrarAcceso({
+    email: `adm:${valor ? 'habilitó' : 'quitó'} importación de datos → ${email}`,
+    nombre: String(adm.email || 'ADM'),
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  return res.status(200).json({ ok: true, usuario: email, puede_importar: valor });
+}
+
 /* Aviso manual del ADM: reenvía al usuario el correo «Su cuenta está activada». */
 async function avisarUsuario(req, res, cuerpo, claves) {
   if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
@@ -1285,6 +1343,7 @@ module.exports = async function handler(req, res) {
   if (accion === 'restaurarConCodigoUsuario') return restaurarConCodigoUsuario(req, res, cuerpo, claves);
   if (accion === 'editar') return editarUsuario(req, res, cuerpo, claves);
   if (accion === 'estado') return cambiarEstadoUsuario(req, res, cuerpo, claves);
+  if (accion === 'permisoImportar') return permisoImportarUsuario(req, res, cuerpo, claves);
   if (accion === 'avisar') return avisarUsuario(req, res, cuerpo, claves);
   if (accion === 'eliminar') return eliminarUsuario(req, res, cuerpo, claves);
   return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado" o "eliminar").' });

@@ -3,7 +3,9 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesionAdm } = require('../../lib/session');
-const { admActivo, marcarVisto, leerConfig, sesionActiva } = require('../../lib/control');
+const { admActivo, marcarVisto, leerConfig, sesionActiva, clavesSupabase } = require('../../lib/control');
+
+const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -40,6 +42,24 @@ module.exports = async function handler(req, res) {
         String(datos.email).toLowerCase() === String(cfg.adm_email).toLowerCase();
     } catch (_) { admEmail = false; }
   }
+  // Permiso de «Importación de Datos»: siempre el ADM, o la cuenta de
+  // vea_usuarios con puede_importar=true habilitada desde el panel ADM.
+  // Fail-closed: si la columna/tabla no existe o falla la lectura → false.
+  let puedeImportar = adm || admEmail;
+  if (!puedeImportar && datos.email) {
+    try {
+      const claves = clavesSupabase();
+      if (claves) {
+        const rq = await fetch(
+          `${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(String(datos.email).toLowerCase())}&select=puede_importar,activo&limit=1`,
+          { headers: claves, cache: 'no-store' }
+        );
+        const fr = rq.ok ? await rq.json().catch(() => null) : null;
+        const fu = Array.isArray(fr) && fr.length ? fr[0] : null;
+        puedeImportar = Boolean(fu && fu.activo !== false && fu.puede_importar === true);
+      }
+    } catch (_) { puedeImportar = false; }
+  }
   return res.status(200).json({
     autenticado: true,
     email: datos.email || '',
@@ -47,6 +67,7 @@ module.exports = async function handler(req, res) {
     proveedor: datos.proveedor || '',
     debe_cambiar: Boolean(datos.dc),
     admEmail: admEmail,
-    adm: adm
+    adm: adm,
+    puede_importar: puedeImportar
   });
 };
