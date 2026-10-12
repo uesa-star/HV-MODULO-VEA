@@ -143,13 +143,15 @@ function errorTabla(texto) {
   return texto.includes('PGRST205') || texto.includes('42P01');
 }
 
-async function listarUsuarios(req, res, claves, intento) {
+async function listarUsuarios(req, res, claves, intento, sinPermiso) {
   intento = intento || 0;
   if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
 
+  const columnas = 'usuario,nombre,nacionalidad,dni,tipo_documento,numero_documento,celular,profesion,institucion,establecimiento,terminos_version,terminos_aceptados_en,activo,debe_cambiar' +
+    (sinPermiso ? '' : ',puede_importar') + ',creado_en';
   let r;
   try {
-    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=usuario,nombre,nacionalidad,dni,tipo_documento,numero_documento,celular,profesion,institucion,establecimiento,terminos_version,terminos_aceptados_en,activo,debe_cambiar,puede_importar,creado_en&order=creado_en.desc&limit=500`, {
+    r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?select=${columnas}&order=creado_en.desc&limit=500`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -159,8 +161,13 @@ async function listarUsuarios(req, res, claves, intento) {
 
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
+    // Columna puede_importar aún no creada en Supabase: la lista se sirve sin
+    // ella para no dejar al ADM sin panel (el botón Importar no se pinta).
+    if (!sinPermiso && (texto.includes('puede_importar') || texto.includes('PGRST204'))) {
+      return listarUsuarios(req, res, claves, intento, true);
+    }
     if (r.status === 404 || errorTabla(texto)) {
-      if (intento === 0 && await asegurarTablas()) return listarUsuarios(req, res, claves, 1);
+      if (intento === 0 && await asegurarTablas()) return listarUsuarios(req, res, claves, 1, sinPermiso);
       return res.status(503).json({ error: 'La tabla vea_usuarios no existe y no se pudo crear automáticamente. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
     }
     return res.status(500).json({ error: 'No se pudo listar los usuarios. Intente nuevamente.' });
@@ -1013,6 +1020,9 @@ async function permisoImportarUsuario(req, res, cuerpo, claves, intento) {
 
   if (!r.ok) {
     const texto = await r.text().catch(() => '');
+    if (texto.includes('puede_importar') || texto.includes('PGRST204')) {
+      return res.status(503).json({ error: 'Falta la columna puede_importar en vea_usuarios. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
+    }
     if (r.status === 404 || errorTabla(texto)) {
       if (intento === 0 && await asegurarTablas()) return permisoImportarUsuario(req, res, cuerpo, claves, 1);
       return res.status(503).json({ error: 'La tabla vea_usuarios no existe o no tiene la columna puede_importar. Ejecute el SQL de sql/vea_usuarios.sql en Supabase.' });
