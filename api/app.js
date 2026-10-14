@@ -7,7 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { sesionActiva } = require('../lib/control');
+const { sesionActiva, esAdminSesion, leerPermisosModulos } = require('../lib/control');
 
 let htmlCache = null;
 
@@ -16,6 +16,18 @@ function cargarHtml() {
   const ruta = path.join(process.cwd(), 'node_modules', 'modulo-vea', 'index.html');
   htmlCache = fs.readFileSync(ruta, 'utf8');
   return htmlCache;
+}
+
+/**
+ * IASS viaja como semilla incrustada en el HTML (no por /api/vea-data), así que
+ * sin este paso llegaría a cualquiera con sesión. Si el usuario no tiene el
+ * módulo iass se entrega la semilla vacía.
+ */
+function sinSemillaIass(html) {
+  return html.replace(
+    /(<script type="application\/json" id="vea-seed-iass">)[\s\S]*?(<\/script>)/,
+    '$1{"registros":[]}$2'
+  );
 }
 
 module.exports = async function handler(req, res) {
@@ -32,7 +44,14 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const html = cargarHtml();
+    let html = cargarHtml();
+    const admin = await esAdminSesion(req, sesionOk.datos);
+    if (!admin) {
+      const mapa = await leerPermisosModulos();
+      const correo = String((sesionOk.datos && sesionOk.datos.email) || '').trim().toLowerCase();
+      const modulos = (mapa && mapa[correo]) || [];
+      if (modulos.indexOf('iass') < 0) html = sinSemillaIass(html);
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');

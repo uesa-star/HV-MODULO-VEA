@@ -25,6 +25,15 @@
   .sub { margin-top: .45rem; text-align: center; font-size: .8rem; color: #636c76; }
   .intro { margin-top: 1rem; font-size: .78rem; line-height: 1.55; color: #57606a; text-align: center; }
   .campo { display: block; margin-top: .75rem; }
+  .modSel {
+    display: inline-flex; align-items: center; gap: .35rem; cursor: pointer;
+    border: 1px solid #d0d7de; background: #ffffff; border-radius: .45rem;
+    padding: .38rem .6rem; font-size: .8rem; font-weight: 600; color: #57606a;
+    transition: border-color .12s, background .12s, color .12s;
+  }
+  .modSel input { width: auto; margin: 0; accent-color: var(--c, #0969da); }
+  .modSel.on { border-color: var(--c, #0969da); color: #1f2328; background: color-mix(in srgb, var(--c, #0969da) 8%, #ffffff); }
+  .modSel:hover { border-color: var(--c, #0969da); }
   .campo span { display: block; font-size: .78rem; font-weight: 600; color: #1f2328; margin-bottom: .3rem; }
   .campo input {
     width: 100%; padding: .62rem .7rem; font-size: .9rem; font-family: inherit;
@@ -180,6 +189,25 @@
           <option>Otro establecimiento (revisión ADM)</option>
         </select>
       </label>
+
+      <label class="campo"><span>¿A qué unidad pertenece? <span style="color:#d01b2b">*</span></span>
+        <span style="display:flex;flex-wrap:wrap;gap:6px;margin-top:.35rem" id="rgModulos">
+          <label class="modSel" style="--c:#0969da"><input type="checkbox" value="vigilancia"><span>Vigilancia</span></label>
+          <label class="modSel" style="--c:#cf222e"><input type="checkbox" value="individual"><span>Casos Individuales</span></label>
+          <label class="modSel" style="--c:#0550ae"><input type="checkbox" value="soat"><span>SOAT</span></label>
+          <label class="modSel" style="--c:#bf3989"><input type="checkbox" value="vih"><span>VIH</span></label>
+          <label class="modSel" style="--c:#9a6700"><input type="checkbox" value="tbc"><span>TBC</span></label>
+          <label class="modSel" style="--c:#1a7f37"><input type="checkbox" value="iass"><span>IASS</span></label>
+        </span>
+        <span style="display:block;margin-top:.4rem;font-size:11px;color:#57606a">Puede marcar más de uno. Verá únicamente estos módulos.</span>
+      </label>
+
+      <div id="rgResumen" style="border:1px solid #d0d7de;background:#f6f8fa;border-radius:12px;padding:.7rem .85rem;margin:.25rem 0 .75rem;display:none">
+        <div style="font-size:10px;letter-spacing:.14em;color:#9a6700;font-weight:700">RESUMEN DE SU REGISTRO</div>
+        <div style="font-size:13px;color:#24292f;margin-top:.35rem"><b id="rgResNombre">—</b></div>
+        <div style="font-size:12px;color:#57606a;margin-top:.2rem">Unidad: <b id="rgResModulos" style="color:#24292f">—</b></div>
+        <div style="font-size:11px;color:#57606a;margin-top:.4rem">El administrador confirmará sus permisos antes de activar la cuenta.</div>
+      </div>
       <label class="campo" style="display:flex;gap:.5rem;align-items:flex-start;margin-top:1rem;">
         <input id="rgTerminos" type="checkbox" style="width:auto;margin-top:.15rem" required>
         <span style="margin:0;font-weight:400"><span style="color:#f87171">*</span> Acepto los términos de uso y la política de privacidad del módulo VEA.</span>
@@ -510,6 +538,40 @@
       .catch(function () { mostrar(formCambio); });
   }
 
+  /* Pestañas de unidad: al marcar se actualiza el resumen con nombre + unidad */
+  var MODULOS_REG = [
+    ['vigilancia', 'Vigilancia'], ['individual', 'Casos Individuales'], ['soat', 'SOAT'],
+    ['vih', 'VIH'], ['tbc', 'TBC'], ['iass', 'IASS']
+  ];
+  function modulosElegidos() {
+    var cajas = document.querySelectorAll('#rgModulos input[type="checkbox"]');
+    var out = [];
+    for (var i = 0; i < cajas.length; i++) if (cajas[i].checked) out.push(cajas[i].value);
+    return out;
+  }
+  function pintarResumenRegistro() {
+    var etiquetas = {};
+    MODULOS_REG.forEach(function (m) { etiquetas[m[0]] = m[1]; });
+    var elegidos = modulosElegidos();
+    document.querySelectorAll('#rgModulos .modSel').forEach(function (l) {
+      l.classList.toggle('on', l.querySelector('input').checked);
+    });
+    var caja = document.getElementById('rgResumen');
+    var nombre = document.getElementById('rgNombre').value.trim();
+    if (!elegidos.length && !nombre) { caja.style.display = 'none'; return; }
+    caja.style.display = 'block';
+    document.getElementById('rgResNombre').textContent = nombre || '(escriba su nombre arriba)';
+    document.getElementById('rgResModulos').textContent = elegidos.length
+      ? elegidos.map(function (m) { return etiquetas[m] || m; }).join(' · ')
+      : 'Seleccione al menos una unidad';
+  }
+  (function () {
+    var cont = document.getElementById('rgModulos');
+    if (!cont) return;
+    cont.addEventListener('change', pintarResumenRegistro);
+    document.getElementById('rgNombre').addEventListener('input', pintarResumenRegistro);
+  })();
+
   formRegistro.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var nombre = document.getElementById('rgNombre').value.trim();
@@ -532,9 +594,10 @@
     if (!nacionalidad) return error('Seleccione su nacionalidad.');
     if (!/^[\p{L}0-9][\p{L}0-9 .,'&/()-]{2,119}$/u.test(institucion) || !/[\p{L}]{2}/u.test(institucion)) return error('Escriba el nombre real de su institución.');
     if (!document.getElementById('rgTerminos').checked) return error('Debe aceptar los términos y la política de privacidad.');
+    if (!modulosElegidos().length) return error('Seleccione la unidad a la que pertenece.');
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
     if (clave !== confirm) return error('Las contraseñas no coinciden.');
-    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, tipoDocumento: tipoDocumento, numeroDocumento: numeroDocumento, nacionalidad: nacionalidad, email: email, celular: celular, profesion: profesion, establecimiento: institucion, institucion: institucion, terminos: document.getElementById('rgTerminos').checked, clave: clave, confirm: confirm },
+    enviar('/api/auth/cuentas', { accion: 'registro', nombre: nombre, tipoDocumento: tipoDocumento, numeroDocumento: numeroDocumento, nacionalidad: nacionalidad, email: email, celular: celular, profesion: profesion, establecimiento: institucion, institucion: institucion, modulos: modulosElegidos(), terminos: document.getElementById('rgTerminos').checked, clave: clave, confirm: confirm },
       document.getElementById('btnCrear'),
       function () {
         document.getElementById('lgUsuario').value = email;

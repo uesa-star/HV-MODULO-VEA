@@ -41,7 +41,8 @@ const { firmar, cookie, sesion, ipDe, userAgentDe, nuevoSid, NOMBRE_SESION } = r
 const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
-const { admActivo, leerConfig, guardarConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro } = require('../../lib/control');
+const { admActivo, leerConfig, guardarConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro,
+        leerPermisosModulos, guardarPermisosModulos, limpiarModulos } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a los 10 min
@@ -174,7 +175,48 @@ async function listarUsuarios(req, res, claves, intento, sinPermiso) {
   }
 
   const filas = await r.json().catch(() => []);
-  return res.status(200).json({ usuarios: Array.isArray(filas) ? filas : [] });
+  // Se adjuntan los módulos asignados a cada cuenta para pintarlos en la tabla.
+  const mapa = await leerPermisosModulos();
+  const lista = Array.isArray(filas) ? filas : [];
+  lista.forEach(function (f) {
+    const correo = String((f && f.usuario) || '').trim().toLowerCase();
+    f.modulos = mapa[correo] || [];
+  });
+  return res.status(200).json({ usuarios: lista });
+}
+
+/**
+ * Concede/corrige los módulos que puede ver una cuenta (solo ADM).
+ * Lista vacía = la cuenta no ve ningún módulo (mensaje claro en el módulo).
+ */
+async function permisosModulosUsuario(req, res, cuerpo, claves) {
+  if (!(await admActivo(req))) return res.status(401).json({ error: 'Requiere ingreso ADM.' });
+  const email = String(cuerpo.email || cuerpo.usuario || '').toLowerCase().trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' });
+  }
+  const modulos = limpiarModulos(cuerpo.modulos);
+  try {
+    const mapa = await leerPermisosModulos();
+    if (modulos.length) mapa[email] = modulos;
+    else delete mapa[email];
+    if (!(await guardarPermisosModulos(mapa))) {
+      return res.status(500).json({ error: 'No se pudieron guardar los permisos. Intente nuevamente.' });
+    }
+  } catch (_) {
+    return res.status(500).json({ error: 'No se pudieron guardar los permisos. Intente nuevamente.' });
+  }
+  try {
+    await registrarAcceso({
+      email: `adm:módulos → ${email}: ${modulos.length ? modulos.join(',') : 'sin módulos'}`,
+      nombre: 'Permisos de módulos',
+      proveedor: 'adm',
+      ip: ipDe(req),
+      user_agent: userAgentDe(req),
+      exito: true
+    });
+  } catch (_) { /* el registro nunca bloquea */ }
+  return res.status(200).json({ ok: true, usuario: email, modulos: modulos });
 }
 
 async function restaurarClave(req, res, cuerpo, claves, intento) {
@@ -294,6 +336,10 @@ async function registrar(req, res, cuerpo, claves, intento) {
   }
   if (clave !== confirm) return res.status(400).json({ error: 'Las contraseñas no coinciden.' });
 
+  // Módulos que declara la persona al registrarse. Quedan como PROPUESTA: la
+  // cuenta nace inactiva y el ADM confirma o corrige antes de activarla.
+  const modulosDeclarados = limpiarModulos(cuerpo.modulos);
+
   let r;
   try {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios`, {
@@ -327,6 +373,13 @@ async function registrar(req, res, cuerpo, claves, intento) {
 
   // La cuenta nace DESACTIVADA: el ADM la activa desde el panel (punto 2 auditoría).
   // No se crea sesión: el usuario debe esperar la activación para ingresar.
+  if (modulosDeclarados.length) {
+    try {
+      const mapa = await leerPermisosModulos();
+      mapa[email] = modulosDeclarados;
+      await guardarPermisosModulos(mapa);
+    } catch (_) { /* el ADM podrá asignarlos igualmente */ }
+  }
   await registrarAcceso({
     email,
     nombre,
@@ -1354,7 +1407,8 @@ module.exports = async function handler(req, res) {
   if (accion === 'editar') return editarUsuario(req, res, cuerpo, claves);
   if (accion === 'estado') return cambiarEstadoUsuario(req, res, cuerpo, claves);
   if (accion === 'permisoImportar') return permisoImportarUsuario(req, res, cuerpo, claves);
+  if (accion === 'modulos') return permisosModulosUsuario(req, res, cuerpo, claves);
   if (accion === 'avisar') return avisarUsuario(req, res, cuerpo, claves);
   if (accion === 'eliminar') return eliminarUsuario(req, res, cuerpo, claves);
-  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado" o "eliminar").' });
+  return res.status(400).json({ error: 'Acción inválida (use "registro", "ingreso", "usuarios", "restaurar", "cambiarPropia", "enviarCodigoUsuario", "restaurarConCodigoUsuario", "editar", "estado", "modulos" o "eliminar").' });
 };

@@ -3,7 +3,8 @@
  * GET /api/auth/me → { autenticado, email, nombre, adm }
  */
 const { sesionAdm } = require('../../lib/session');
-const { admActivo, marcarVisto, leerConfig, sesionActiva, clavesSupabase } = require('../../lib/control');
+const { admActivo, marcarVisto, leerConfig, sesionActiva, clavesSupabase,
+        esAdminSesion, modulosDeCorreo, MODULOS_VEA } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -60,6 +61,15 @@ module.exports = async function handler(req, res) {
       }
     } catch (_) { puedeImportar = false; }
   }
+  // Permisos por módulo: el ADM recibe la lista completa; el resto, la suya.
+  // Fail-closed: si no se puede leer, se responde lista vacía (nada de módulos).
+  const esAdmin = adm || admEmail || await esAdminSesion(req, datos);
+  let modulos = [];
+  if (esAdmin) {
+    modulos = MODULOS_VEA.slice();
+  } else if (datos.email) {
+    try { modulos = await modulosDeCorreo(datos.email); } catch (_) { modulos = []; }
+  }
   return res.status(200).json({
     autenticado: true,
     email: datos.email || '',
@@ -68,6 +78,8 @@ module.exports = async function handler(req, res) {
     debe_cambiar: Boolean(datos.dc),
     admEmail: admEmail,
     adm: adm,
+    es_admin: esAdmin,
+    modulos: modulos,
     puede_importar: puedeImportar
   });
 };

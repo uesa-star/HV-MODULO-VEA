@@ -12,7 +12,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { sesionActiva } = require('../lib/control');
+  const { sesionActiva, esAdminSesion, leerPermisosModulos, TABLAS_POR_MODULO } = require('../lib/control');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   const sesionOk = await sesionActiva(req);
   if (!sesionOk.ok) {
@@ -33,6 +33,26 @@ module.exports = async function handler(req, res) {
   const allowed = new Set(['edas', 'iras', 'febriles', 'individual', 'soat', 'vih', 'tbc']);
   const table = String(req.query.table || '').toLowerCase();
   if (!allowed.has(table)) return res.status(400).json({ error: 'Tabla no permitida' });
+
+  /* Permisos por módulo: el bloqueo es de SERVIDOR, no del menú.
+     El ADM ve todo; el resto solo descarga las tablas de sus módulos. */
+  const admin = await esAdminSesion(req, sesionOk.datos);
+  if (!admin) {
+    const mapa = await leerPermisosModulos();
+    const correo = String((sesionOk.datos && sesionOk.datos.email) || '').trim().toLowerCase();
+    const modulos = (mapa && mapa[correo]) || [];
+    const permitidas = new Set();
+    modulos.forEach(function (m) {
+      (TABLAS_POR_MODULO[m] || []).forEach(function (t) { permitidas.add(t); });
+    });
+    if (!permitidas.has(table)) {
+      return res.status(403).json({
+        error: 'Acceso no autorizado a esta información.',
+        modulo: table,
+        modulos: modulos
+      });
+    }
+  }
 
   const rawOffset = Number.parseInt(String(req.query.offset || '0'), 10);
   const rawLimit = Number.parseInt(String(req.query.limit || '300'), 10);
