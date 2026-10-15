@@ -7,7 +7,7 @@
  * El latido nunca requiere privilegios: cada sesión solo marca la suya.
  */
 const { sesion, sesionAdm } = require('../../lib/session');
-const { admActivo, marcarPresencia } = require('../../lib/control');
+const { admActivo, marcarPresencia, sesionActiva } = require('../../lib/control');
 const { asegurarTablas } = require('../../lib/tablas');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
@@ -41,6 +41,12 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST') {
     const s = sesion(req);
     const a = sesionAdm(req);
+    // Revalida la cuenta: si fue desactivada o su clave se restableció, el
+    // latido responde 401 y el cliente sale al login de inmediato.
+    if (s && s.sid) {
+      const activa = await sesionActiva(req);
+      if (!activa.ok) return res.status(401).json({ error: activa.error || 'Sesión no válida' });
+    }
     const sids = [];
     if (s && s.sid) sids.push(s.sid);
     if (a && a.sid) sids.push(a.sid);

@@ -42,7 +42,7 @@ const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
 const { admActivo, leerConfig, guardarConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro,
-        leerPermisosModulos, guardarPermisosModulos, limpiarModulos } = require('../../lib/control');
+        leerPermisosModulos, guardarPermisosModulos, limpiarModulos, marcarSalidaPorEmail } = require('../../lib/control');
 const { rateLimit, rateLimitRespuesta } = require('../../lib/ratelimit');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
@@ -988,7 +988,7 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
   // Estado anterior: si la activamos desde el panel, avisamos al usuario.
   let g;
   try {
-    g = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,activo&limit=1`, {
+    g = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}&select=nombre,activo,sesion_v&limit=1`, {
       headers: claves,
       cache: 'no-store'
     });
@@ -1000,12 +1000,17 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
     return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
   }
 
+  // Al desactivar se revoca la sesión vigente (sube sesion_v): la cookie deja
+  // de valer y el usuario queda fuera de inmediato en su siguiente petición.
+  const cambios = { activo: activo };
+  if (!activo) cambios.sesion_v = (Number(antes.sesion_v) || 0) + 1;
+
   let r;
   try {
     r = await fetch(`${SUPABASE_URL}/rest/v1/vea_usuarios?usuario=eq.${encodeURIComponent(email)}`, {
       method: 'PATCH',
       headers: { ...claves, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ activo: activo }),
+      body: JSON.stringify(cambios),
       cache: 'no-store'
     });
   } catch (_) {
@@ -1024,6 +1029,11 @@ async function cambiarEstadoUsuario(req, res, cuerpo, claves, intento) {
   const filas = await r.json().catch(() => []);
   if (!Array.isArray(filas) || !filas.length) {
     return res.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+  }
+
+  // Al desactivar, sus sesiones abiertas se cierran: desaparece de «Conectados».
+  if (!activo) {
+    try { await marcarSalidaPorEmail(email); } catch (_) { /* no bloquea */ }
   }
 
   const adm = await admActivo(req);
