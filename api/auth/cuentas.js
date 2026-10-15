@@ -43,6 +43,7 @@ const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
 const { admActivo, leerConfig, guardarConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro,
         leerPermisosModulos, guardarPermisosModulos, limpiarModulos } = require('../../lib/control');
+const { rateLimit, rateLimitRespuesta } = require('../../lib/ratelimit');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a los 10 min
@@ -441,6 +442,9 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   const clave = String(cuerpo.clave || '');
   if (!usuario || !clave) return res.status(400).json({ error: 'Escriba su correo y su contraseña.' });
 
+  // Rate limiting por IP: máx. 20 intentos cada 15 minutos
+  if (!rateLimit(ipDe(req), 20)) return rateLimitRespuesta(res);
+
   // Anti fuerza bruta: bloquea tras 10 intentos fallidos en 15 minutos.
   try {
     const corte = new Date(Date.now() - MINUTOS_BLOQUEO * 60000).toISOString();
@@ -635,6 +639,8 @@ async function enviarCodigoUsuario(req, res, cuerpo, claves, intento) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Correo inválido.' });
   }
+  // Rate limiting por IP: máx. 10 envíos cada 15 minutos
+  if (!rateLimit(ipDe(req), 10)) return rateLimitRespuesta(res);
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     return res.status(503).json({ error: 'El servicio de correo aún no está configurado en el servidor.' });
   }

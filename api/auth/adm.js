@@ -30,6 +30,7 @@ const {
   clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion, marcarSalida,
   FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes, textoSeguro, sesionActiva
 } = require('../../lib/control');
+const { rateLimit, rateLimitRespuesta } = require('../../lib/ratelimit');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 const LLAVES_CFG = [
@@ -323,6 +324,9 @@ module.exports = async function handler(req, res) {
   if (accion === 'restaurar') return restaurarAdmClave(req, res, cuerpo);
   if (accion === 'enviarCodigo') return enviarCodigoAdm(req, res);
   if (accion === 'restaurarConCodigo') return restaurarConCodigoAdm(req, res, cuerpo);
+
+  // Rate limiting por IP en login ADM: máx. 15 intentos cada 15 minutos
+  if (!rateLimit(ipDe(req), 15)) return rateLimitRespuesta(res);
 
   const usuario = String(cuerpo.usuario || '');
   const clave = String(cuerpo.clave || '');

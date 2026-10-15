@@ -50,8 +50,10 @@ alter table public.vea_usuarios enable row level security;
 revoke all on public.vea_usuarios from anon, authenticated;
 grant select, insert, update, delete on public.vea_usuarios to service_role;
 
--- Registro de accesos: permitir limpiar filas de prueba desde la API (service key)
-grant update, delete on public.vea_login_log to service_role;
+-- Registro de accesos: RLS activo + solo service_role
+alter table public.vea_login_log enable row level security;
+revoke all on public.vea_login_log from anon, authenticated;
+grant select, insert, update, delete on public.vea_login_log to service_role;
 
 -- VEA — Configuración (clave/valor): contraseña y correo propios del administrador.
 create table if not exists public.vea_config (

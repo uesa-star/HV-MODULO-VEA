@@ -1,15 +1,16 @@
 /**
  * VEA — Cierre de sesión.
- * GET /api/auth/logout → borra la cookie de sesión VEA.
- * GET /api/auth/logout?adm=1 → borra también la sesión ADM.
+ * POST /api/auth/logout → borra la cookie de sesión VEA.
+ * POST /api/auth/logout?adm=1 → borra también la sesión ADM.
+ * Solo acepta POST (protección CSRF: un enlace o imagen no puede cerrar sesión).
  * Registra la hora de salida en vea_login_log (permanencia).
  */
 const { cookie, sesion, sesionAdm } = require('../../lib/session');
 const { marcarSalida } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    res.setHeader('Allow', 'GET, POST');
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 

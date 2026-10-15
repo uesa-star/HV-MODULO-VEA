@@ -89,9 +89,10 @@ await check('Cabeceras de seguridad en /', async () => {
   return 'todas presentes';
 });
 
-await check('Llave pública NO lee tablas de vigilancia', async () => {
+await check('Llave pública NO lee tablas de vigilancia ni internas', async () => {
   const faltan = [];
-  for (const t of ['edas', 'iras', 'febriles', 'individual', 'soat', 'tbc', 'vih']) {
+  for (const t of ['edas', 'iras', 'febriles', 'individual', 'soat', 'tbc', 'vih',
+                    'vea_login_log', 'vea_usuarios', 'vea_config', 'vea_boletines']) {
     const r = await fetch(`${SUPA}/rest/v1/${t}?select=*&limit=1`, {
       headers: { apikey: PUB, Authorization: `Bearer ${PUB}` }
     });
@@ -140,6 +141,12 @@ await check('GET /api/alerts (legacy → vea-data) sin sesión → 401', async (
   const { r, texto } = await pedir(`${BASE}/api/alerts`);
   espera(r.status === 401, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
   return '401';
+});
+
+await check('GET /api/auth/logout rechaza GET (solo POST, anti-CSRF)', async () => {
+  const { r, texto } = await pedir(`${BASE}/api/auth/logout`);
+  espera(r.status === 405, `devolvió ${r.status}: ${texto.slice(0, 120)}`);
+  return '405 (solo POST)';
 });
 
 await check('GET /api/boletines público solo expone metadatos', async () => {

@@ -35,6 +35,7 @@
  *
  * Solo el ADM publicó explícitamente: el listado nunca expone HTML/PDF/correos.
  */
+const crypto = require('crypto');
 const { admActivo, clavesSupabase, errorTabla, leerConfig, guardarConfig, textoSeguro } = require('../lib/control');
 const { enviarCorreo } = require('../lib/correo');
 const { asegurarTablas } = require('../lib/tablas');
@@ -483,7 +484,12 @@ async function atenderAuto(req, res) {
   const secreto = String(process.env.CRON_SECRET || '').trim();
   const auth = String((req.headers && req.headers.authorization) || '');
   if (!secreto) return res.status(503).json({ error: 'CRON_SECRET no configurado en Vercel.' });
-  if (auth !== 'Bearer ' + secreto) return res.status(401).json({ error: 'Cron no autorizado' });
+  // Comparación timing-safe
+  const esperado = Buffer.from('Bearer ' + secreto);
+  const recibido = Buffer.from(auth);
+  if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
+    return res.status(401).json({ error: 'Cron no autorizado' });
+  }
 
   const lectura = await leerConfig([CLAVE_AUTO, CLAVE_CORREO, CLAVE_CORREO_CC, CLAVE_ENVIO_N]);
   if (lectura.error && !lectura.cfg) return res.status(502).json({ error: lectura.error });

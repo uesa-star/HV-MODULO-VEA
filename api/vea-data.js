@@ -85,8 +85,15 @@ module.exports = async function handler(req, res) {
     });
     const body = await upstream.text();
     res.setHeader('Cache-Control', 'no-store, max-age=0');
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
-    return res.status(upstream.status).send(body);
+    // Solo devolver el cuerpo crudo en éxito (2xx); en errores, respuesta genérica
+    // para no filtrar detalles internos de Postgres/PostgREST.
+    if (upstream.ok) {
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
+      return res.status(upstream.status).send(body);
+    }
+    console.error('[vea-data] upstream', upstream.status, body.slice(0, 200));
+    return res.status(upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502)
+      .json({ error: 'No se pudo consultar la tabla solicitada' });
   } catch (err) {
     console.error('[vea-data] error:', String(err?.message || err));
     return res.status(502).json({ error: 'No se pudo consultar la base de datos' });

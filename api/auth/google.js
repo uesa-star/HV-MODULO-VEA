@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const host = req.headers.host || 'vigilancia-epidemiologica-ecru.vercel.app';
+  const host = process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app';
   const redirectUri = `https://${host}/api/auth/callback`;
   const state = crypto.randomBytes(24).toString('base64url');
 
