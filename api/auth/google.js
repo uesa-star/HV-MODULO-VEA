@@ -1,6 +1,9 @@
 /**
- * VEA — Inicio del login con Google ("Continuar con Google").
- * GET /api/auth/google → { url } (redirección a la pantalla de Google)
+ * VEA — Autenticación con Google.
+ * GET /api/auth/google                 → redirige a la pantalla de Google.
+ * GET /api/auth/config                 → { google, adm, secret } (rewrite a
+ *   ?recurso=config). Se fusionó aquí para no superar el límite de 12
+ *   Serverless Functions del plan Hobby de Vercel.
  * Requiere GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en Vercel.
  */
 const crypto = require('crypto');
@@ -10,6 +13,16 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  // Config de acceso (antes api/auth/config.js).
+  if (String(req.query.recurso || '') === 'config') {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    return res.status(200).json({
+      google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+      adm: Boolean(process.env.VEA_ADM_USER && process.env.VEA_ADM_PASS),
+      secret: Boolean(process.env.VEA_AUTH_SECRET)
+    });
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
