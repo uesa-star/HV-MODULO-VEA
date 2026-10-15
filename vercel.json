@@ -6,6 +6,10 @@
     { "source": "/boletines/", "destination": "/boletines.html" },
     { "source": "/boletines/([0-9]+)", "destination": "/api/boletines?i=$1" },
     { "source": "/api/auth/config", "destination": "/api/auth/google?recurso=config" },
+    { "source": "/api/auth/me", "destination": "/api/auth/sesion?recurso=me" },
+    { "source": "/api/auth/logout", "destination": "/api/auth/sesion?recurso=logout" },
+    { "source": "/api/auth/log", "destination": "/api/auth/sesion?recurso=log" },
+    { "source": "/api/auth/presencia", "destination": "/api/auth/sesion?recurso=presencia" },
     { "source": "/api/alerts", "destination": "/api/vea-data?ruta=alerts" },
     { "source": "/api/vea-boletin", "destination": "/api/boletines" }
   ],
