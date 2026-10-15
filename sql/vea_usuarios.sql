@@ -18,7 +18,7 @@ create table if not exists public.vea_usuarios (
   profesion text not null default '',            -- para aprobación del ADM
   institucion text not null default '',          -- para aprobación del ADM
   sesion_v integer not null default 0,           -- versión de sesión: cambiar/restablecer clave la invalida
-  clave_vence timestamptz,                       -- vencimiento de la contraseña (90 días)
+  clave_vence timestamptz,                       -- vencimiento de la contraseña (180 días / 6 meses)
   cod_hash text not null default '',             -- hash scrypt del código de recuperación
   cod_exp bigint not null default 0,             -- vencimiento (epoch ms) del código
   cod_fallos smallint not null default 0,        -- intentos fallidos con el código

@@ -49,7 +49,7 @@ const COD_EXPIRA_MS = 10 * 60 * 1000;   // el código de recuperación vence a l
 const COD_INTENTOS = 5;                 // intentos fallidos antes de destruir el código
 const COD_REENVIO_MS = 60 * 1000;       // 1 envío como mínimo por minuto
 const COD_ENVIOS_MAX = 3;               // máx. 3 envíos por correo cada 15 min
-const DIAS_CLAVE = 90;                  // la contraseña vence a los 90 días
+const DIAS_CLAVE = 180;                 // la contraseña vence a los 6 meses
 const AVISO_CLAVE_DIAS = 7;             // avisar 7 días antes del vencimiento
 const PROFESIONES_VALIDAS = new Set([
   'Médico', 'Enfermería', 'Obstetricia', 'Odontología', 'Psicología',
@@ -526,17 +526,21 @@ async function ingresar(req, res, cuerpo, claves, intento) {
     sesion_id: sidIng
   });
 
-  const debeCambiar = fila.debe_cambiar === true;
+  let debeCambiar = fila.debe_cambiar === true;
+  let avisoClave = null;
+  if (fila.clave_vence) {
+    const dias = Math.ceil((new Date(fila.clave_vence).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+    if (dias <= 0) {
+      debeCambiar = true;
+      avisoClave = 'Su contraseña venció. Debe cambiarla para ingresar.';
+    } else if (dias <= AVISO_CLAVE_DIAS) {
+      avisoClave = 'Su contraseña vence en ' + dias + ' día(s). Cámbiela desde «Mi contraseña».';
+    }
+  }
   const datosToken = { email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng, sv: Number(fila.sesion_v) || 0 };
   if (debeCambiar) datosToken.dc = 1;
   const token = firmar(datosToken, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
-  let avisoClave = null;
-  if (fila.clave_vence) {
-    const dias = Math.ceil((new Date(fila.clave_vence).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-    if (dias <= 0) avisoClave = 'Su contraseña venció. Cámbiela desde «Mi contraseña».';
-    else if (dias <= AVISO_CLAVE_DIAS) avisoClave = 'Su contraseña vence en ' + dias + ' día(s). Cámbiela desde «Mi contraseña».';
-  }
   return res.status(200).json({ ok: true, debe_cambiar: debeCambiar, aviso_clave: avisoClave });
 }
 
