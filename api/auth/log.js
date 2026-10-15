@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
     );
 
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/vea_login_log?select=creado_en,email,nombre,proveedor,ip,exito,user_agent,sesion_id,salida,ultimo_visto,pais,pais_iso,vpn,isp&order=creado_en.desc&limit=200`,
+      `${SUPABASE_URL}/rest/v1/vea_login_log?select=creado_en,email,nombre,proveedor,ip,exito,user_agent,sesion_id,salida,ultimo_visto,estado,pais,pais_iso,vpn,isp&order=creado_en.desc&limit=200`,
       { headers: cabeceras(service), cache: 'no-store' }
     );
     const texto = await r.text();
