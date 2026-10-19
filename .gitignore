@@ -4,6 +4,16 @@
 __pycache__/
 *.pyc
 
-# Respaldos de BD: contienen datos personales, jamás al repositorio
+# Respaldos de BD: contienen datos personales, jamï¿½s al repositorio
 backups/
 respaldo/
+
+# Archivos de trabajo/previews locales (nunca versionar)
+preview-*.html
+_test_*.html
+_probe*.html
+_ejemplo_*
+lib/vendor/
+VISTA_*.png
+EJEMPLO_LAMINA_*.png
+SALA_SITUACIONAL.pdf
