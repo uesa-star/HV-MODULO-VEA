@@ -4,8 +4,12 @@
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
  */
-const ALLOWED_TABLES = new Set(['edas', 'iras', 'febriles', 'individual']);
+const ALLOWED_TABLES = new Set(['edas', 'iras', 'febriles', 'individual', 'soat', 'vih', 'tbc']);
 const MAX_ROWS = 5000;
+// Clave primaria de todas las tablas VEA en Supabase. Se usa como destino de
+// conflicto por defecto para que la carga sea idempotente (UPSERT) y no vuelva
+// a fallar con "duplicate key value violates unique constraint "<tabla>_pkey"".
+const CLAVE_CONFLICTO_VEA = '_row_id';
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -58,7 +62,10 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Nombre de columna inválido en el lote' });
   }
 
-  const conflictTarget = String(body.conflictTarget || '').trim();
+  // Por defecto se hace UPSERT sobre la clave primaria; así reenviar un lote ya
+  // cargado actualiza en lugar de romper con "<tabla>_pkey". El llamador puede
+  // sobreescribirlo con body.conflictTarget (p. ej. una clave natural propia).
+  const conflictTarget = String(body.conflictTarget || CLAVE_CONFLICTO_VEA).trim();
   const params = new URLSearchParams({ select: '*' });
 
   if (conflictTarget) {
