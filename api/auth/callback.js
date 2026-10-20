@@ -5,7 +5,7 @@
  * acceso en vea_login_log y crea la cookie de sesión firmada.
  */
 const { firmar, leerCookie, cookie, ipDe, userAgentDe, nuevoSid } = require('../../lib/session');
-const { correoGooglePermitido, DOMINIO_GOOGLE } = require('../../lib/control');
+const { correoGooglePermitido, DOMINIO_GOOGLE, leerEpochSesion } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -117,6 +117,7 @@ module.exports = async function handler(req, res) {
       sesion_id: sid
     });
 
+    const epoch = await leerEpochSesion();
     const sesion = firmar(
       {
         sub: String(perfil.sub || ''),
@@ -124,7 +125,8 @@ module.exports = async function handler(req, res) {
         nombre: String(perfil.name || perfil.email).slice(0, 200),
         foto: String(perfil.picture || '').slice(0, 400),
         proveedor: 'google',
-        sid: sid
+        sid: sid,
+        gv: epoch === null ? 0 : epoch
       },
       12
     );

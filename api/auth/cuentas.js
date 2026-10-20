@@ -42,7 +42,8 @@ const { hashearClave, verificarClave, claveFalsa } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const { asegurarTablas } = require('../../lib/tablas');
 const { admActivo, leerConfig, guardarConfig, FALLOS_USUARIO, MINUTOS_BLOQUEO, textoSeguro,
-        leerPermisosModulos, guardarPermisosModulos, limpiarModulos, marcarSalidaPorEmail } = require('../../lib/control');
+        leerPermisosModulos, guardarPermisosModulos, limpiarModulos, marcarSalidaPorEmail,
+        leerEpochSesion } = require('../../lib/control');
 const { rateLimit, rateLimitRespuesta } = require('../../lib/ratelimit');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
@@ -543,6 +544,8 @@ async function ingresar(req, res, cuerpo, claves, intento) {
   }
   const datosToken = { email: usuario, nombre: fila.nombre || usuario, proveedor: 'registro', sid: sidIng, sv: Number(fila.sesion_v) || 0 };
   if (debeCambiar) datosToken.dc = 1;
+  const epochIng = await leerEpochSesion();
+  datosToken.gv = epochIng === null ? 0 : epochIng;
   const token = firmar(datosToken, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true, debe_cambiar: debeCambiar, aviso_clave: avisoClave });
@@ -626,7 +629,8 @@ async function cambiarClavePropia(req, res, cuerpo, claves, intento) {
     exito: true
   });
 
-  const token = firmar({ email: usuario, nombre: datos.nombre || usuario, proveedor: 'registro', sid: datos.sid, sv: nuevaSv }, 12);
+  const epochClave = await leerEpochSesion();
+  const token = firmar({ email: usuario, nombre: datos.nombre || usuario, proveedor: 'registro', sid: datos.sid, sv: nuevaSv, gv: epochClave === null ? 0 : epochClave }, 12);
   res.setHeader('Set-Cookie', cookie(NOMBRE_SESION, token, 12));
   return res.status(200).json({ ok: true });
 }

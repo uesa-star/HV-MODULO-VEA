@@ -28,7 +28,7 @@ const { hashearClave, verificarClave } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const {
   clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion, marcarSalida,
-  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes, textoSeguro, sesionActiva
+  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes, textoSeguro, sesionActiva, leerEpochSesion
 } = require('../../lib/control');
 const { rateLimit, rateLimitRespuesta } = require('../../lib/ratelimit');
 
@@ -390,12 +390,14 @@ module.exports = async function handler(req, res) {
     sesion_id: sid
   });
 
+  const epochAdm = await leerEpochSesion();
   const token = firmar({
     email: `adm:${usuarioEsperado}`,
     nombre: 'Administrador',
     proveedor: 'adm',
     v: cfg.adm_ses || '',            // versión de sesión (C)
-    sid: sid                         // id de sesión (permanencia en el log)
+    sid: sid,                        // id de sesión (permanencia en el log)
+    gv: epochAdm === null ? 0 : epochAdm  // kill-switch global
   }, 8);
   res.setHeader('Set-Cookie', cookie(NOMBRE_ADM, token, 8));
   res.setHeader('Cache-Control', 'no-store');

@@ -1,0 +1,28 @@
+# VEA — Archivos que NUNCA deben publicarse en Vercel (evita fuga de informacion:
+# scripts internos, SQL, configuracion de CI, documentacion de seguridad, tests).
+# El modulo real vive en node_modules/modulo-vea (incluido por "includeFiles" en
+# vercel.json) y se sirve SOLO por /api/app con sesion valida.
+
+# Carpetas internas
+.github/
+scripts/
+sql/
+supabase/
+backups/
+respaldo/
+
+# Documentacion y notas internas
+*.md
+
+# Restos de pruebas y previsualizaciones
+_test_*.html
+_probe*.html
+preview-*.html
+BOLETIN_VEA_PREVIEW.html
+REVISION_BOLETIN_V17.html
+MOCKUP_*
+
+# Artefactos
+__pycache__/
+*.pyc
+requirements-sync.txt
