@@ -28,7 +28,8 @@ const { hashearClave, verificarClave } = require('../../lib/clave');
 const { enviarCorreo } = require('../../lib/correo');
 const {
   clavesSupabase, leerConfig, guardarConfig, admActivo, tokenSesion, marcarSalida,
-  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes, textoSeguro, sesionActiva, leerEpochSesion
+  FALLOS_ADM, MINUTOS_BLOQUEO, minutosRestantes, textoSeguro, sesionActiva, leerEpochSesion,
+  CLAVE_EPOCH_SESION, CLAVE_EPOCH_USUARIOS, epochUsuario, marcarSalidaPorEmail
 } = require('../../lib/control');
 const { rateLimit, rateLimitRespuesta } = require('../../lib/ratelimit');
 
@@ -289,6 +290,102 @@ async function restaurarConCodigoAdm(req, res, cuerpo) {
   return res.status(200).json({ ok: true });
 }
 
+/**
+ * «Desconectar a todos»: sube el epoch de sesión (sesion_global_v) en
+ * public.vea_config. Toda cookie de usuario firmada antes deja de valer al
+ * instante (Google y registro). La sesión del propio ADM se re-emite con el
+ * epoch nuevo para que NO se caiga al pulsar el botón.
+ * Requiere sesión ADM activa (no sirven las credenciales del login).
+ */
+async function desconectarTodosAdm(req, res) {
+  const adm = await admActivo(req);
+  if (!adm) return res.status(401).json({ error: 'Requiere sesión de administrador.' });
+
+  const lectura = await leerConfig([CLAVE_EPOCH_SESION]);
+  if (!lectura || lectura.error || !lectura.cfg) {
+    return res.status(502).json({ error: 'No se pudo leer la configuración. Intente nuevamente.' });
+  }
+  const actual = Number.parseInt(String(lectura.cfg[CLAVE_EPOCH_SESION] || '0').trim(), 10);
+  const nuevo = (Number.isFinite(actual) && actual >= 0 ? actual : 0) + 1;
+
+  if (!(await guardarConfig({ [CLAVE_EPOCH_SESION]: String(nuevo) }))) {
+    return res.status(500).json({ error: 'No se pudo desconectar a los usuarios. Intente nuevamente.' });
+  }
+
+  await registrarAcceso({
+    email: String(adm.email || 'adm:desconocido'),
+    nombre: 'Desconectó a todos los usuarios conectados',
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  // Re-emite la cookie del ADM con el epoch nuevo (no debe caerse él mismo).
+  const token = firmar({
+    email: adm.email,
+    nombre: adm.nombre || 'Administrador',
+    proveedor: 'adm',
+    v: adm.v || '',
+    sid: adm.sid,
+    gv: nuevo
+  }, 8);
+  res.setHeader('Set-Cookie', cookie(NOMBRE_ADM, token, 8));
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ ok: true, epoch: nuevo });
+}
+
+/**
+ * «Desconectar a este usuario»: sube el epoch del correo en
+ * public.vea_config (`sesion_usuarios_v`) y cierra su presencia. La cookie del
+ * usuario deja de valer al instante aunque esté usando el módulo ahora mismo
+ * (Google o registro por igual) y tendrá que volver a ingresar. La sesión del
+ * ADM no se afecta.
+ */
+async function desconectarUsuarioAdm(req, res, cuerpo) {
+  const adm = await admActivo(req);
+  if (!adm) return res.status(401).json({ error: 'Requiere sesión de administrador.' });
+
+  const email = String(cuerpo.email || '').trim().toLowerCase().slice(0, 200);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return res.status(400).json({ error: 'Correo no válido.' });
+  }
+
+  const lectura = await leerConfig([CLAVE_EPOCH_USUARIOS]);
+  if (!lectura || lectura.error || !lectura.cfg) {
+    return res.status(502).json({ error: 'No se pudo leer la configuración. Intente nuevamente.' });
+  }
+  let mapa = {};
+  try {
+    const crudo = lectura.cfg[CLAVE_EPOCH_USUARIOS];
+    const parseado = crudo ? JSON.parse(crudo) : {};
+    if (parseado && typeof parseado === 'object' && !Array.isArray(parseado)) mapa = parseado;
+  } catch (_) {
+    mapa = {};
+  }
+  const nuevo = epochUsuario(mapa, email) + 1;
+  mapa[email] = nuevo;
+
+  if (!(await guardarConfig({ [CLAVE_EPOCH_USUARIOS]: JSON.stringify(mapa) }))) {
+    return res.status(500).json({ error: 'No se pudo desconectar a ese usuario. Intente nuevamente.' });
+  }
+
+  // Cierra su presencia para que «Quién está conectado» lo refleje enseguida.
+  try { await marcarSalidaPorEmail(email); } catch (_) {}
+
+  await registrarAcceso({
+    email: String(adm.email || 'adm:desconocido'),
+    nombre: 'Desconectó a ' + email,
+    proveedor: 'adm',
+    ip: ipDe(req),
+    user_agent: userAgentDe(req),
+    exito: true
+  });
+
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ ok: true, email: email, epoch: nuevo });
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'DELETE') {
     const sa = sesionAdm(req);
@@ -320,6 +417,8 @@ module.exports = async function handler(req, res) {
   }
 
   const accion = String(cuerpo.accion || '');
+  if (accion === 'desconectarTodos') return desconectarTodosAdm(req, res);
+  if (accion === 'desconectarUsuario') return desconectarUsuarioAdm(req, res, cuerpo);
   if (accion === 'cambiar') return cambiarClaveAdm(req, res, cuerpo);
   if (accion === 'restaurar') return restaurarAdmClave(req, res, cuerpo);
   if (accion === 'enviarCodigo') return enviarCodigoAdm(req, res);
