@@ -10,6 +10,7 @@ const path = require('path');
 const { sesionActiva, esAdminSesion, leerPermisosModulos } = require('../lib/control');
 
 let htmlCache = null;
+let semillaCache = null;
 
 function cargarHtml() {
   if (htmlCache) return htmlCache;
@@ -17,6 +18,20 @@ function cargarHtml() {
   htmlCache = fs.readFileSync(ruta, 'utf8');
   return htmlCache;
 }
+
+/**
+ * Semilla IASS (1.344 casos agregados). Antes viajaba incrustada en el HTML
+ * (~318 KB en cada carga). Ahora se sirve aparte en /api/app?recurso=semilla-iass
+ * con la misma revalidación de sesión y permiso del módulo.
+ */
+function cargarSemillaIass() {
+  if (semillaCache) return semillaCache;
+  const ruta = path.join(process.cwd(), 'node_modules', 'modulo-vea', 'vea-seed-iass.json');
+  semillaCache = fs.readFileSync(ruta, 'utf8');
+  return semillaCache;
+}
+
+const SEMILLA_VACIA = '{"registros":[]}';
 
 /**
  * IASS viaja como semilla incrustada en el HTML (no por /api/vea-data), así que
@@ -44,14 +59,25 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    let html = cargarHtml();
     const admin = await esAdminSesion(req, sesionOk.datos);
+    let modulos = [];
     if (!admin) {
       const mapa = await leerPermisosModulos();
       const correo = String((sesionOk.datos && sesionOk.datos.email) || '').trim().toLowerCase();
-      const modulos = (mapa && mapa[correo]) || [];
-      if (modulos.indexOf('iass') < 0) html = sinSemillaIass(html);
+      modulos = (mapa && mapa[correo]) || [];
     }
+
+    if (String((req.query && req.query.recurso) || '') === 'semilla-iass') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      if (!admin && modulos.indexOf('iass') < 0) return res.status(200).send(SEMILLA_VACIA);
+      try { return res.status(200).send(cargarSemillaIass()); }
+      catch (_) { return res.status(200).send(SEMILLA_VACIA); }
+    }
+
+    let html = cargarHtml();
+    if (!admin && modulos.indexOf('iass') < 0) html = sinSemillaIass(html);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
