@@ -7,16 +7,28 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { sesionActiva, esAdminSesion, leerPermisosModulos } = require('../lib/control');
 
 let htmlCache = null;
 let semillaCache = null;
+let buildCache = null;
 
 function cargarHtml() {
   if (htmlCache) return htmlCache;
   const ruta = path.join(process.cwd(), 'node_modules', 'modulo-vea', 'index.html');
   htmlCache = fs.readFileSync(ruta, 'utf8');
   return htmlCache;
+}
+
+function huellaBuild(html) {
+  if (!buildCache) buildCache = crypto.createHash('md5').update(html, 'utf8').digest('hex').slice(0, 10);
+  return buildCache;
+}
+
+function conMarcaBuild(html) {
+  if (html.indexOf('name="vea-build"') >= 0) return html;
+  return html.replace('</head>', '<meta name="vea-build" content="' + huellaBuild(html) + '">\n</head>');
 }
 
 /**
@@ -80,6 +92,8 @@ module.exports = async function handler(req, res) {
     if (!admin && modulos.indexOf('iass') < 0) html = sinSemillaIass(html);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('X-Vea-Build', huellaBuild(cargarHtml()));
+    html = conMarcaBuild(html);
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     return res.status(200).send(html);
   } catch (err) {
