@@ -48,7 +48,21 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const host = process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app';
+  // Evita que un deployment Preview envíe el flujo OAuth a producción.
+  // Google solo debe regresar al host configurado explícitamente para OAuth.
+  const host = String(process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app')
+    .replace(/^https?:\\/\\//i, '')
+    .replace(/\\/.*$/, '')
+    .trim()
+    .toLowerCase();
+  const requestHost = String(req.headers.host || '').split(':')[0].trim().toLowerCase();
+  if (!host || !requestHost || requestHost !== host) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({
+      error: 'OAuth administrativo deshabilitado en esta vista previa',
+      detalle: 'Para probar Google en Preview, configure un VEA_BASE_URL autorizado en Google OAuth.'
+    });
+  }
   const redirectUri = `https://${host}/api/auth/callback`;
   const state = crypto.randomBytes(24).toString('base64url');
 
