@@ -8,6 +8,7 @@
  */
 const crypto = require('crypto');
 const { cookie } = require('../../lib/session');
+const { leerConfig } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -23,6 +24,18 @@ module.exports = async function handler(req, res) {
       adm: Boolean(process.env.VEA_ADM_USER && process.env.VEA_ADM_PASS),
       secret: Boolean(process.env.VEA_AUTH_SECRET)
     });
+  }
+
+  if (String(req.query.admin || '') !== '1') {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(403).json({ error: 'Acceso administrativo requerido' });
+  }
+
+  const lecturaAdmin = await leerConfig(['adm_email']);
+  const correoAdmin = String((lecturaAdmin && lecturaAdmin.cfg && lecturaAdmin.cfg.adm_email) || '').trim().toLowerCase();
+  if (!correoAdmin || lecturaAdmin.error) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({ error: 'No se pudo verificar la cuenta administradora' });
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;

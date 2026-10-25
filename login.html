@@ -257,9 +257,9 @@
       <p class="enlaces">¿Ya recordó su contraseña? <a id="lnkVolverLogin">Inicie sesión</a></p>
     </form>
 
-    <div class="divider">o</div>
+    <div class="divider" id="googleDivider" style="display:none">Acceso administrativo</div>
 
-    <a id="btnGoogle" class="btn" href="#" aria-disabled="true">
+    <a id="btnGoogle" class="btn" href="#" aria-disabled="true" style="display:none">
       <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -293,7 +293,8 @@
     dominio: 'Esa cuenta Google no es institucional. Ingrese con su cuenta @hospitaldeventanilla.gob.pe o use su correo y contraseña.',
     config: 'El acceso no está configurado en el servidor. Contacte al administrador.',
     interno: 'Error interno durante el ingreso. Intente nuevamente.',
-    access_denied: 'Autorización cancelada.'
+    access_denied: 'Autorización cancelada.',
+    admin_google: 'El acceso con Google está reservado a la cuenta administradora autorizada.'
   };
   var codigo = params.get('e');
   if (codigo) {
@@ -303,31 +304,42 @@
   }
 
   var btn = document.getElementById('btnGoogle');
+  var dividerGoogle = document.getElementById('googleDivider');
   var verificando = document.getElementById('verificando');
   var aviso = document.getElementById('avisoConfig');
+  var accesoAdmin = params.get('admin') === '1';
+
+  // La pantalla normal no muestra Google. La ruta administrativa solo presenta
+  // el botón; la autorización real se exige en api/auth/callback.js.
+  if (accesoAdmin) {
+    btn.style.display = 'flex';
+    dividerGoogle.style.display = 'flex';
+    verificando.style.display = 'block';
+  }
 
   fetch('/api/auth/config', { cache: 'no-store' })
     .then(function (r) { return r.json(); })
     .then(function (cfg) {
       verificando.style.display = 'none';
-      if (cfg && cfg.google && cfg.secret) {
-        btn.setAttribute('href', '/api/auth/google');
+      if (accesoAdmin && cfg && cfg.google && cfg.secret) {
+        btn.setAttribute('href', '/api/auth/google?admin=1');
         btn.removeAttribute('aria-disabled');
-      } else {
-        aviso.textContent = 'El ingreso con Google aún no está configurado en el servidor. ' +
-          'Puede usar el correo y la contraseña si ya tiene cuenta.';
+      } else if (accesoAdmin) {
+        aviso.textContent = 'El ingreso administrativo con Google no está configurado. Contacte al administrador del sistema.';
         aviso.style.display = 'block';
         btn.setAttribute('aria-disabled', 'true');
       }
     })
     .catch(function () {
       verificando.style.display = 'none';
-      aviso.textContent = 'No se pudo verificar la configuración del acceso. Intente recargar la página.';
-      aviso.style.display = 'block';
+      if (accesoAdmin) {
+        aviso.textContent = 'No se pudo verificar la configuración del acceso. Intente recargar la página.';
+        aviso.style.display = 'block';
+      }
     });
 
   btn.addEventListener('click', function (ev) {
-    if (btn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
+    if (!accesoAdmin || btn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
   });
 
   /* ===== Ingreso y registro con correo/contraseña ===== */
