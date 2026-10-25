@@ -51,8 +51,9 @@ module.exports = async function handler(req, res) {
   // Evita que un deployment Preview envíe el flujo OAuth a producción.
   // Google solo debe regresar al host configurado explícitamente para OAuth.
   const host = String(process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app')
-    .replace(/^https?:\\/\\//i, '')
-    .replace(/\\/.*$/, '')
+    .replace('https://', '')
+    .replace('http://', '')
+    .split('/')[0]
     .trim()
     .toLowerCase();
   const requestHost = String(req.headers.host || '').split(':')[0].trim().toLowerCase();
