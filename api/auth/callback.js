@@ -63,7 +63,12 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const host = process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app';
+    const host = String(process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app')
+      .replace('https://', '')
+      .replace('http://', '')
+      .split('/')[0]
+      .trim()
+      .toLowerCase();
     const intercambio = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
