@@ -7,13 +7,41 @@
  * Requiere GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en Vercel.
  */
 const crypto = require('crypto');
-const { cookie, leerCookie, verificar } = require('../../lib/session');
+const { cookie, leerCookie, verificar, firmar } = require('../../lib/session');
 const { leerConfig } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  // Validación de clave administrativa dentro de esta función para respetar
+  // el límite de funciones serverless del plan Hobby.
+  if (String(req.query.recurso || '') === 'admin-unlock') {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return res.status(405).json({ error: 'Método no permitido.' });
+    }
+    const esperada = String(process.env.VEA_ADMIN_ACCESS_KEY || '');
+    const secreto = String(process.env.VEA_AUTH_SECRET || '');
+    if (!esperada || !secreto) {
+      return res.status(503).json({ error: 'El acceso administrativo no está configurado en el servidor.' });
+    }
+    const recibida = String((req.body && req.body.clave) || '');
+    const a = Buffer.from(esperada, 'utf8');
+    const b = Buffer.from(recibida, 'utf8');
+    const valida = a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!valida) return res.status(401).json({ error: 'La clave administrativa no es válida.' });
+    try {
+      const permiso = firmar({ tipo: 'vea_admin_google_unlock' }, 1 / 6);
+      res.setHeader('Set-Cookie', cookie('vea_admin_unlock', permiso, 1 / 6));
+      return res.status(200).json({ ok: true });
+    } catch (_) {
+      return res.status(503).json({ error: 'No se pudo habilitar el acceso administrativo.' });
+    }
   }
 
   // Config de acceso (antes api/auth/config.js).
