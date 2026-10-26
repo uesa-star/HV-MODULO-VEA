@@ -257,7 +257,15 @@
       <p class="enlaces">¿Ya recordó su contraseña? <a id="lnkVolverLogin">Inicie sesión</a></p>
     </form>
 
-    <div class="divider" id="googleDivider" style="display:none">Acceso administrativo</div>
+    <div class="enlaces" style="margin-top:1.2rem"><a href="#" id="lnkAccesoAdmin" aria-expanded="false">Acceso administrativo</a></div>
+    <form id="formAccesoAdmin" class="formulario" autocomplete="off" style="margin-top:.6rem">
+      <label class="campo"><span>Clave administrativa</span>
+        <input id="claveAdmin" type="password" autocomplete="off" placeholder="Ingrese su clave administrativa" required>
+      </label>
+      <button type="submit" id="btnValidarAdmin" class="btnPrimario">Validar acceso</button>
+      <p class="enlaces" style="font-size:.72rem">La clave se valida en el servidor.</p>
+    </form>
+    <div class="divider" id="googleDivider" style="display:none">Acceso administrativo autorizado</div>
 
     <a id="btnGoogle" class="btn" href="#" aria-disabled="true" style="display:none">
       <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
@@ -307,39 +315,57 @@
   var dividerGoogle = document.getElementById('googleDivider');
   var verificando = document.getElementById('verificando');
   var aviso = document.getElementById('avisoConfig');
-  var accesoAdmin = params.get('admin') === '1';
+  var formAccesoAdmin = document.getElementById('formAccesoAdmin');
+  var lnkAccesoAdmin = document.getElementById('lnkAccesoAdmin');
+  var btnValidarAdmin = document.getElementById('btnValidarAdmin');
 
-  // La pantalla normal no muestra Google. La ruta administrativa solo presenta
-  // el botón; la autorización real se exige en api/auth/callback.js.
-  if (accesoAdmin) {
-    btn.style.display = 'flex';
-    dividerGoogle.style.display = 'flex';
-    verificando.style.display = 'block';
-  }
+  lnkAccesoAdmin.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    var abrir = !formAccesoAdmin.classList.contains('activo');
+    formAccesoAdmin.classList.toggle('activo', abrir);
+    lnkAccesoAdmin.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (abrir) document.getElementById('claveAdmin').focus();
+  });
 
-  fetch('/api/auth/config', { cache: 'no-store' })
-    .then(function (r) { return r.json(); })
-    .then(function (cfg) {
-      verificando.style.display = 'none';
-      if (accesoAdmin && cfg && cfg.google && cfg.secret) {
-        btn.setAttribute('href', '/api/auth/google?admin=1');
-        btn.removeAttribute('aria-disabled');
-      } else if (accesoAdmin) {
-        aviso.textContent = 'El ingreso administrativo con Google no está configurado. Contacte al administrador del sistema.';
-        aviso.style.display = 'block';
-        btn.setAttribute('aria-disabled', 'true');
-      }
-    })
-    .catch(function () {
-      verificando.style.display = 'none';
-      if (accesoAdmin) {
-        aviso.textContent = 'No se pudo verificar la configuración del acceso. Intente recargar la página.';
-        aviso.style.display = 'block';
-      }
+  formAccesoAdmin.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var clave = document.getElementById('claveAdmin').value;
+    if (!clave) return;
+    btnValidarAdmin.disabled = true;
+    btnValidarAdmin.textContent = 'Verificando…';
+    aviso.style.display = 'none';
+    fetch('/api/auth/admin-unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ clave: clave })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || 'No se pudo validar la clave administrativa.');
+        return j;
+      });
+    }).then(function () {
+      document.getElementById('claveAdmin').value = '';
+      formAccesoAdmin.classList.remove('activo');
+      lnkAccesoAdmin.setAttribute('aria-expanded', 'false');
+      dividerGoogle.style.display = 'flex';
+      btn.style.display = 'flex';
+      btn.setAttribute('href', '/api/auth/google?admin=1');
+      btn.removeAttribute('aria-disabled');
+      aviso.textContent = 'Acceso administrativo validado. Puede continuar con la cuenta Google autorizada.';
+      aviso.style.display = 'block';
+    }).catch(function (e) {
+      document.getElementById('claveAdmin').value = '';
+      aviso.textContent = e.message || 'No se pudo validar la clave administrativa.';
+      aviso.style.display = 'block';
+    }).finally(function () {
+      btnValidarAdmin.disabled = false;
+      btnValidarAdmin.textContent = 'Validar acceso';
     });
+  });
 
   btn.addEventListener('click', function (ev) {
-    if (!accesoAdmin || btn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
+    if (btn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
   });
 
   /* ===== Ingreso y registro con correo/contraseña ===== */
