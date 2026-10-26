@@ -8,6 +8,7 @@
  */
 const crypto = require('crypto');
 const { cookie } = require('../../lib/session');
+const { leerConfig } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -25,6 +26,18 @@ module.exports = async function handler(req, res) {
     });
   }
 
+  if (String(req.query.admin || '') !== '1') {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(403).json({ error: 'Acceso administrativo requerido' });
+  }
+
+  const lecturaAdmin = await leerConfig(['adm_email']);
+  const correoAdmin = String((lecturaAdmin && lecturaAdmin.cfg && lecturaAdmin.cfg.adm_email) || '').trim().toLowerCase();
+  if (!correoAdmin || lecturaAdmin.error) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({ error: 'No se pudo verificar la cuenta administradora' });
+  }
+
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret || !process.env.VEA_AUTH_SECRET) {
@@ -35,7 +48,22 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const host = process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app';
+  // Evita que un deployment Preview envíe el flujo OAuth a producción.
+  // Google solo debe regresar al host configurado explícitamente para OAuth.
+  const host = String(process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app')
+    .replace('https://', '')
+    .replace('http://', '')
+    .split('/')[0]
+    .trim()
+    .toLowerCase();
+  const requestHost = String(req.headers.host || '').split(':')[0].trim().toLowerCase();
+  if (!host || !requestHost || requestHost !== host) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({
+      error: 'OAuth administrativo deshabilitado en esta vista previa',
+      detalle: 'Para probar Google en Preview, configure un VEA_BASE_URL autorizado en Google OAuth.'
+    });
+  }
   const redirectUri = `https://${host}/api/auth/callback`;
   const state = crypto.randomBytes(24).toString('base64url');
 

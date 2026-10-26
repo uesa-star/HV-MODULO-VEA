@@ -5,7 +5,7 @@
  * acceso en vea_login_log y crea la cookie de sesión firmada.
  */
 const { firmar, leerCookie, cookie, ipDe, userAgentDe, nuevoSid } = require('../../lib/session');
-const { correoGooglePermitido, DOMINIO_GOOGLE, epochParaUsuario } = require('../../lib/control');
+const { correoGooglePermitido, DOMINIO_GOOGLE, epochParaUsuario, leerConfig } = require('../../lib/control');
 
 const SUPABASE_URL = 'https://qtsfkoasfoaovadilwgk.supabase.co';
 
@@ -63,7 +63,12 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const host = process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app';
+    const host = String(process.env.VEA_BASE_URL || 'vigilancia-epidemiologica-ecru.vercel.app')
+      .replace('https://', '')
+      .replace('http://', '')
+      .split('/')[0]
+      .trim()
+      .toLowerCase();
     const intercambio = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -92,6 +97,21 @@ module.exports = async function handler(req, res) {
 
     if (!perfil.email || perfil.email_verified !== true) {
       return redirigir(res, '/login.html?e=verificado');
+    }
+
+    const configAdmin = await leerConfig(['adm_email']);
+    const correoAdmin = String((configAdmin && configAdmin.cfg && configAdmin.cfg.adm_email) || '').trim().toLowerCase();
+    const correoVerificado = String(perfil.email || '').trim().toLowerCase();
+    if (configAdmin.error || !correoAdmin || correoVerificado !== correoAdmin) {
+      await registrarAcceso({
+        email: correoVerificado,
+        nombre: 'Google rechazado: no es la cuenta administradora',
+        proveedor: 'google',
+        ip: ipDe(req),
+        user_agent: userAgentDe(req),
+        exito: false
+      });
+      return redirigir(res, '/login.html?e=admin_google');
     }
 
     if (!correoGooglePermitido(perfil.email)) {
