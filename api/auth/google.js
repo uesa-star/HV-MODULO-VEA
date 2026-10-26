@@ -7,7 +7,7 @@
  * Requiere GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en Vercel.
  */
 const crypto = require('crypto');
-const { cookie } = require('../../lib/session');
+const { cookie, leerCookie, verificar } = require('../../lib/session');
 const { leerConfig } = require('../../lib/control');
 
 module.exports = async function handler(req, res) {
@@ -29,6 +29,14 @@ module.exports = async function handler(req, res) {
   if (String(req.query.admin || '') !== '1') {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(403).json({ error: 'Acceso administrativo requerido' });
+  }
+
+  // El parámetro admin=1 no concede acceso por sí solo: exige el permiso
+  // temporal firmado tras validar la clave administrativa en el servidor.
+  const permisoAdmin = verificar(leerCookie(req, 'vea_admin_unlock'));
+  if (!permisoAdmin || permisoAdmin.tipo !== 'vea_admin_google_unlock') {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(403).json({ error: 'Primero valide la clave en Acceso administrativo' });
   }
 
   const lecturaAdmin = await leerConfig(['adm_email']);
