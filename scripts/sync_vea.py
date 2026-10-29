@@ -423,6 +423,49 @@ def aplicar_ano_epidemiologico(rows: list[dict[str, Any]], table: str) -> list[d
     return rows
 
 
+def corregir_ano_tbc(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Recupera el año canónico TBC cuando AÑO contiene un valor marcador (p. ej. 1900).
+
+    Conserva el año de AÑO cuando es válido. Solo para años vacíos, no numéricos
+    o anteriores a 2000 usa ano_dx y, como respaldo, ano_fis. Evita que un caso
+    actual quede fuera de los filtros 2022–2026 sin cambiar los años válidos.
+    """
+    corregidas = 0
+    sin_respaldo = 0
+    for row in rows:
+        try:
+            actual = int(float(str(row.get("ano", "")).strip()))
+        except (TypeError, ValueError):
+            actual = None
+
+        if actual is not None and 2000 <= actual <= 2100:
+            continue
+
+        reemplazo = None
+        for campo in ("ano_dx", "ano_fis"):
+            try:
+                candidato = int(float(str(row.get(campo, "")).strip()))
+            except (TypeError, ValueError):
+                continue
+            if 2000 <= candidato <= 2100:
+                reemplazo = candidato
+                break
+
+        if reemplazo is None:
+            sin_respaldo += 1
+            continue
+
+        row["ano"] = reemplazo
+        corregidas += 1
+
+    if corregidas or sin_respaldo:
+        print(
+            f"tbc: {corregidas} año(s) canónico(s) recuperado(s) desde ano_dx/ano_fis; "
+            f"{sin_respaldo} fila(s) sin año de respaldo válido."
+        )
+    return rows
+
+
 def filtrar_filas_header_ano(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Descarta filas cabecera duplicadas como datos (ano='ANO', semana='SEMANA'...)."""
     limpias: list[dict[str, Any]] = []
@@ -496,6 +539,11 @@ def main() -> int:
         # EDAS e IRAS contienen ANO y AÑO EPI; el módulo debe agrupar por
         # año epidemiológico. Los demás módulos conservan su regla temporal.
         parsed[table] = aplicar_ano_epidemiologico(parsed[table], table)
+        # TBC: AÑO contiene un valor marcador 1900 en un registro con diagnóstico
+        # 2026; recuperar solo años inválidos desde ano_dx/ano_fis, sin sobrescribir
+        # los años válidos del campo AÑO.
+        if table == "tbc":
+            parsed[table] = corregir_ano_tbc(parsed[table])
         antes = len(parsed[table])
         parsed[table] = filtrar_filas_header_ano(parsed[table])
         descartadas = antes - len(parsed[table])
