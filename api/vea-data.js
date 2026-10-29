@@ -89,6 +89,24 @@ module.exports = async function handler(req, res) {
     // para no filtrar detalles internos de Postgres/PostgREST.
     if (upstream.ok) {
       res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
+      // EDAS, IRAS y FEBRILES son registros agregados de la fuente oficial.
+      // Sus filas idénticas pueden ser observaciones legítimas y el cliente antiguo
+      // deduplica por contenido. Añadimos un ordinal estable por página para conservar
+      // cada fila de origen al graficar, sin exponer _row_id ni _imported_at.
+      if (['edas', 'iras', 'febriles'].includes(table)) {
+        try {
+          const filas = JSON.parse(body);
+          if (Array.isArray(filas)) {
+            const preservadas = filas.map((fila, indice) => ({
+              ...fila,
+              __vea_source_row: offset + indice
+            }));
+            return res.status(upstream.status).json(preservadas);
+          }
+        } catch (_) {
+          // Si la respuesta no es JSON válido, conserva el comportamiento crudo.
+        }
+      }
       return res.status(upstream.status).send(body);
     }
     console.error('[vea-data] upstream', upstream.status, body.slice(0, 200));
