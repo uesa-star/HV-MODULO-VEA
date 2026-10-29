@@ -72,9 +72,17 @@ def main():
         raise RuntimeError("Google Drive no devolvió modifiedTime.")
 
     row = leer_control()
-    if row is not None and row.get("source_modified_time") == modified and row.get("last_status") == "success":
+    force_sync = os.environ.get("VEA_FORCE_SYNC", "").strip().lower() in {"1", "true", "yes"}
+    if (
+        not force_sync
+        and row is not None
+        and row.get("source_modified_time") == modified
+        and row.get("last_status") == "success"
+    ):
         print(f"VEA_SYNC_SKIP: sin cambios en Google Drive desde {modified}.")
         return 0
+    if force_sync:
+        print("VEA_SYNC_FORCE: ejecución solicitada por cambio de lógica o despacho manual.")
 
     print(f"VEA_SYNC_CHANGE: Drive modificado {modified}; ejecutando sincronización completa.")
     from sync_vea import main as sync_main
