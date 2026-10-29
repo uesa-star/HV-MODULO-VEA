@@ -379,6 +379,50 @@ def completar_ingreso_febriles(rows: list[dict[str, Any]]) -> list[dict[str, Any
     return rows
 
 
+def aplicar_ano_epidemiologico(rows: list[dict[str, Any]], table: str) -> list[dict[str, Any]]:
+    """Usa AÑO EPI como campo canónico ano en EDAS e IRAS.
+
+    El Master contiene ambas columnas: ANO (año de registro) y AÑO EPI
+    (año epidemiológico). Los gráficos y filtros del módulo usan el campo
+    canónico 'ano'; mantenerlo con ANO desplazaba las semanas epidemiológicas
+    53 entre años calendario y producía diferencias en los comparativos.
+    Se conserva 'ano_epi' en el registro cuando la tabla destino admite esa
+    columna; aquí solo se define el valor canónico usado por los gráficos.
+    """
+    if table not in {"edas", "iras"}:
+        return rows
+
+    modificadas = 0
+    sin_ano_epi = 0
+    for row in rows:
+        valor = row.get("ano_epi")
+        if valor is None or str(valor).strip() == "":
+            sin_ano_epi += 1
+            continue
+        try:
+            anio_epi = int(float(str(valor).strip()))
+        except (TypeError, ValueError):
+            sin_ano_epi += 1
+            continue
+        if not 1900 <= anio_epi <= 2100:
+            sin_ano_epi += 1
+            continue
+        try:
+            anio_actual = int(float(str(row.get("ano", "")).strip()))
+        except (TypeError, ValueError):
+            anio_actual = None
+        if anio_actual != anio_epi:
+            modificadas += 1
+        row["ano"] = anio_epi
+
+    print(
+        f"{table}: año epidemiológico aplicado a {len(rows) - sin_ano_epi} "
+        f"filas; {modificadas} fila(s) cambiaron respecto a ANO; "
+        f"{sin_ano_epi} fila(s) sin AÑO EPI válido conservan ANO."
+    )
+    return rows
+
+
 def filtrar_filas_header_ano(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Descarta filas cabecera duplicadas como datos (ano='ANO', semana='SEMANA'...)."""
     limpias: list[dict[str, Any]] = []
@@ -449,6 +493,9 @@ def main() -> int:
             os.unlink(temp_path)
 
     for table in list(parsed):
+        # EDAS e IRAS contienen ANO y AÑO EPI; el módulo debe agrupar por
+        # año epidemiológico. Los demás módulos conservan su regla temporal.
+        parsed[table] = aplicar_ano_epidemiologico(parsed[table], table)
         antes = len(parsed[table])
         parsed[table] = filtrar_filas_header_ano(parsed[table])
         descartadas = antes - len(parsed[table])
