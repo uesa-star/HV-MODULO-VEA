@@ -65,9 +65,16 @@ if (USUARIO_SOAT) {
     };
     const res = {};
     for (const t of TABLAS) res[t] = await pedirCon(t);
-    const permitidos = Object.keys(res).filter(t => res[t] === 200);
-    espera(permitidos.length >= 1, `no leSirvió ninguna tabla: ${JSON.stringify(res)}`);
-    return JSON.stringify(res);
+    espera(res.soat === 200, `SOAT debía responder 200: ${JSON.stringify(res)}`);
+    const malAutorizadas = Object.keys(res).filter(t => t !== 'soat' && res[t] !== 403);
+    espera(!malAutorizadas.length, `se esperaba 403 fuera de SOAT: ${JSON.stringify(res)}`);
+
+    const iaas = await fetch(`${BASE}/api/app?recurso=semilla-iass`, { headers: cab, redirect: 'manual' });
+    espera(iaas.status === 200, `IASS devolvió ${iaas.status}`);
+    const semilla = await iaas.json();
+    espera(Array.isArray(semilla.registros) && semilla.registros.length === 0,
+      `usuario SOAT recibió datos IASS: ${semilla.registros?.length ?? 'respuesta inválida'}`);
+    return JSON.stringify({ tablas: res, iass: semilla.registros.length });
   });
 }
 
@@ -81,7 +88,13 @@ if (COOKIE_ADM) {
     }
     const bloqueadas = Object.keys(res).filter(t => res[t] !== 200);
     espera(!bloqueadas.length, `el ADM fue bloqueado en: ${bloqueadas.join(', ')}`);
-    return 'todas 200';
+
+    const iaas = await fetch(`${BASE}/api/app?recurso=semilla-iass`, { headers: cab, redirect: 'manual' });
+    espera(iaas.status === 200, `IASS ADM devolvió ${iaas.status}`);
+    const semilla = await iaas.json();
+    espera(Array.isArray(semilla.registros) && semilla.registros.length > 0,
+      'el ADM no recibió registros IASS');
+    return `todas 200; IASS=${semilla.registros.length}`;
   });
 }
 
