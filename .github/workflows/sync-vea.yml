@@ -46,6 +46,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_DRIVE_FILE_ID: "1TJaDJ5U7M3RZYgfAR6LI3kFTABBH0UYb"
+          # Forzar sincronización al publicar cambios de lógica o al ejecutar manualmente.
+          # El cron periódico sigue evitando reemplazos si el archivo maestro no cambió.
+          VEA_FORCE_SYNC: ${{ github.event_name != 'schedule' }}
         shell: bash
         run: |
           set -e
