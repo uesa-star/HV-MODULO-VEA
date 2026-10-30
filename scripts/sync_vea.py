@@ -380,16 +380,13 @@ def completar_ingreso_febriles(rows: list[dict[str, Any]]) -> list[dict[str, Any
 
 
 def aplicar_ano_epidemiologico(rows: list[dict[str, Any]], table: str) -> list[dict[str, Any]]:
-    """Usa AÑO EPI como campo canónico ano en EDAS e IRAS.
+    """Aplica AÑO EPI solo a EDAS; IRAS conserva ANO original.
 
-    El Master contiene ambas columnas: ANO (año de registro) y AÑO EPI
-    (año epidemiológico). Los gráficos y filtros del módulo usan el campo
-    canónico 'ano'; mantenerlo con ANO desplazaba las semanas epidemiológicas
-    53 entre años calendario y producía diferencias en los comparativos.
-    Se conserva 'ano_epi' en el registro cuando la tabla destino admite esa
-    columna; aquí solo se define el valor canónico usado por los gráficos.
+    En IRAS, el año canónico usado por los indicadores y por SOBA debe
+    coincidir con la columna ANO del Master. AÑO EPI permanece en ano_epi
+    para trazabilidad, pero no sustituye al año de registro.
     """
-    if table not in {"edas", "iras"}:
+    if table != "edas":
         return rows
 
     modificadas = 0
@@ -536,8 +533,9 @@ def main() -> int:
             os.unlink(temp_path)
 
     for table in list(parsed):
-        # EDAS e IRAS contienen ANO y AÑO EPI; el módulo debe agrupar por
-        # año epidemiológico. Los demás módulos conservan su regla temporal.
+        # EDAS conserva el criterio epidemiológico AÑO EPI.
+        # IRAS mantiene ANO original para los indicadores IRAS/SOBA; ano_epi
+        # se conserva aparte y no reemplaza el año canónico de esa tabla.
         parsed[table] = aplicar_ano_epidemiologico(parsed[table], table)
         # TBC: AÑO contiene un valor marcador 1900 en un registro con diagnóstico
         # 2026; recuperar solo años inválidos desde ano_dx/ano_fis, sin sobrescribir
